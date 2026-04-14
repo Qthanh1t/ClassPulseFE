@@ -5,6 +5,11 @@ import {
   CheckCircleOutlined, CloseCircleOutlined, MinusCircleOutlined,
   ArrowLeftOutlined, TrophyOutlined,
 } from '@ant-design/icons';
+import {
+  RadarChart, PolarGrid, PolarAngleAxis, Radar,
+  ResponsiveContainer, Tooltip as RechartTooltip,
+  BarChart, Bar, XAxis, YAxis, Cell,
+} from 'recharts';
 import { useNavigate } from 'react-router-dom';
 import { LIVE_SESSION } from '../../mock/sessions';
 import { STUDENTS } from '../../mock/students';
@@ -35,6 +40,12 @@ const CONFIDENCE_COLOR: Record<string, string> = {
   low: 'error',
 };
 
+const CONFIDENCE_HEX: Record<string, string> = {
+  high: '#52c41a',
+  medium: '#fa8c16',
+  low: '#ff4d4f',
+};
+
 export default function StudentReviewPage() {
   const navigate = useNavigate();
   const session = LIVE_SESSION;
@@ -52,17 +63,48 @@ export default function StudentReviewPage() {
   const score = correct.filter(({ question }) => question.type !== 'essay').length;
   const scorePercent = mcqQuestions.length > 0 ? Math.round((score / mcqQuestions.length) * 100) : 0;
 
+  // Chart data: per-question result with confidence
+  const questionChartData = myAnswers.map(({ question: q, answer }, idx) => {
+    const hasAnswer = answer && (answer.selectedOptions.length > 0 || (answer.essayText?.length ?? 0) > 0);
+    const isCorrectResult = hasAnswer && answer ? isAnswerCorrect(answer, q) : false;
+    const confLabel = answer?.confidence ? CONFIDENCE_LABEL[answer.confidence] : 'Không TL';
+    return {
+      name: `Câu ${idx + 1}`,
+      status: !hasAnswer ? 0 : isCorrectResult ? 2 : 1,
+      confidence: answer?.confidence ?? null,
+      confLabel,
+      isCorrect: isCorrectResult,
+      hasAnswer,
+    };
+  });
+
+  // Radar chart data: confidence vs accuracy per category
+  const radarData = [
+    {
+      subject: 'Tự tin cao',
+      answered: answered.filter(({ answer }) => answer?.confidence === 'high').length,
+      correct: correct.filter(({ answer }) => answer?.confidence === 'high').length,
+    },
+    {
+      subject: 'Tự tin TB',
+      answered: answered.filter(({ answer }) => answer?.confidence === 'medium').length,
+      correct: correct.filter(({ answer }) => answer?.confidence === 'medium').length,
+    },
+    {
+      subject: 'Tự tin thấp',
+      answered: answered.filter(({ answer }) => answer?.confidence === 'low').length,
+      correct: correct.filter(({ answer }) => answer?.confidence === 'low').length,
+    },
+  ];
+
   return (
-    <div className="p-6" style={{ maxWidth: 720, margin: '0 auto' }}>
-      {/* Header */}
-      <Button
-        icon={<ArrowLeftOutlined />}
-        onClick={() => navigate('/classes')}
-        style={{ marginBottom: 16 }}
-      >
+    <div className="p-6" style={{ maxWidth: 760, margin: '0 auto' }}>
+      {/* Back button */}
+      <Button icon={<ArrowLeftOutlined />} onClick={() => navigate('/classes')} style={{ marginBottom: 16 }}>
         Về trang chủ
       </Button>
 
+      {/* Student header */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 24 }}>
         <Avatar size={48} style={{ background: STUDENT.avatarColor }}>
           {STUDENT.name.charAt(0)}
@@ -88,20 +130,18 @@ export default function StudentReviewPage() {
       >
         <Row align="middle" gutter={16}>
           <Col>
-            <div style={{ position: 'relative', display: 'inline-block' }}>
-              <Progress
-                type="circle"
-                percent={scorePercent}
-                size={100}
-                strokeColor={scorePercent >= 70 ? '#52c41a' : scorePercent >= 40 ? '#fa8c16' : '#ff4d4f'}
-                format={() => (
-                  <div style={{ textAlign: 'center' }}>
-                    <div style={{ fontSize: 22, fontWeight: 700 }}>{score}/{mcqQuestions.length}</div>
-                    <div style={{ fontSize: 12, color: '#8c8c8c' }}>đúng</div>
-                  </div>
-                )}
-              />
-            </div>
+            <Progress
+              type="circle"
+              percent={scorePercent}
+              size={100}
+              strokeColor={scorePercent >= 70 ? '#52c41a' : scorePercent >= 40 ? '#fa8c16' : '#ff4d4f'}
+              format={() => (
+                <div style={{ textAlign: 'center' }}>
+                  <div style={{ fontSize: 22, fontWeight: 700 }}>{score}/{mcqQuestions.length}</div>
+                  <div style={{ fontSize: 12, color: '#8c8c8c' }}>đúng</div>
+                </div>
+              )}
+            />
           </Col>
           <Col flex={1}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 4 }}>
@@ -140,6 +180,75 @@ export default function StudentReviewPage() {
         </Row>
       </Card>
 
+      {/* Charts */}
+      <Row gutter={16} style={{ marginBottom: 24 }}>
+        {/* Bar chart: result per question */}
+        <Col xs={24} md={14}>
+          <Card style={{ borderRadius: 12 }} title="Kết quả theo câu hỏi">
+            <ResponsiveContainer width="100%" height={160}>
+              <BarChart data={questionChartData} margin={{ top: 4, right: 4, bottom: 0, left: -20 }}>
+                <XAxis dataKey="name" tick={{ fontSize: 11 }} />
+                <YAxis hide />
+                <RechartTooltip
+                  formatter={(_value: unknown, _name: unknown, props: { payload?: { confLabel?: string; isCorrect?: boolean; hasAnswer?: boolean } }) => {
+                    const p = props.payload;
+                    if (!p?.hasAnswer) return ['Không trả lời', ''];
+                    return [p.isCorrect ? 'Đúng' : 'Sai', `Tự tin: ${p.confLabel ?? '—'}`];
+                  }}
+                />
+                <Bar dataKey="status" radius={[4, 4, 0, 0]} maxBarSize={36}>
+                  {questionChartData.map((entry, index) => (
+                    <Cell
+                      key={`q-bar-${index}`}
+                      fill={!entry.hasAnswer ? '#d9d9d9' : entry.isCorrect ? '#52c41a' : '#ff4d4f'}
+                    />
+                  ))}
+                </Bar>
+              </BarChart>
+            </ResponsiveContainer>
+            <div style={{ display: 'flex', gap: 12, marginTop: 4, justifyContent: 'center' }}>
+              {[
+                { label: 'Đúng', color: '#52c41a' },
+                { label: 'Sai', color: '#ff4d4f' },
+                { label: 'Bỏ qua', color: '#d9d9d9' },
+              ].map(({ label, color }) => (
+                <div key={label} style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                  <div style={{ width: 10, height: 10, borderRadius: 2, background: color }} />
+                  <Text style={{ fontSize: 11, color: '#8c8c8c' }}>{label}</Text>
+                </div>
+              ))}
+            </div>
+          </Card>
+        </Col>
+
+        {/* Radar chart: confidence calibration */}
+        <Col xs={24} md={10}>
+          <Card style={{ borderRadius: 12, height: '100%' }} title="Độ tự tin & độ chính xác">
+            <ResponsiveContainer width="100%" height={160}>
+              <RadarChart data={radarData} margin={{ top: 8, right: 16, bottom: 0, left: 16 }}>
+                <PolarGrid />
+                <PolarAngleAxis dataKey="subject" tick={{ fontSize: 11 }} />
+                <Radar
+                  name="Trả lời"
+                  dataKey="answered"
+                  stroke="#1677ff"
+                  fill="#1677ff"
+                  fillOpacity={0.2}
+                />
+                <Radar
+                  name="Đúng"
+                  dataKey="correct"
+                  stroke="#52c41a"
+                  fill="#52c41a"
+                  fillOpacity={0.3}
+                />
+                <RechartTooltip />
+              </RadarChart>
+            </ResponsiveContainer>
+          </Card>
+        </Col>
+      </Row>
+
       {/* Per-question review */}
       <Title level={5} style={{ marginBottom: 16 }}>Chi tiết từng câu hỏi</Title>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
@@ -163,11 +272,7 @@ export default function StudentReviewPage() {
           return (
             <Card
               key={q.id}
-              style={{
-                borderRadius: 12,
-                background: statusColor,
-                border: `1px solid ${borderColor}`,
-              }}
+              style={{ borderRadius: 12, background: statusColor, border: `1px solid ${borderColor}` }}
             >
               <div style={{ display: 'flex', gap: 12, alignItems: 'flex-start' }}>
                 <div style={{ marginTop: 2 }}>{statusIcon}</div>
@@ -178,7 +283,13 @@ export default function StudentReviewPage() {
                       {q.type === 'single' ? 'Trắc nghiệm' : q.type === 'multiple' ? 'Nhiều đáp án' : 'Tự luận'}
                     </Tag>
                     {hasAnswer && answer?.confidence && (
-                      <Tag color={CONFIDENCE_COLOR[answer.confidence]} style={{ fontSize: 12 }}>
+                      <Tag
+                        color={CONFIDENCE_COLOR[answer.confidence]}
+                        style={{
+                          fontSize: 12,
+                          borderLeft: `3px solid ${CONFIDENCE_HEX[answer.confidence]}`,
+                        }}
+                      >
                         Tự tin: {CONFIDENCE_LABEL[answer.confidence]}
                       </Tag>
                     )}
@@ -190,7 +301,7 @@ export default function StudentReviewPage() {
                     style={{ fontSize: 14, marginBottom: 10, fontWeight: 500 }}
                   />
 
-                  {/* MCQ: show options with correct/wrong highlight */}
+                  {/* MCQ options */}
                   {q.options && (
                     <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
                       {q.options.map((opt) => {
@@ -214,7 +325,10 @@ export default function StudentReviewPage() {
                               fontSize: 13,
                             }}
                           >
-                            <Tag color={opt.isCorrect ? 'success' : wasSelected ? 'error' : 'default'} style={{ minWidth: 24, textAlign: 'center' }}>
+                            <Tag
+                              color={opt.isCorrect ? 'success' : wasSelected ? 'error' : 'default'}
+                              style={{ minWidth: 24, textAlign: 'center' }}
+                            >
                               {opt.label}
                             </Tag>
                             <Text style={{ fontSize: 13 }}>{opt.text}</Text>
@@ -226,7 +340,7 @@ export default function StudentReviewPage() {
                     </div>
                   )}
 
-                  {/* Essay: show student's text */}
+                  {/* Essay */}
                   {q.type === 'essay' && answer?.essayText && (
                     <Card
                       size="small"

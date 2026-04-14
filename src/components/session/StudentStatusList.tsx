@@ -8,10 +8,17 @@ interface Props {
   students: User[];
   answers: StudentAnswer[];
   silentStudentIds: string[];
+  raisedHandIds?: string[];
   currentQuestionId?: string;
 }
 
-export default function StudentStatusList({ students, answers, silentStudentIds, currentQuestionId }: Props) {
+export default function StudentStatusList({
+  students,
+  answers,
+  silentStudentIds,
+  raisedHandIds = [],
+  currentQuestionId,
+}: Props) {
   const getStatus = (studentId: string) => {
     if (!currentQuestionId) return 'idle';
     const answer = answers.find((a) => a.studentId === studentId);
@@ -26,10 +33,17 @@ export default function StudentStatusList({ students, answers, silentStudentIds,
     <div style={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
       <div style={{ padding: '12px 16px', borderBottom: '1px solid #f0f0f0' }}>
         <Text strong style={{ fontSize: 14 }}>Học sinh</Text>
-        {currentQuestionId && (
-          <div>
-            <Text type="secondary" style={{ fontSize: 12 }}>
-              {answeredCount}/{students.length} đã trả lời
+        <div>
+          <Text type="secondary" style={{ fontSize: 12 }}>
+            {currentQuestionId
+              ? `${answeredCount}/${students.length} đã trả lời`
+              : `${students.length} thành viên`}
+          </Text>
+        </div>
+        {raisedHandIds.length > 0 && (
+          <div style={{ marginTop: 2 }}>
+            <Text style={{ fontSize: 11, color: '#fa8c16' }}>
+              ✋ {raisedHandIds.length} đang giơ tay
             </Text>
           </div>
         )}
@@ -39,6 +53,7 @@ export default function StudentStatusList({ students, answers, silentStudentIds,
         {students.map((student) => {
           const status = getStatus(student.id);
           const isSilent = silentStudentIds.includes(student.id);
+          const hasRaisedHand = raisedHandIds.includes(student.id);
 
           return (
             <div
@@ -47,8 +62,13 @@ export default function StudentStatusList({ students, answers, silentStudentIds,
                 display: 'flex',
                 alignItems: 'center',
                 gap: 10,
-                padding: '8px 16px',
-                background: isSilent ? '#fff7e6' : 'transparent',
+                padding: '7px 16px',
+                background: hasRaisedHand
+                  ? '#fff7e6'
+                  : isSilent
+                    ? '#fff2f0'
+                    : 'transparent',
+                transition: 'background 0.2s',
               }}
             >
               <div style={{ position: 'relative' }}>
@@ -68,15 +88,22 @@ export default function StudentStatusList({ students, answers, silentStudentIds,
                   }}
                 />
               </div>
+
               <div style={{ flex: 1, minWidth: 0 }}>
                 <Text style={{ fontSize: 13, display: 'block' }} ellipsis>
                   {student.name}
                 </Text>
               </div>
+
               <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-                {isSilent && (
+                {hasRaisedHand && (
+                  <Tooltip title="Đang giơ tay">
+                    <span style={{ fontSize: 14 }}>✋</span>
+                  </Tooltip>
+                )}
+                {isSilent && !hasRaisedHand && (
                   <Tooltip title="Không tương tác">
-                    <WarningOutlined style={{ color: '#fa8c16', fontSize: 14 }} />
+                    <WarningOutlined style={{ color: '#ff4d4f', fontSize: 13 }} />
                   </Tooltip>
                 )}
                 {currentQuestionId && (
@@ -95,21 +122,29 @@ export default function StudentStatusList({ students, answers, silentStudentIds,
         })}
       </div>
 
-      {silentStudentIds.length > 0 && (
+      {(silentStudentIds.length > 0 || raisedHandIds.length > 0) && (
         <div
           style={{
-            padding: '10px 16px',
-            background: '#fff7e6',
-            borderTop: '1px solid #ffd591',
+            padding: '8px 16px',
+            borderTop: '1px solid #f0f0f0',
             display: 'flex',
-            alignItems: 'center',
-            gap: 6,
+            flexDirection: 'column',
+            gap: 4,
           }}
         >
-          <WarningOutlined style={{ color: '#fa8c16' }} />
-          <Text style={{ fontSize: 12, color: '#d46b08' }}>
-            {silentStudentIds.length} HS không tương tác
-          </Text>
+          {raisedHandIds.length > 0 && (
+            <Text style={{ fontSize: 12, color: '#fa8c16' }}>
+              ✋ {raisedHandIds.length} HS đang giơ tay
+            </Text>
+          )}
+          {silentStudentIds.length > 0 && (
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+              <WarningOutlined style={{ color: '#ff4d4f', fontSize: 12 }} />
+              <Text style={{ fontSize: 12, color: '#cf1322' }}>
+                {silentStudentIds.length} HS không tương tác
+              </Text>
+            </div>
+          )}
         </div>
       )}
     </div>

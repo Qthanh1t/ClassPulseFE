@@ -5,17 +5,32 @@ import {
 } from 'antd';
 import {
   CheckSquareOutlined, FormOutlined, UnorderedListOutlined,
-  BoldOutlined, ItalicOutlined, UnderlineOutlined, PlusOutlined, DeleteOutlined,
+  PlusOutlined, DeleteOutlined,
 } from '@ant-design/icons';
 import type { QuestionType } from '../../types';
+import RichTextEditor from './RichTextEditor';
 
 const { Text, Title } = Typography;
-const { TextArea } = Input;
 
 const TEMPLATES: { type: QuestionType; label: string; desc: string; icon: React.ReactNode }[] = [
-  { type: 'single', label: 'Trắc nghiệm (1 đáp án)', desc: 'Học sinh chọn 1 đáp án đúng', icon: <UnorderedListOutlined style={{ fontSize: 24, color: '#1677ff' }} /> },
-  { type: 'multiple', label: 'Trắc nghiệm (nhiều đáp án)', desc: 'Học sinh chọn tất cả đáp án đúng', icon: <CheckSquareOutlined style={{ fontSize: 24, color: '#52c41a' }} /> },
-  { type: 'essay', label: 'Câu hỏi tự luận', desc: 'Học sinh trả lời bằng văn bản tự do', icon: <FormOutlined style={{ fontSize: 24, color: '#722ed1' }} /> },
+  {
+    type: 'single',
+    label: 'Trắc nghiệm (1 đáp án)',
+    desc: 'Học sinh chọn 1 đáp án đúng',
+    icon: <UnorderedListOutlined style={{ fontSize: 24, color: '#1677ff' }} />,
+  },
+  {
+    type: 'multiple',
+    label: 'Trắc nghiệm (nhiều đáp án)',
+    desc: 'Học sinh chọn tất cả đáp án đúng',
+    icon: <CheckSquareOutlined style={{ fontSize: 24, color: '#52c41a' }} />,
+  },
+  {
+    type: 'essay',
+    label: 'Câu hỏi tự luận',
+    desc: 'Học sinh trả lời bằng văn bản tự do',
+    icon: <FormOutlined style={{ fontSize: 24, color: '#722ed1' }} />,
+  },
 ];
 
 interface Option {
@@ -45,6 +60,12 @@ export default function CreateQuestionModal({ open, onClose, onSubmit }: Props) 
     setStep(0);
     setSelectedType('single');
     setContent('');
+    setOptions([
+      { id: '1', text: '', isCorrect: false },
+      { id: '2', text: '', isCorrect: false },
+      { id: '3', text: '', isCorrect: false },
+      { id: '4', text: '', isCorrect: false },
+    ]);
     onClose();
   };
 
@@ -80,7 +101,8 @@ export default function CreateQuestionModal({ open, onClose, onSubmit }: Props) 
       open={open}
       onCancel={handleClose}
       footer={null}
-      width={620}
+      width={660}
+      styles={{ body: { maxHeight: '75vh', overflowY: 'auto' } }}
     >
       <Steps
         current={step}
@@ -88,7 +110,7 @@ export default function CreateQuestionModal({ open, onClose, onSubmit }: Props) 
         style={{ margin: '16px 0 24px' }}
         items={[
           { title: 'Chọn dạng câu hỏi' },
-          { title: 'Soạn câu hỏi' },
+          { title: 'Soạn nội dung' },
         ]}
       />
 
@@ -103,7 +125,7 @@ export default function CreateQuestionModal({ open, onClose, onSubmit }: Props) 
             onChange={(e) => setSelectedType(e.target.value as QuestionType)}
             style={{ width: '100%' }}
           >
-            <div className="flex flex-col gap-3">
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
               {TEMPLATES.map((t) => (
                 <Radio key={t.type} value={t.type} style={{ width: '100%', margin: 0 }}>
                   <Card
@@ -113,14 +135,17 @@ export default function CreateQuestionModal({ open, onClose, onSubmit }: Props) 
                       cursor: 'pointer',
                       border: selectedType === t.type ? '2px solid #1677ff' : '1px solid #d9d9d9',
                       background: selectedType === t.type ? '#e6f4ff' : '#fff',
+                      marginLeft: 8,
                     }}
-                    styles={{ body: { padding: '12px 16px' } }}
+                    styles={{ body: { padding: '10px 14px' } }}
                   >
-                    <div className="flex items-center gap-3">
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
                       {t.icon}
                       <div>
                         <Text strong>{t.label}</Text>
-                        <div><Text type="secondary" style={{ fontSize: 13 }}>{t.desc}</Text></div>
+                        <div>
+                          <Text type="secondary" style={{ fontSize: 13 }}>{t.desc}</Text>
+                        </div>
                       </div>
                     </div>
                   </Card>
@@ -129,7 +154,7 @@ export default function CreateQuestionModal({ open, onClose, onSubmit }: Props) 
             </div>
           </Radio.Group>
 
-          <div className="flex justify-end mt-4">
+          <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 16 }}>
             <Button type="primary" onClick={() => setStep(1)}>Tiếp theo →</Button>
           </div>
         </div>
@@ -138,38 +163,27 @@ export default function CreateQuestionModal({ open, onClose, onSubmit }: Props) 
       {/* Step 2: Write question */}
       {step === 1 && (
         <div>
-          {/* Mini toolbar */}
-          <div
-            style={{
-              display: 'flex',
-              gap: 4,
-              padding: '6px 10px',
-              background: '#fafafa',
-              border: '1px solid #d9d9d9',
-              borderBottom: 'none',
-              borderRadius: '8px 8px 0 0',
-            }}
-          >
-            {[BoldOutlined, ItalicOutlined, UnderlineOutlined].map((Icon, i) => (
-              <Button key={i} size="small" icon={<Icon />} type="text" />
-            ))}
+          {/* Question content editor */}
+          <div style={{ marginBottom: 16 }}>
+            <Text strong style={{ display: 'block', marginBottom: 6, fontSize: 13 }}>
+              Nội dung câu hỏi
+            </Text>
+            <RichTextEditor
+              key={`question-editor-${open}`}
+              onChange={setContent}
+              placeholder="Nhập nội dung câu hỏi tại đây..."
+              minHeight={100}
+              initialValue={content}
+            />
           </div>
-
-          <TextArea
-            placeholder="Nhập nội dung câu hỏi..."
-            value={content}
-            onChange={(e) => setContent(e.target.value)}
-            rows={3}
-            style={{ borderRadius: '0 0 8px 8px', resize: 'none' }}
-          />
 
           {/* Options (MCQ) */}
           {selectedType !== 'essay' && (
-            <div style={{ marginTop: 16 }}>
+            <div>
               <Divider>
                 <Text strong style={{ fontSize: 13 }}>Các lựa chọn</Text>
               </Divider>
-              <Space direction="vertical" style={{ width: '100%' }}>
+              <Space direction="vertical" style={{ width: '100%' }} size={8}>
                 {options.map((opt, idx) => (
                   <div key={opt.id} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                     {selectedType === 'single' ? (
@@ -178,12 +192,16 @@ export default function CreateQuestionModal({ open, onClose, onSubmit }: Props) 
                       <Checkbox checked={opt.isCorrect} onChange={() => toggleCorrect(opt.id)} />
                     )}
                     <Title level={5} style={{ margin: 0, minWidth: 20, color: '#1677ff' }}>
-                      {LABELS[idx] ?? idx + 1}
+                      {LABELS[idx] ?? String(idx + 1)}
                     </Title>
                     <Input
-                      placeholder={`Lựa chọn ${LABELS[idx] ?? idx + 1}`}
+                      placeholder={`Nội dung lựa chọn ${LABELS[idx] ?? String(idx + 1)}`}
                       value={opt.text}
-                      onChange={(e) => setOptions((prev) => prev.map((o) => o.id === opt.id ? { ...o, text: e.target.value } : o))}
+                      onChange={(e) =>
+                        setOptions((prev) =>
+                          prev.map((o) => (o.id === opt.id ? { ...o, text: e.target.value } : o)),
+                        )
+                      }
                       style={{ flex: 1 }}
                     />
                     {options.length > 2 && (
@@ -205,23 +223,31 @@ export default function CreateQuestionModal({ open, onClose, onSubmit }: Props) 
                   icon={<PlusOutlined />}
                   size="small"
                   onClick={addOption}
-                  style={{ marginTop: 8 }}
+                  style={{ marginTop: 10 }}
                 >
                   Thêm lựa chọn
                 </Button>
               )}
               <div style={{ marginTop: 8 }}>
                 <Text type="secondary" style={{ fontSize: 12 }}>
-                  {selectedType === 'single' ? '● Chọn radio để đánh dấu đáp án đúng' : '☑ Tick checkbox để đánh dấu các đáp án đúng'}
+                  {selectedType === 'single'
+                    ? '● Click radio để đánh dấu đáp án đúng'
+                    : '☑ Tick checkbox để đánh dấu các đáp án đúng'}
                 </Text>
               </div>
             </div>
           )}
 
-          <div className="flex justify-between mt-6">
+          <Divider style={{ margin: '16px 0 12px' }} />
+
+          <div style={{ display: 'flex', justifyContent: 'space-between' }}>
             <Button onClick={() => setStep(0)}>← Quay lại</Button>
-            <Button type="primary" onClick={handlePublish}>
-              Phát câu hỏi →
+            <Button
+              type="primary"
+              onClick={handlePublish}
+              disabled={!content.trim()}
+            >
+              🚀 Phát câu hỏi
             </Button>
           </div>
         </div>

@@ -1,11 +1,11 @@
 import { useState } from 'react';
 import {
   Button, Card, Col, Row, Typography, Tag, Modal, Form,
-  Input, Space, Avatar, Badge,
+  Input, Space, Avatar, Badge, Dropdown,
 } from 'antd';
 import {
   PlusOutlined, TeamOutlined, CalendarOutlined,
-  BookOutlined, PlayCircleOutlined,
+  BookOutlined, PlayCircleOutlined, UserOutlined, DownOutlined,
 } from '@ant-design/icons';
 import { useNavigate } from 'react-router-dom';
 import { CLASSROOMS } from '../../mock/classrooms';
@@ -94,17 +94,30 @@ export default function ClassListPage() {
                   <Avatar size={24} style={{ background: '#1677ff', fontSize: 12 }}>L</Avatar>
                   <Text style={{ fontSize: 13 }}>{cls.teacherName}</Text>
                 </div>
-                <Button
+                <Dropdown.Button
                   type="primary"
                   size="small"
-                  icon={<PlayCircleOutlined />}
+                  icon={<DownOutlined />}
                   onClick={(e) => {
                     e.stopPropagation();
                     navigate(`/session/teacher/${cls.id}`);
                   }}
+                  menu={{
+                    items: [
+                      {
+                        key: 'student',
+                        label: 'Vào học (học sinh)',
+                        icon: <UserOutlined />,
+                        onClick: ({ domEvent }) => {
+                          domEvent.stopPropagation();
+                          navigate(`/session/student/${cls.id}`);
+                        },
+                      },
+                    ],
+                  }}
                 >
-                  Bắt đầu
-                </Button>
+                  <PlayCircleOutlined /> Bắt đầu (GV)
+                </Dropdown.Button>
               </div>
             </Card>
           </Col>
