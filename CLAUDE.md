@@ -15,7 +15,7 @@ Mô hình "Closed Feedback Loop Classroom": giáo viên giảng → đặt câu 
 
 ### Core features
 1. **Classroom management** — tạo lớp, đăng bài, lịch học (tương tự Microsoft Teams)
-2. **Confidence-based Answering** — học sinh trả lời câu hỏi + chọn mức độ tự tin (Thấp/Trung bình/Cao); hỗ trợ template trắc nghiệm 1 đáp án, nhiều đáp án, tự luận; có trình soạn thảo cơ bản
+2. **Confidence-based Answering** — học sinh trả lời câu hỏi + chọn mức độ tự tin (Thấp/Trung bình/Cao); hỗ trợ template trắc nghiệm 1 đáp án, nhiều đáp án, tự luận; có trình soạn thảo rich text; hỗ trợ giới hạn thời gian tùy chọn, câu hỏi tự kết thúc khi hết giờ
 3. **Silent Student Detection** — phát hiện và lưu thông tin học sinh không trả lời câu hỏi
 4. **Dynamic Breakout Group** — chia phòng thảo luận nhóm trong buổi học
 5. **Micro Task** — giao nhiệm vụ cho từng nhóm; giáo viên vẫn có thể broadcast thông báo cho cả lớp khi đang trong breakout
@@ -42,7 +42,7 @@ Mô hình "Closed Feedback Loop Classroom": giáo viên giảng → đặt câu 
 - **Ant Design v6** + **@ant-design/icons** — primary UI component library
 - **react-router-dom v7** — routing
 - **TipTap v3** (`@tiptap/react`, `starter-kit`, `extension-underline`, `extension-text-align`) — rich text editor dùng trong `CreateQuestionModal`
-- **Recharts v3** — biểu đồ (BarChart, PieChart) dùng trong `TeacherDashboardPage`
+- **Recharts v3** — biểu đồ (BarChart, PieChart, RadarChart) dùng trong `TeacherDashboardPage` và `StudentReviewPage`
 
 ## Commands
 
@@ -82,10 +82,10 @@ src/
   components/
     layout/AppLayout.tsx      # Sidebar (240px) + Header + <Outlet />
     session/
-      StudentStatusList.tsx   # danh sách HS + badge đã/chưa trả lời
+      StudentStatusList.tsx   # danh sách thành viên + badge đã/chưa trả lời; hỗ trợ GV (tag "(GV)", không hiện badge trả lời); header đổi thành "Thành viên" khi có GV
       LiveQuestionStats.tsx   # thống kê realtime: progress, đúng/sai, confidence
       ConfidenceSelector.tsx  # 3 nút Thấp/Trung bình/Cao
-      CreateQuestionModal.tsx # modal 2 bước: chọn template → soạn thảo
+      CreateQuestionModal.tsx # modal 2 bước: chọn template → soạn thảo + cài đặt thời gian (Switch + preset 30s/1p/1.5p/2p/3p + custom); onSubmit(timerSeconds: number | null)
       BreakoutPanel.tsx       # panel nhóm + micro task + broadcast
       ChatPanel.tsx           # panel chat realtime; export MOCK_CHAT_MESSAGES, ChatMessage type, getNow()
       RichTextEditor.tsx      # rich text editor (TipTap): bold/italic/underline/strike/heading/list/align
@@ -116,6 +116,7 @@ Các tính năng khác trong trang:
 - **Chat panel** (`ChatPanel`): bật/tắt bằng nút chat ở bottom bar; dùng `MOCK_CHAT_MESSAGES` làm dữ liệu ban đầu
 - **End session modal**: confirm trước khi điều hướng → `/dashboard/:sessionId`
 - **Raised hand**: mock `raisedHandIds = ['s3', 's5']`, hiển thị ✋ trên thumbnail HS
+- **Question timer**: khi GV đặt thời gian, hiển thị circular progress (44px) đếm ngược cạnh nút "Kết thúc"; màu xanh→cam→đỏ theo % còn lại; tự chuyển state `ended` khi về 0; reset khi kết thúc thủ công hoặc chuyển câu tiếp
 
 ## StudentSessionPage — demo state
 
