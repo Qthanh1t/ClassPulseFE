@@ -1,4 +1,4 @@
-import { Avatar, Badge, Typography, Tooltip } from 'antd';
+import { Avatar, Badge, Tag, Typography, Tooltip } from 'antd';
 import { WarningOutlined } from '@ant-design/icons';
 import type { User, StudentAnswer } from '../../types';
 
@@ -19,6 +19,9 @@ export default function StudentStatusList({
   raisedHandIds = [],
   currentQuestionId,
 }: Props) {
+  const hasTeacher = students.some((s) => s.role === 'teacher');
+  const studentOnly = students.filter((s) => s.role !== 'teacher');
+
   const getStatus = (studentId: string) => {
     if (!currentQuestionId) return 'idle';
     const answer = answers.find((a) => a.studentId === studentId);
@@ -27,16 +30,16 @@ export default function StudentStatusList({
     return 'answered';
   };
 
-  const answeredCount = students.filter((s) => getStatus(s.id) === 'answered').length;
+  const answeredCount = studentOnly.filter((s) => getStatus(s.id) === 'answered').length;
 
   return (
     <div style={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
       <div style={{ padding: '12px 16px', borderBottom: '1px solid #f0f0f0' }}>
-        <Text strong style={{ fontSize: 14 }}>Học sinh</Text>
+        <Text strong style={{ fontSize: 14 }}>{hasTeacher ? 'Thành viên' : 'Học sinh'}</Text>
         <div>
           <Text type="secondary" style={{ fontSize: 12 }}>
             {currentQuestionId
-              ? `${answeredCount}/${students.length} đã trả lời`
+              ? `${answeredCount}/${studentOnly.length} đã trả lời`
               : `${students.length} thành viên`}
           </Text>
         </div>
@@ -51,9 +54,10 @@ export default function StudentStatusList({
 
       <div style={{ flex: 1, overflowY: 'auto', padding: '8px 0' }}>
         {students.map((student) => {
-          const status = getStatus(student.id);
-          const isSilent = silentStudentIds.includes(student.id);
-          const hasRaisedHand = raisedHandIds.includes(student.id);
+          const isTeacher = student.role === 'teacher';
+          const status = isTeacher ? 'idle' : getStatus(student.id);
+          const isSilent = !isTeacher && silentStudentIds.includes(student.id);
+          const hasRaisedHand = !isTeacher && raisedHandIds.includes(student.id);
 
           return (
             <div
@@ -93,30 +97,37 @@ export default function StudentStatusList({
                 <Text style={{ fontSize: 13, display: 'block' }} ellipsis>
                   {student.name}
                 </Text>
+                {isTeacher && (
+                  <Tag color="blue" style={{ fontSize: 10, padding: '0 4px', lineHeight: '16px', marginTop: 1 }}>
+                    GV
+                  </Tag>
+                )}
               </div>
 
-              <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-                {hasRaisedHand && (
-                  <Tooltip title="Đang giơ tay">
-                    <span style={{ fontSize: 14 }}>✋</span>
-                  </Tooltip>
-                )}
-                {isSilent && !hasRaisedHand && (
-                  <Tooltip title="Không tương tác">
-                    <WarningOutlined style={{ color: '#ff4d4f', fontSize: 13 }} />
-                  </Tooltip>
-                )}
-                {currentQuestionId && (
-                  <Badge
-                    status={status === 'answered' ? 'success' : 'default'}
-                    text={
-                      <Text style={{ fontSize: 11, color: status === 'answered' ? '#52c41a' : '#bfbfbf' }}>
-                        {status === 'answered' ? '✓' : '○'}
-                      </Text>
-                    }
-                  />
-                )}
-              </div>
+              {!isTeacher && (
+                <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                  {hasRaisedHand && (
+                    <Tooltip title="Đang giơ tay">
+                      <span style={{ fontSize: 14 }}>✋</span>
+                    </Tooltip>
+                  )}
+                  {isSilent && !hasRaisedHand && (
+                    <Tooltip title="Không tương tác">
+                      <WarningOutlined style={{ color: '#ff4d4f', fontSize: 13 }} />
+                    </Tooltip>
+                  )}
+                  {currentQuestionId && (
+                    <Badge
+                      status={status === 'answered' ? 'success' : 'default'}
+                      text={
+                        <Text style={{ fontSize: 11, color: status === 'answered' ? '#52c41a' : '#bfbfbf' }}>
+                          {status === 'answered' ? '✓' : '○'}
+                        </Text>
+                      }
+                    />
+                  )}
+                </div>
+              )}
             </div>
           );
         })}

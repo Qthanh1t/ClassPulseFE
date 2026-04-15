@@ -19,6 +19,7 @@ import LiveQuestionStats from '../../components/session/LiveQuestionStats';
 import CreateQuestionModal from '../../components/session/CreateQuestionModal';
 import BreakoutPanel from '../../components/session/BreakoutPanel';
 import ChatPanel, { MOCK_CHAT_MESSAGES } from '../../components/session/ChatPanel';
+import CtrlBtn from '../../components/session/CtrlBtn';
 import type { ChatMessage } from '../../components/session/ChatPanel';
 import type { Question } from '../../types';
 import heroImg from '../../assets/hero.png';
@@ -46,36 +47,6 @@ function getNow() {
   return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
 }
 
-// Reusable dark control button
-function CtrlBtn({
-  active, danger, onClick, title, icon, children,
-}: {
-  active?: boolean;
-  danger?: boolean;
-  onClick: () => void;
-  title: string;
-  icon?: React.ReactNode;
-  children?: React.ReactNode;
-}) {
-  return (
-    <Tooltip title={title}>
-      <Button
-        shape={children ? 'round' : 'circle'}
-        type={active ? 'primary' : 'default'}
-        danger={danger}
-        icon={icon}
-        onClick={onClick}
-        style={
-          !active && !danger
-            ? { background: 'rgba(255,255,255,0.15)', borderColor: 'transparent', color: '#fff' }
-            : {}
-        }
-      >
-        {children}
-      </Button>
-    </Tooltip>
-  );
-}
 
 export default function TeacherSessionPage() {
   const navigate = useNavigate();

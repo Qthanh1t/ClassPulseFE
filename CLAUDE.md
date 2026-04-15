@@ -23,7 +23,7 @@ Mô hình "Closed Feedback Loop Classroom": giáo viên giảng → đặt câu 
 7. **Teacher Dashboard** — thống kê kết quả theo từng câu hỏi + confidence, danh sách học sinh và kết quả
 8. **Student Session Review** — danh sách câu hỏi, số đúng/sai/không trả lời, mức tự tin đã chọn
 
-**Lưu ý quan trọng**: Tạo câu hỏi, trả lời, và thống kê đều xảy ra **trong cùng một buổi học online** (realtime). Khi chưa có câu hỏi đang chạy, màn hình giáo viên hiển thị vùng video/screen share của giáo viên.
+**Lưu ý quan trọng**: Tạo câu hỏi, trả lời, và thống kê đều xảy ra **trong cùng một buổi học online** (realtime). Khi chưa có câu hỏi đang chạy, màn hình giáo viên, học sinh hiển thị vùng video/screen share của giáo viên.
 
 ## System architecture
 
@@ -41,6 +41,8 @@ Mô hình "Closed Feedback Loop Classroom": giáo viên giảng → đặt câu 
 - **Tailwind CSS v4** (via `@tailwindcss/vite` — no `tailwind.config.js` needed)
 - **Ant Design v6** + **@ant-design/icons** — primary UI component library
 - **react-router-dom v7** — routing
+- **TipTap v3** (`@tiptap/react`, `starter-kit`, `extension-underline`, `extension-text-align`) — rich text editor dùng trong `CreateQuestionModal`
+- **Recharts v3** — biểu đồ (BarChart, PieChart) dùng trong `TeacherDashboardPage`
 
 ## Commands
 
@@ -85,6 +87,9 @@ src/
       ConfidenceSelector.tsx  # 3 nút Thấp/Trung bình/Cao
       CreateQuestionModal.tsx # modal 2 bước: chọn template → soạn thảo
       BreakoutPanel.tsx       # panel nhóm + micro task + broadcast
+      ChatPanel.tsx           # panel chat realtime; export MOCK_CHAT_MESSAGES, ChatMessage type, getNow()
+      RichTextEditor.tsx      # rich text editor (TipTap): bold/italic/underline/strike/heading/list/align
+      CtrlBtn.tsx             # nút điều khiển dùng chung cho 2 session page: dark bg, circle/round, danger
   pages/
     classroom/ClassListPage.tsx
     classroom/ClassDetailPage.tsx   # tabs: Bảng tin | Lịch học | Thành viên
@@ -100,10 +105,36 @@ Trang này dùng `Segmented` control ở top bar để switch giữa 4 state dem
 
 | State | Mô tả |
 |---|---|
-| `idle` | Vùng video/screen share (ảnh `src/assets/hero.png` + overlay tên GV) |
+| `idle` | Vùng video/screen share (ảnh `src/assets/hero.png` + overlay tên GV) + thumbnails HS |
 | `running` | Câu hỏi đang chạy + `LiveQuestionStats` cập nhật theo mock data |
 | `ended` | Kết quả đầy đủ sau khi kết thúc câu hỏi |
 | `breakout` | `BreakoutPanel` với danh sách nhóm và micro task |
+
+Các tính năng khác trong trang:
+- **Bottom control bar**: toggle mic/camera/screen share; toggle student list panel, quick actions panel, chat panel; nút "Kết thúc buổi học"
+- **Session timer**: đếm thời gian từ khi vào trang (hiển thị `HH:MM:SS` ở top bar)
+- **Chat panel** (`ChatPanel`): bật/tắt bằng nút chat ở bottom bar; dùng `MOCK_CHAT_MESSAGES` làm dữ liệu ban đầu
+- **End session modal**: confirm trước khi điều hướng → `/dashboard/:sessionId`
+- **Raised hand**: mock `raisedHandIds = ['s3', 's5']`, hiển thị ✋ trên thumbnail HS
+
+## StudentSessionPage — demo state
+
+Trang này dùng `Segmented` control ở top bar để switch giữa 3 state demo:
+
+| State | Mô tả |
+|---|---|
+| `idle` | Lớp học bình thường — video GV full + thumbnails các HS |
+| `question` | Xuất hiện notification modal "GV vừa đặt câu hỏi"; floating question panel (góc dưới phải) để trả lời + chọn confidence |
+| `breakout` | Banner tên nhóm + task; video grid chỉ hiện thành viên cùng nhóm; có nút demo "GV gửi thông báo" để trigger broadcast alert |
+
+Các tính năng khác trong trang:
+- **Panel thành viên** (trái, 200px): hiển thị `[TEACHER, ...STUDENTS]` qua `StudentStatusList`; GV có tag "(GV)"; toggle bằng nút `TeamOutlined` ở bottom bar
+- **Floating question panel**: hiển thị câu hỏi, đáp án (single/multiple/essay), `ConfidenceSelector`; thu nhỏ được sau khi nộp
+- **Bottom control bar** (dùng `CtrlBtn`): Mic | Camera | Screen Share | ✋ | — | Participants | Chat | Câu hỏi | — | Rời lớp; có `overflowX: auto`
+- **Screen share**: state `screenShareOn`, hiển thị overlay/badge trên self-tile khi breakout
+- **Chat panel** (`ChatPanel`): dùng `MOCK_CHAT_MESSAGES` làm dữ liệu ban đầu
+- **Broadcast alert**: khi ở breakout, GV gửi thông báo hiện `Alert` ở trên cùng
+- **Breakout grid**: ẩn video GV, hiện equal CSS grid (`auto-fill minmax(180px,1fr)`) của các thành viên nhóm; self-tile có viền xanh + mic-off/raised-hand indicator
 
 ## TypeScript configuration
 
@@ -117,4 +148,4 @@ Trang này dùng `Segmented` control ở top bar để switch giữa 4 state dem
 
 ## Project status
 
-Giao diện demo tĩnh đã hoàn chỉnh với mock data. Chưa có backend integration, authentication, hay WebSocket/WebRTC thật.
+Giao diện demo tĩnh đã hoàn chỉnh với mock data, thân thiện với mọi thiết bị. Chưa có backend integration, authentication, hay WebSocket/WebRTC thật.
