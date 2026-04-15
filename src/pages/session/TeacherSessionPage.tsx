@@ -1,6 +1,6 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import {
-  Avatar, Badge, Button, Card, Divider, Modal, Segmented, Tag, Tooltip,
+  Avatar, Badge, Button, Card, Divider, Modal, Progress, Segmented, Tag, Tooltip,
   Typography, Alert,
 } from 'antd';
 import {
@@ -69,17 +69,51 @@ export default function TeacherSessionPage() {
   const [raisedHandIds] = useState<string[]>(['s3', 's5']);
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
 
+  // Question timer
+  const [questionTimer, setQuestionTimer] = useState<number | null>(null); // total seconds
+  const [timeRemaining, setTimeRemaining] = useState(0);
+  const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
   useEffect(() => {
-    const timer = setInterval(() => setElapsedSeconds((prev) => prev + 1), 1000);
-    return () => clearInterval(timer);
+    const elapsed = setInterval(() => setElapsedSeconds((prev) => prev + 1), 1000);
+    return () => clearInterval(elapsed);
   }, []);
+
+  // Countdown when question is running
+  useEffect(() => {
+    if (demoState === 'running' && questionTimer !== null && timeRemaining > 0) {
+      timerRef.current = setInterval(() => {
+        setTimeRemaining((prev) => {
+          if (prev <= 1) {
+            clearInterval(timerRef.current!);
+            setDemoState('ended');
+            return 0;
+          }
+          return prev - 1;
+        });
+      }, 1000);
+    }
+    return () => {
+      if (timerRef.current) clearInterval(timerRef.current);
+    };
+  }, [demoState, questionTimer]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const session = LIVE_SESSION;
   const currentQuestion: Question = session.questions[activeQuestionIdx];
 
-  const handlePublishQuestion = () => setDemoState('running');
-  const handleEndQuestion = () => setDemoState('ended');
+  const handlePublishQuestion = (timerSeconds: number | null) => {
+    setQuestionTimer(timerSeconds);
+    setTimeRemaining(timerSeconds ?? 0);
+    setDemoState('running');
+  };
+  const handleEndQuestion = () => {
+    if (timerRef.current) clearInterval(timerRef.current);
+    setQuestionTimer(null);
+    setDemoState('ended');
+  };
   const handleNextQuestion = () => {
+    if (timerRef.current) clearInterval(timerRef.current);
+    setQuestionTimer(null);
     setActiveQuestionIdx((prev) => Math.min(prev + 1, session.questions.length - 1));
     setDemoState('idle');
   };
@@ -268,9 +302,32 @@ export default function TeacherSessionPage() {
                     </Tag>
                     <Tag color="orange" style={{ marginLeft: 4 }}>Câu {activeQuestionIdx + 1}/{session.questions.length}</Tag>
                   </div>
-                  <Button danger size="small" icon={<StopOutlined />} onClick={handleEndQuestion}>
-                    Kết thúc câu hỏi
-                  </Button>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    {questionTimer !== null && (
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                        <Progress
+                          type="circle"
+                          size={44}
+                          percent={Math.round((timeRemaining / questionTimer) * 100)}
+                          strokeColor={
+                            timeRemaining / questionTimer > 0.5 ? '#52c41a'
+                              : timeRemaining / questionTimer > 0.2 ? '#fa8c16'
+                                : '#ff4d4f'
+                          }
+                          format={() => (
+                            <span style={{ fontSize: 11, fontWeight: 600 }}>
+                              {timeRemaining >= 60
+                                ? `${Math.floor(timeRemaining / 60)}:${String(timeRemaining % 60).padStart(2, '0')}`
+                                : `${timeRemaining}s`}
+                            </span>
+                          )}
+                        />
+                      </div>
+                    )}
+                    <Button danger size="small" icon={<StopOutlined />} onClick={handleEndQuestion}>
+                      Kết thúc câu hỏi
+                    </Button>
+                  </div>
                 </div>
                 <div dangerouslySetInnerHTML={{ __html: currentQuestion.content }} style={{ fontSize: 16, fontWeight: 500, marginBottom: 16, lineHeight: 1.6 }} />
                 {currentQuestion.options && (
@@ -430,7 +487,7 @@ export default function TeacherSessionPage() {
       </div>
 
       {/* Modals */}
-      <CreateQuestionModal open={createOpen} onClose={() => setCreateOpen(false)} onSubmit={handlePublishQuestion} />
+      <CreateQuestionModal open={createOpen} onClose={() => setCreateOpen(false)} onSubmit={(t) => handlePublishQuestion(t)} />
 
       <Modal
         title={<div style={{ display: 'flex', alignItems: 'center', gap: 8 }}><ExclamationCircleOutlined style={{ color: '#faad14', fontSize: 18 }} /><span>Kết thúc buổi học?</span></div>}

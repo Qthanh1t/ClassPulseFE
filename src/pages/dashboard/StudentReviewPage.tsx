@@ -63,18 +63,18 @@ export default function StudentReviewPage() {
   const score = correct.filter(({ question }) => question.type !== 'essay').length;
   const scorePercent = mcqQuestions.length > 0 ? Math.round((score / mcqQuestions.length) * 100) : 0;
 
-  // Chart data: per-question result with confidence
+  // Chart data: per-question result — all bars same height, color encodes result
   const questionChartData = myAnswers.map(({ question: q, answer }, idx) => {
     const hasAnswer = answer && (answer.selectedOptions.length > 0 || (answer.essayText?.length ?? 0) > 0);
     const isCorrectResult = hasAnswer && answer ? isAnswerCorrect(answer, q) : false;
     const confLabel = answer?.confidence ? CONFIDENCE_LABEL[answer.confidence] : 'Không TL';
     return {
-      name: `Câu ${idx + 1}`,
-      status: !hasAnswer ? 0 : isCorrectResult ? 2 : 1,
-      confidence: answer?.confidence ?? null,
+      name: `C${idx + 1}`,
+      value: 1,  // all bars equal height — color conveys the result
       confLabel,
       isCorrect: isCorrectResult,
       hasAnswer,
+      result: !hasAnswer ? 'Bỏ qua' : isCorrectResult ? 'Đúng' : 'Sai',
     };
   });
 
@@ -186,17 +186,16 @@ export default function StudentReviewPage() {
         <Col xs={24} md={14}>
           <Card style={{ borderRadius: 12 }} title="Kết quả theo câu hỏi">
             <ResponsiveContainer width="100%" height={160}>
-              <BarChart data={questionChartData} margin={{ top: 4, right: 4, bottom: 0, left: -20 }}>
+              <BarChart data={questionChartData} margin={{ top: 4, right: 8, bottom: 0, left: -28 }}>
                 <XAxis dataKey="name" tick={{ fontSize: 11 }} />
-                <YAxis hide />
+                <YAxis hide domain={[0, 1]} />
                 <RechartTooltip
-                  formatter={(_value: unknown, _name: unknown, props: { payload?: { confLabel?: string; isCorrect?: boolean; hasAnswer?: boolean } }) => {
+                  formatter={(_value: unknown, _name: unknown, props: { payload?: { result?: string; confLabel?: string } }) => {
                     const p = props.payload;
-                    if (!p?.hasAnswer) return ['Không trả lời', ''];
-                    return [p.isCorrect ? 'Đúng' : 'Sai', `Tự tin: ${p.confLabel ?? '—'}`];
+                    return [p?.result ?? '—', `Tự tin: ${p?.confLabel ?? '—'}`];
                   }}
                 />
-                <Bar dataKey="status" radius={[4, 4, 0, 0]} maxBarSize={36}>
+                <Bar dataKey="value" radius={[4, 4, 0, 0]} maxBarSize={40}>
                   {questionChartData.map((entry, index) => (
                     <Cell
                       key={`q-bar-${index}`}

@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import {
   Button, Card, Col, Row, Typography, Tag, Modal, Form,
-  Input, Space, Avatar, Badge, Dropdown,
+  Input, Space, Badge, Dropdown,
 } from 'antd';
 import {
   PlusOutlined, TeamOutlined, CalendarOutlined,
@@ -89,11 +89,7 @@ export default function ClassListPage() {
               </div>
 
               {/* Footer */}
-              <div className="flex items-center justify-between pt-3" style={{ borderTop: '1px solid #f0f0f0' }}>
-                <div className="flex items-center gap-2">
-                  <Avatar size={24} style={{ background: '#1677ff', fontSize: 12 }}>L</Avatar>
-                  <Text style={{ fontSize: 13 }}>{cls.teacherName}</Text>
-                </div>
+              <div style={{ display: 'flex', justifyContent: 'flex-end', paddingTop: 12, borderTop: '1px solid #f0f0f0' }}>
                 <Dropdown.Button
                   type="primary"
                   size="small"

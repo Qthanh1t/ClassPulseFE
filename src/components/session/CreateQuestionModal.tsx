@@ -1,11 +1,11 @@
 import { useState } from 'react';
 import {
   Modal, Steps, Button, Radio, Input, Checkbox, Space,
-  Typography, Card, Divider,
+  Typography, Card, Divider, Switch, Segmented, InputNumber,
 } from 'antd';
 import {
   CheckSquareOutlined, FormOutlined, UnorderedListOutlined,
-  PlusOutlined, DeleteOutlined,
+  PlusOutlined, DeleteOutlined, ClockCircleOutlined,
 } from '@ant-design/icons';
 import type { QuestionType } from '../../types';
 import RichTextEditor from './RichTextEditor';
@@ -39,10 +39,12 @@ interface Option {
   isCorrect: boolean;
 }
 
+const PRESET_DURATIONS = [30, 60, 90, 120, 180];
+
 interface Props {
   open: boolean;
   onClose: () => void;
-  onSubmit: () => void;
+  onSubmit: (timerSeconds: number | null) => void;
 }
 
 export default function CreateQuestionModal({ open, onClose, onSubmit }: Props) {
@@ -55,6 +57,13 @@ export default function CreateQuestionModal({ open, onClose, onSubmit }: Props) 
     { id: '3', text: '', isCorrect: false },
     { id: '4', text: '', isCorrect: false },
   ]);
+  const [timerEnabled, setTimerEnabled] = useState(false);
+  const [timerPreset, setTimerPreset] = useState<number | 'custom'>(60);
+  const [timerCustom, setTimerCustom] = useState<number>(60);
+
+  const timerSeconds: number | null = timerEnabled
+    ? (timerPreset === 'custom' ? timerCustom : timerPreset)
+    : null;
 
   const handleClose = () => {
     setStep(0);
@@ -66,12 +75,15 @@ export default function CreateQuestionModal({ open, onClose, onSubmit }: Props) 
       { id: '3', text: '', isCorrect: false },
       { id: '4', text: '', isCorrect: false },
     ]);
+    setTimerEnabled(false);
+    setTimerPreset(60);
+    setTimerCustom(60);
     onClose();
   };
 
   const handlePublish = () => {
     handleClose();
-    onSubmit();
+    onSubmit(timerSeconds);
   };
 
   const addOption = () => {
@@ -238,7 +250,60 @@ export default function CreateQuestionModal({ open, onClose, onSubmit }: Props) 
             </div>
           )}
 
+          {/* Timer settings */}
           <Divider style={{ margin: '16px 0 12px' }} />
+          <div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: timerEnabled ? 12 : 0 }}>
+              <ClockCircleOutlined style={{ color: timerEnabled ? '#1677ff' : '#8c8c8c' }} />
+              <Text strong style={{ fontSize: 13, flex: 1 }}>Giới hạn thời gian</Text>
+              <Switch
+                checked={timerEnabled}
+                onChange={setTimerEnabled}
+                checkedChildren="Bật"
+                unCheckedChildren="Tắt"
+              />
+            </div>
+
+            {timerEnabled && (
+              <div style={{ paddingLeft: 22, display: 'flex', flexDirection: 'column', gap: 8 }}>
+                <Segmented
+                  value={timerPreset}
+                  onChange={(v) => setTimerPreset(v as number | 'custom')}
+                  options={[
+                    ...PRESET_DURATIONS.map((s) => ({
+                      value: s,
+                      label: s < 60 ? `${s}s` : `${s / 60}p`,
+                    })),
+                    { value: 'custom', label: 'Tùy chỉnh' },
+                  ]}
+                />
+                {timerPreset === 'custom' && (
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <InputNumber
+                      min={10}
+                      max={600}
+                      value={timerCustom}
+                      onChange={(v) => setTimerCustom(v ?? 60)}
+                      style={{ width: 100 }}
+                    />
+                    <Text type="secondary" style={{ fontSize: 13 }}>giây</Text>
+                  </div>
+                )}
+                <Text type="secondary" style={{ fontSize: 12 }}>
+                  Câu hỏi sẽ tự kết thúc sau{' '}
+                  <Text strong style={{ fontSize: 12 }}>
+                    {timerPreset === 'custom'
+                      ? `${timerCustom} giây`
+                      : timerPreset < 60
+                        ? `${timerPreset} giây`
+                        : `${timerPreset / 60} phút`}
+                  </Text>
+                </Text>
+              </div>
+            )}
+          </div>
+
+          <Divider style={{ margin: '12px 0' }} />
 
           <div style={{ display: 'flex', justifyContent: 'space-between' }}>
             <Button onClick={() => setStep(0)}>← Quay lại</Button>
