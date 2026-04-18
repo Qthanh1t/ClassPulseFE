@@ -1,9 +1,9 @@
 import {
-  Avatar, Button, Card, Col, Progress, Row, Statistic, Tag, Typography,
+  Avatar, Button, Card, Col, Progress, Row, Tag, Typography,
 } from 'antd';
 import {
   CheckCircleOutlined, CloseCircleOutlined, MinusCircleOutlined,
-  ArrowLeftOutlined, TrophyOutlined,
+  ArrowLeftOutlined, TrophyOutlined, RiseOutlined, FallOutlined,
 } from '@ant-design/icons';
 import {
   RadarChart, PolarGrid, PolarAngleAxis, Radar,
@@ -17,7 +17,7 @@ import type { Question, StudentAnswer } from '../../types';
 
 const { Title, Text } = Typography;
 
-const STUDENT = STUDENTS[0]; // demo as s1
+const STUDENT = STUDENTS[0];
 
 function isAnswerCorrect(answer: StudentAnswer, question: Question): boolean {
   if (question.type === 'essay') return true;
@@ -35,15 +35,15 @@ const CONFIDENCE_LABEL: Record<string, string> = {
 };
 
 const CONFIDENCE_COLOR: Record<string, string> = {
+  high: '#10b981',
+  medium: '#f59e0b',
+  low: '#f43f5e',
+};
+
+const CONFIDENCE_TAG: Record<string, 'success' | 'warning' | 'error'> = {
   high: 'success',
   medium: 'warning',
   low: 'error',
-};
-
-const CONFIDENCE_HEX: Record<string, string> = {
-  high: '#52c41a',
-  medium: '#fa8c16',
-  low: '#ff4d4f',
 };
 
 export default function StudentReviewPage() {
@@ -55,22 +55,39 @@ export default function StudentReviewPage() {
     answer: q.answers.find((a) => a.studentId === STUDENT.id),
   }));
 
-  const answered = myAnswers.filter(({ answer }) => answer && (answer.selectedOptions.length > 0 || (answer.essayText?.length ?? 0) > 0));
+  const answered = myAnswers.filter(
+    ({ answer }) => answer && (answer.selectedOptions.length > 0 || (answer.essayText?.length ?? 0) > 0),
+  );
   const correct = answered.filter(({ question, answer }) => answer && isAnswerCorrect(answer, question));
-  const wrong = answered.filter(({ question, answer }) => answer && !isAnswerCorrect(answer, question) && question.type !== 'essay');
-  const skipped = myAnswers.filter(({ answer }) => !answer || (answer.selectedOptions.length === 0 && !(answer.essayText?.length)));
+  const wrong = answered.filter(
+    ({ question, answer }) => answer && !isAnswerCorrect(answer, question) && question.type !== 'essay',
+  );
+  const skipped = myAnswers.filter(
+    ({ answer }) => !answer || (answer.selectedOptions.length === 0 && !(answer.essayText?.length)),
+  );
   const mcqQuestions = session.questions.filter((q) => q.type !== 'essay');
   const score = correct.filter(({ question }) => question.type !== 'essay').length;
   const scorePercent = mcqQuestions.length > 0 ? Math.round((score / mcqQuestions.length) * 100) : 0;
 
-  // Chart data: per-question result — all bars same height, color encodes result
+  const isExcellent = scorePercent >= 70;
+  const isGood = scorePercent >= 40 && scorePercent < 70;
+
+  const scoreMeta = isExcellent
+    ? { label: 'Xuất sắc!', sublabel: 'Kết quả rất tốt, tiếp tục phát huy nhé!', gradient: 'linear-gradient(135deg, #10b981, #059669)', light: '#f0fdf4', icon: <TrophyOutlined style={{ fontSize: 20, color: '#10b981' }} /> }
+    : isGood
+    ? { label: 'Khá tốt!', sublabel: 'Nỗ lực thêm một chút để đạt kết quả tốt hơn.', gradient: 'linear-gradient(135deg, #f59e0b, #d97706)', light: '#fffbeb', icon: <RiseOutlined style={{ fontSize: 20, color: '#f59e0b' }} /> }
+    : { label: 'Cần cố gắng hơn', sublabel: 'Đừng nản lòng! Ôn tập và thử lại nhé.', gradient: 'linear-gradient(135deg, #f43f5e, #dc2626)', light: '#fff1f2', icon: <FallOutlined style={{ fontSize: 20, color: '#f43f5e' }} /> };
+
+  const strokeColor = isExcellent ? '#10b981' : isGood ? '#f59e0b' : '#f43f5e';
+
+  // Bar chart
   const questionChartData = myAnswers.map(({ question: q, answer }, idx) => {
     const hasAnswer = answer && (answer.selectedOptions.length > 0 || (answer.essayText?.length ?? 0) > 0);
     const isCorrectResult = hasAnswer && answer ? isAnswerCorrect(answer, q) : false;
     const confLabel = answer?.confidence ? CONFIDENCE_LABEL[answer.confidence] : 'Không TL';
     return {
       name: `C${idx + 1}`,
-      value: 1,  // all bars equal height — color conveys the result
+      value: 1,
       confLabel,
       isCorrect: isCorrectResult,
       hasAnswer,
@@ -78,7 +95,7 @@ export default function StudentReviewPage() {
     };
   });
 
-  // Radar chart data: confidence vs accuracy per category
+  // Radar chart
   const radarData = [
     {
       subject: 'Tự tin cao',
@@ -98,150 +115,164 @@ export default function StudentReviewPage() {
   ];
 
   return (
-    <div className="p-6" style={{ maxWidth: 760, margin: '0 auto' }}>
-      {/* Back button */}
-      <Button icon={<ArrowLeftOutlined />} onClick={() => navigate('/classes')} style={{ marginBottom: 16 }}>
+    <div style={{ padding: '28px 32px', maxWidth: 800, margin: '0 auto' }}>
+      {/* Back */}
+      <Button
+        icon={<ArrowLeftOutlined />}
+        onClick={() => navigate('/classes')}
+        style={{ marginBottom: 20, borderRadius: 8, borderColor: '#e2e8f0', color: '#64748b' }}
+      >
         Về trang chủ
       </Button>
 
-      {/* Student header */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 24 }}>
-        <Avatar size={48} style={{ background: STUDENT.avatarColor }}>
+      {/* Student info */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 14, marginBottom: 24 }}>
+        <Avatar
+          size={52}
+          style={{ background: STUDENT.avatarColor, fontWeight: 700, fontSize: 20 }}
+        >
           {STUDENT.name.charAt(0)}
         </Avatar>
         <div>
-          <Title level={4} style={{ margin: 0 }}>{STUDENT.name}</Title>
-          <Text type="secondary">{session.classroomName} · {session.date}</Text>
+          <Title level={4} style={{ margin: 0, fontSize: 18, fontWeight: 700, color: '#0f172a' }}>
+            {STUDENT.name}
+          </Title>
+          <Text type="secondary" style={{ fontSize: 13 }}>
+            {session.classroomName} · {session.date}
+          </Text>
         </div>
       </div>
 
-      {/* Score summary */}
-      <Card
+      {/* Score hero */}
+      <div
         style={{
-          borderRadius: 16,
-          marginBottom: 24,
-          background: scorePercent >= 70
-            ? 'linear-gradient(135deg, #f6ffed 0%, #d9f7be 100%)'
-            : scorePercent >= 40
-              ? 'linear-gradient(135deg, #fff7e6 0%, #ffe7ba 100%)'
-              : 'linear-gradient(135deg, #fff2f0 0%, #ffccc7 100%)',
-          border: 'none',
+          background: '#fff',
+          borderRadius: 20,
+          border: '1px solid #e2e8f0',
+          padding: '28px 28px',
+          marginBottom: 20,
+          overflow: 'hidden',
+          position: 'relative',
         }}
       >
-        <Row align="middle" gutter={16}>
+        {/* Accent strip at top */}
+        <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: 4, background: scoreMeta.gradient }} />
+
+        <Row align="middle" gutter={24}>
           <Col>
             <Progress
               type="circle"
               percent={scorePercent}
-              size={100}
-              strokeColor={scorePercent >= 70 ? '#52c41a' : scorePercent >= 40 ? '#fa8c16' : '#ff4d4f'}
+              size={110}
+              strokeWidth={8}
+              strokeColor={strokeColor}
+              trailColor="#f1f5f9"
               format={() => (
                 <div style={{ textAlign: 'center' }}>
-                  <div style={{ fontSize: 22, fontWeight: 700 }}>{score}/{mcqQuestions.length}</div>
-                  <div style={{ fontSize: 12, color: '#8c8c8c' }}>đúng</div>
+                  <div style={{ fontSize: 26, fontWeight: 800, color: '#0f172a', lineHeight: 1.1 }}>{score}</div>
+                  <div style={{ fontSize: 12, color: '#94a3b8', lineHeight: 1.3 }}>/{mcqQuestions.length}</div>
                 </div>
               )}
             />
           </Col>
           <Col flex={1}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 4 }}>
-              <TrophyOutlined style={{ color: '#fa8c16', fontSize: 18 }} />
-              <Title level={4} style={{ margin: 0 }}>
-                {scorePercent >= 70 ? 'Xuất sắc!' : scorePercent >= 40 ? 'Khá tốt!' : 'Cần cố gắng hơn'}
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
+              {scoreMeta.icon}
+              <Title level={3} style={{ margin: 0, fontSize: 22, fontWeight: 800, color: '#0f172a' }}>
+                {scoreMeta.label}
               </Title>
             </div>
-            <Row gutter={16}>
-              <Col>
-                <Statistic
-                  title={<Text style={{ fontSize: 12 }}>Đúng</Text>}
-                  value={correct.length}
-                  valueStyle={{ color: '#52c41a', fontSize: 20 }}
-                  prefix={<CheckCircleOutlined />}
-                />
-              </Col>
-              <Col>
-                <Statistic
-                  title={<Text style={{ fontSize: 12 }}>Sai</Text>}
-                  value={wrong.length}
-                  valueStyle={{ color: '#ff4d4f', fontSize: 20 }}
-                  prefix={<CloseCircleOutlined />}
-                />
-              </Col>
-              <Col>
-                <Statistic
-                  title={<Text style={{ fontSize: 12 }}>Bỏ qua</Text>}
-                  value={skipped.length}
-                  valueStyle={{ color: '#bfbfbf', fontSize: 20 }}
-                  prefix={<MinusCircleOutlined />}
-                />
-              </Col>
+            <Text style={{ fontSize: 13, color: '#64748b', display: 'block', marginBottom: 16 }}>
+              {scoreMeta.sublabel}
+            </Text>
+
+            {/* Mini stat row */}
+            <Row gutter={12}>
+              {[
+                { label: 'Đúng', value: correct.length, color: '#10b981', bg: '#f0fdf4', icon: <CheckCircleOutlined /> },
+                { label: 'Sai', value: wrong.length, color: '#f43f5e', bg: '#fff1f2', icon: <CloseCircleOutlined /> },
+                { label: 'Bỏ qua', value: skipped.length, color: '#94a3b8', bg: '#f8fafc', icon: <MinusCircleOutlined /> },
+              ].map(({ label, value, color, bg, icon }) => (
+                <Col key={label}>
+                  <div
+                    style={{
+                      background: bg,
+                      borderRadius: 12,
+                      padding: '10px 16px',
+                      textAlign: 'center',
+                      minWidth: 70,
+                    }}
+                  >
+                    <div style={{ fontSize: 18, color, marginBottom: 2 }}>{icon}</div>
+                    <div style={{ fontSize: 20, fontWeight: 800, color, lineHeight: 1 }}>{value}</div>
+                    <div style={{ fontSize: 11, color: '#94a3b8', marginTop: 2 }}>{label}</div>
+                  </div>
+                </Col>
+              ))}
             </Row>
           </Col>
         </Row>
-      </Card>
+      </div>
 
       {/* Charts */}
-      <Row gutter={16} style={{ marginBottom: 24 }}>
-        {/* Bar chart: result per question */}
+      <Row gutter={[16, 16]} style={{ marginBottom: 20 }}>
         <Col xs={24} md={14}>
-          <Card style={{ borderRadius: 12 }} title="Kết quả theo câu hỏi">
-            <ResponsiveContainer width="100%" height={160}>
+          <Card
+            style={{ borderRadius: 16, border: '1px solid #e2e8f0' }}
+            styles={{ body: { padding: '18px 18px 10px' } }}
+          >
+            <div style={{ fontSize: 14, fontWeight: 700, color: '#0f172a', marginBottom: 2 }}>Kết quả theo câu hỏi</div>
+            <div style={{ fontSize: 12, color: '#94a3b8', marginBottom: 10 }}>Màu sắc thể hiện đúng / sai / bỏ qua</div>
+            <ResponsiveContainer width="100%" height={140}>
               <BarChart data={questionChartData} margin={{ top: 4, right: 8, bottom: 0, left: -28 }}>
-                <XAxis dataKey="name" tick={{ fontSize: 11 }} />
+                <XAxis dataKey="name" tick={{ fontSize: 11, fill: '#94a3b8' }} axisLine={false} tickLine={false} />
                 <YAxis hide domain={[0, 1]} />
                 <RechartTooltip
                   formatter={(_value: unknown, _name: unknown, props: { payload?: { result?: string; confLabel?: string } }) => {
                     const p = props.payload;
                     return [p?.result ?? '—', `Tự tin: ${p?.confLabel ?? '—'}`];
                   }}
+                  contentStyle={{ borderRadius: 10, border: '1px solid #e2e8f0', fontSize: 12 }}
                 />
-                <Bar dataKey="value" radius={[4, 4, 0, 0]} maxBarSize={40}>
+                <Bar dataKey="value" radius={[5, 5, 0, 0]} maxBarSize={36}>
                   {questionChartData.map((entry, index) => (
                     <Cell
                       key={`q-bar-${index}`}
-                      fill={!entry.hasAnswer ? '#d9d9d9' : entry.isCorrect ? '#52c41a' : '#ff4d4f'}
+                      fill={!entry.hasAnswer ? '#e2e8f0' : entry.isCorrect ? '#10b981' : '#f43f5e'}
                     />
                   ))}
                 </Bar>
               </BarChart>
             </ResponsiveContainer>
-            <div style={{ display: 'flex', gap: 12, marginTop: 4, justifyContent: 'center' }}>
+            <div style={{ display: 'flex', gap: 14, marginTop: 8, justifyContent: 'center' }}>
               {[
-                { label: 'Đúng', color: '#52c41a' },
-                { label: 'Sai', color: '#ff4d4f' },
-                { label: 'Bỏ qua', color: '#d9d9d9' },
+                { label: 'Đúng', color: '#10b981' },
+                { label: 'Sai', color: '#f43f5e' },
+                { label: 'Bỏ qua', color: '#e2e8f0' },
               ].map(({ label, color }) => (
-                <div key={label} style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-                  <div style={{ width: 10, height: 10, borderRadius: 2, background: color }} />
-                  <Text style={{ fontSize: 11, color: '#8c8c8c' }}>{label}</Text>
+                <div key={label} style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+                  <div style={{ width: 8, height: 8, borderRadius: 2, background: color }} />
+                  <Text style={{ fontSize: 11, color: '#94a3b8' }}>{label}</Text>
                 </div>
               ))}
             </div>
           </Card>
         </Col>
 
-        {/* Radar chart: confidence calibration */}
         <Col xs={24} md={10}>
-          <Card style={{ borderRadius: 12, height: '100%' }} title="Độ tự tin & độ chính xác">
+          <Card
+            style={{ borderRadius: 16, border: '1px solid #e2e8f0', height: '100%' }}
+            styles={{ body: { padding: '18px 18px 10px' } }}
+          >
+            <div style={{ fontSize: 14, fontWeight: 700, color: '#0f172a', marginBottom: 2 }}>Tự tin & Chính xác</div>
+            <div style={{ fontSize: 12, color: '#94a3b8', marginBottom: 4 }}>Xanh = trả lời · Cam = đúng</div>
             <ResponsiveContainer width="100%" height={160}>
               <RadarChart data={radarData} margin={{ top: 8, right: 16, bottom: 0, left: 16 }}>
-                <PolarGrid />
-                <PolarAngleAxis dataKey="subject" tick={{ fontSize: 11 }} />
-                <Radar
-                  name="Trả lời"
-                  dataKey="answered"
-                  stroke="#1677ff"
-                  fill="#1677ff"
-                  fillOpacity={0.2}
-                />
-                <Radar
-                  name="Đúng"
-                  dataKey="correct"
-                  stroke="#52c41a"
-                  fill="#52c41a"
-                  fillOpacity={0.3}
-                />
-                <RechartTooltip />
+                <PolarGrid stroke="#e2e8f0" />
+                <PolarAngleAxis dataKey="subject" tick={{ fontSize: 10, fill: '#94a3b8' }} />
+                <Radar name="Trả lời" dataKey="answered" stroke="#6366f1" fill="#6366f1" fillOpacity={0.15} strokeWidth={1.5} />
+                <Radar name="Đúng" dataKey="correct" stroke="#10b981" fill="#10b981" fillOpacity={0.25} strokeWidth={1.5} />
+                <RechartTooltip contentStyle={{ borderRadius: 10, border: '1px solid #e2e8f0', fontSize: 12 }} />
               </RadarChart>
             </ResponsiveContainer>
           </Card>
@@ -249,116 +280,189 @@ export default function StudentReviewPage() {
       </Row>
 
       {/* Per-question review */}
-      <Title level={5} style={{ marginBottom: 16 }}>Chi tiết từng câu hỏi</Title>
+      <div style={{ marginBottom: 8 }}>
+        <Title level={5} style={{ fontSize: 16, fontWeight: 700, color: '#0f172a', marginBottom: 14 }}>
+          Chi tiết từng câu hỏi
+        </Title>
+      </div>
+
       <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
         {myAnswers.map(({ question: q, answer }, idx) => {
           const hasAnswer = answer && (answer.selectedOptions.length > 0 || (answer.essayText?.length ?? 0) > 0);
           const isCorrect = hasAnswer && answer ? isAnswerCorrect(answer, q) : false;
 
-          let statusIcon = <MinusCircleOutlined style={{ color: '#bfbfbf', fontSize: 18 }} />;
-          let statusColor = '#f5f5f5';
-          let borderColor = '#d9d9d9';
+          let statusIcon: React.ReactNode = <MinusCircleOutlined style={{ color: '#cbd5e1', fontSize: 18 }} />;
+          let borderAccent = '#e2e8f0';
+          let headerBg = '#f8fafc';
+
           if (hasAnswer && isCorrect) {
-            statusIcon = <CheckCircleOutlined style={{ color: '#52c41a', fontSize: 18 }} />;
-            statusColor = '#f6ffed';
-            borderColor = '#b7eb8f';
+            statusIcon = <CheckCircleOutlined style={{ color: '#10b981', fontSize: 18 }} />;
+            borderAccent = '#10b981';
+            headerBg = '#f0fdf4';
           } else if (hasAnswer && !isCorrect && q.type !== 'essay') {
-            statusIcon = <CloseCircleOutlined style={{ color: '#ff4d4f', fontSize: 18 }} />;
-            statusColor = '#fff2f0';
-            borderColor = '#ffccc7';
+            statusIcon = <CloseCircleOutlined style={{ color: '#f43f5e', fontSize: 18 }} />;
+            borderAccent = '#f43f5e';
+            headerBg = '#fff1f2';
           }
 
           return (
-            <Card
+            <div
               key={q.id}
-              style={{ borderRadius: 12, background: statusColor, border: `1px solid ${borderColor}` }}
+              style={{
+                background: '#fff',
+                borderRadius: 14,
+                border: `1px solid #e2e8f0`,
+                overflow: 'hidden',
+              }}
             >
-              <div style={{ display: 'flex', gap: 12, alignItems: 'flex-start' }}>
-                <div style={{ marginTop: 2 }}>{statusIcon}</div>
-                <div style={{ flex: 1 }}>
-                  <div style={{ display: 'flex', gap: 6, marginBottom: 8, flexWrap: 'wrap' }}>
-                    <Tag color="blue" style={{ fontSize: 12 }}>Câu {idx + 1}</Tag>
-                    <Tag color="default" style={{ fontSize: 12 }}>
-                      {q.type === 'single' ? 'Trắc nghiệm' : q.type === 'multiple' ? 'Nhiều đáp án' : 'Tự luận'}
-                    </Tag>
-                    {hasAnswer && answer?.confidence && (
-                      <Tag
-                        color={CONFIDENCE_COLOR[answer.confidence]}
-                        style={{
-                          fontSize: 12,
-                          borderLeft: `3px solid ${CONFIDENCE_HEX[answer.confidence]}`,
-                        }}
-                      >
-                        Tự tin: {CONFIDENCE_LABEL[answer.confidence]}
-                      </Tag>
-                    )}
-                    {!hasAnswer && <Tag color="default">Không trả lời</Tag>}
-                  </div>
-
-                  <div
-                    dangerouslySetInnerHTML={{ __html: q.content }}
-                    style={{ fontSize: 14, marginBottom: 10, fontWeight: 500 }}
-                  />
-
-                  {/* MCQ options */}
-                  {q.options && (
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                      {q.options.map((opt) => {
-                        const wasSelected = answer?.selectedOptions.includes(opt.id) ?? false;
-                        let bg = 'transparent';
-                        let border = '1px solid #e8e8e8';
-                        if (opt.isCorrect) { bg = '#f6ffed'; border = '1px solid #b7eb8f'; }
-                        if (wasSelected && !opt.isCorrect) { bg = '#fff2f0'; border = '1px solid #ffccc7'; }
-
-                        return (
-                          <div
-                            key={opt.id}
-                            style={{
-                              padding: '7px 12px',
-                              borderRadius: 8,
-                              background: bg,
-                              border,
-                              display: 'flex',
-                              alignItems: 'center',
-                              gap: 8,
-                              fontSize: 13,
-                            }}
-                          >
-                            <Tag
-                              color={opt.isCorrect ? 'success' : wasSelected ? 'error' : 'default'}
-                              style={{ minWidth: 24, textAlign: 'center' }}
-                            >
-                              {opt.label}
-                            </Tag>
-                            <Text style={{ fontSize: 13 }}>{opt.text}</Text>
-                            {opt.isCorrect && <CheckCircleOutlined style={{ color: '#52c41a', marginLeft: 'auto' }} />}
-                            {wasSelected && !opt.isCorrect && <CloseCircleOutlined style={{ color: '#ff4d4f', marginLeft: 'auto' }} />}
-                          </div>
-                        );
-                      })}
-                    </div>
-                  )}
-
-                  {/* Essay */}
-                  {q.type === 'essay' && answer?.essayText && (
-                    <Card
-                      size="small"
-                      style={{ background: '#fafafa', borderRadius: 8 }}
-                      styles={{ body: { padding: '8px 12px' } }}
+              {/* Question header */}
+              <div
+                style={{
+                  background: headerBg,
+                  padding: '12px 16px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 10,
+                  borderBottom: '1px solid #e2e8f0',
+                  borderLeft: `3px solid ${borderAccent}`,
+                }}
+              >
+                {statusIcon}
+                <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center', flex: 1 }}>
+                  <Tag color="blue" style={{ fontSize: 11, borderRadius: 20, padding: '0 8px', margin: 0, fontWeight: 600 }}>
+                    Câu {idx + 1}
+                  </Tag>
+                  <Tag color="default" style={{ fontSize: 11, borderRadius: 20, padding: '0 8px', margin: 0 }}>
+                    {q.type === 'single' ? 'Trắc nghiệm' : q.type === 'multiple' ? 'Nhiều đáp án' : 'Tự luận'}
+                  </Tag>
+                  {hasAnswer && answer?.confidence && (
+                    <Tag
+                      color={CONFIDENCE_TAG[answer.confidence]}
+                      style={{ fontSize: 11, borderRadius: 20, padding: '0 8px', margin: 0 }}
                     >
-                      <Text style={{ fontSize: 13, fontStyle: 'italic' }}>"{answer.essayText}"</Text>
-                    </Card>
+                      Tự tin: {CONFIDENCE_LABEL[answer.confidence]}
+                    </Tag>
+                  )}
+                  {!hasAnswer && (
+                    <Tag color="default" style={{ fontSize: 11, borderRadius: 20, padding: '0 8px', margin: 0, color: '#94a3b8' }}>
+                      Không trả lời
+                    </Tag>
                   )}
                 </div>
+                {hasAnswer && answer?.confidence && (
+                  <div
+                    style={{
+                      width: 8,
+                      height: 8,
+                      borderRadius: '50%',
+                      background: CONFIDENCE_COLOR[answer.confidence],
+                      flexShrink: 0,
+                    }}
+                  />
+                )}
               </div>
-            </Card>
+
+              {/* Question body */}
+              <div style={{ padding: '14px 18px' }}>
+                <div
+                  dangerouslySetInnerHTML={{ __html: q.content }}
+                  style={{ fontSize: 14, marginBottom: 12, fontWeight: 500, color: '#0f172a', lineHeight: 1.6 }}
+                />
+
+                {/* MCQ options */}
+                {q.options && (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 7 }}>
+                    {q.options.map((opt) => {
+                      const wasSelected = answer?.selectedOptions.includes(opt.id) ?? false;
+                      let bg = '#f8fafc';
+                      let border = '1px solid #e2e8f0';
+                      let textColor = '#374151';
+
+                      if (opt.isCorrect) {
+                        bg = '#f0fdf4';
+                        border = '1.5px solid #10b981';
+                        textColor = '#065f46';
+                      }
+                      if (wasSelected && !opt.isCorrect) {
+                        bg = '#fff1f2';
+                        border = '1.5px solid #f43f5e';
+                        textColor = '#9f1239';
+                      }
+
+                      return (
+                        <div
+                          key={opt.id}
+                          style={{
+                            padding: '8px 12px',
+                            borderRadius: 10,
+                            background: bg,
+                            border,
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: 10,
+                          }}
+                        >
+                          <Tag
+                            color={opt.isCorrect ? 'success' : wasSelected ? 'error' : 'default'}
+                            style={{ minWidth: 26, textAlign: 'center', borderRadius: 6, fontWeight: 700, margin: 0, fontSize: 12 }}
+                          >
+                            {opt.label}
+                          </Tag>
+                          <Text style={{ fontSize: 13, color: textColor, flex: 1 }}>{opt.text}</Text>
+                          {opt.isCorrect && (
+                            <CheckCircleOutlined style={{ color: '#10b981', fontSize: 14, flexShrink: 0 }} />
+                          )}
+                          {wasSelected && !opt.isCorrect && (
+                            <CloseCircleOutlined style={{ color: '#f43f5e', fontSize: 14, flexShrink: 0 }} />
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+
+                {/* Essay */}
+                {q.type === 'essay' && answer?.essayText && (
+                  <div
+                    style={{
+                      background: '#f8fafc',
+                      borderRadius: 10,
+                      padding: '10px 14px',
+                      border: '1px solid #e2e8f0',
+                    }}
+                  >
+                    <Text style={{ fontSize: 13, fontStyle: 'italic', color: '#374151' }}>
+                      "{answer.essayText}"
+                    </Text>
+                  </div>
+                )}
+              </div>
+            </div>
           );
         })}
       </div>
 
-      <div style={{ marginTop: 24, textAlign: 'center' }}>
-        <Button type="primary" onClick={() => navigate('/classes')}>
+      {/* Bottom CTA */}
+      <div style={{ marginTop: 28, display: 'flex', justifyContent: 'center', gap: 10 }}>
+        <Button
+          onClick={() => navigate('/classes')}
+          style={{ borderRadius: 10, height: 40, paddingInline: 24, borderColor: '#e2e8f0', color: '#64748b' }}
+        >
           Về trang chủ
+        </Button>
+        <Button
+          type="primary"
+          onClick={() => navigate('/classes')}
+          style={{
+            borderRadius: 10,
+            height: 40,
+            paddingInline: 24,
+            background: 'linear-gradient(135deg, #6366f1, #8b5cf6)',
+            border: 'none',
+            fontWeight: 600,
+          }}
+        >
+          Tiếp tục học
         </Button>
       </div>
     </div>

@@ -39,10 +39,74 @@ Mô hình "Closed Feedback Loop Classroom": giáo viên giảng → đặt câu 
 
 - **React 19** + **TypeScript 6** + **Vite 8**
 - **Tailwind CSS v4** (via `@tailwindcss/vite` — no `tailwind.config.js` needed)
-- **Ant Design v6** + **@ant-design/icons** — primary UI component library
+- **Ant Design v6** + **@ant-design/icons** — primary UI component library; theme được set qua `ConfigProvider` trong `App.tsx`
 - **react-router-dom v7** — routing
 - **TipTap v3** (`@tiptap/react`, `starter-kit`, `extension-underline`, `extension-text-align`) — rich text editor dùng trong `CreateQuestionModal`
 - **Recharts v3** — biểu đồ (BarChart, PieChart, RadarChart) dùng trong `TeacherDashboardPage` và `StudentReviewPage`
+
+## Design system
+
+Toàn bộ giao diện tuân theo design system sau. **Không dùng màu #1677ff (AntD blue mặc định) trong code mới.**
+
+### Color tokens (CSS custom properties — `src/index.css`)
+
+| Token | Giá trị | Dùng cho |
+|---|---|---|
+| `--sq-primary` | `#6366f1` | Indigo — màu chính, nút primary, active nav |
+| `--sq-primary-dark` | `#4f46e5` | Hover/pressed states |
+| `--sq-primary-light` | `#eef2ff` | Background active nav, tag màu nhạt |
+| `--sq-bg` | `#f8fafc` | Background trang (Slate 50) |
+| `--sq-surface` | `#ffffff` | Card, modal, sidebar |
+| `--sq-border` | `#e2e8f0` | Border toàn bộ (Slate 200) |
+| `--sq-text` | `#0f172a` | Text chính (Slate 900) |
+| `--sq-text-secondary` | `#64748b` | Text phụ (Slate 500) |
+| `--sq-text-muted` | `#94a3b8` | Text mờ, label (Slate 400) |
+| `--sq-emerald` | `#10b981` | Đúng, thành công, online |
+| `--sq-amber` | `#f59e0b` | Cảnh báo, điểm trung bình |
+| `--sq-rose` | `#f43f5e` | Sai, lỗi, không tham gia |
+
+### Typography
+
+Font: **Outfit** (Google Fonts — import trong `index.css`). Fallback: `-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif`.
+
+- Heading: `fontWeight: 700`, `color: #0f172a`
+- Body: `fontSize: 14`, `color: #374151`
+- Secondary: `fontSize: 13`, `color: #64748b`
+- Muted/label: `fontSize: 12–13`, `color: #94a3b8`
+
+### Subject gradients (dùng cho banner card lớp học)
+
+| Subject | Gradient |
+|---|---|
+| `Frontend` | `linear-gradient(135deg, #6366f1, #8b5cf6)` — Indigo/Violet |
+| `Database` | `linear-gradient(135deg, #0ea5e9, #0369a1)` — Sky/Blue |
+| `Architecture` | `linear-gradient(135deg, #f59e0b, #dc2626)` — Amber/Red |
+| Default | `linear-gradient(135deg, #10b981, #059669)` — Emerald |
+
+### AntD ConfigProvider (App.tsx)
+
+`colorPrimary: '#6366f1'`, `borderRadius: 10`, font Outfit, custom component tokens cho Card (borderRadius 16), Button (borderRadius 10), Tag (borderRadius 6), Tabs (inkBarColor indigo), Progress (defaultColor indigo).
+
+### CSS utility classes (`index.css`)
+
+- `.sq-card-hover` — hover lift animation (`translateY(-3px)`, `box-shadow`) cho course card
+- `.sq-nav-item` — transition màu/bg cho nav button trong sidebar; `.sq-nav-item.active` để set active state
+- `.sq-stat-card` — hover box-shadow cho stat card trên dashboard
+
+### Border radius conventions
+
+- Page section / hero banner: `borderRadius: 20`
+- Card lớp học, dashboard card: `borderRadius: 16`
+- Nội dung nhỏ hơn (post, schedule item): `borderRadius: 14`
+- Button, input, tag: `borderRadius: 10` (inherit từ ConfigProvider)
+- Tag pill: `borderRadius: 20` (override cho pill style)
+
+### Gradient button primary
+
+Thay vì dùng `type="primary"` mặc định, nút chính quan trọng dùng:
+```
+style={{ background: 'linear-gradient(135deg, #6366f1, #8b5cf6)', border: 'none', fontWeight: 600 }}
+```
 
 ## Commands
 
@@ -74,13 +138,15 @@ Session pages (`/session/*`) **không dùng `AppLayout`** — chúng có header 
 ```
 src/
   types/index.ts              # tất cả TypeScript interfaces
+  index.css                   # Outfit font import, CSS tokens (:root), utility classes (.sq-*)
+  App.tsx                     # Router + AntD ConfigProvider (theme toàn cục)
   mock/                       # static mock data (dùng cho đến khi có backend)
     classrooms.ts             # Classroom, Post, Schedule
     students.ts               # User[] (STUDENTS, TEACHER constants)
     questions.ts              # Question[] với answers[] của từng HS
     sessions.ts               # LIVE_SESSION (dùng trong cả session + dashboard)
   components/
-    layout/AppLayout.tsx      # Sidebar (240px) + Header + <Outlet />
+    layout/AppLayout.tsx      # Sidebar (232px, fixed) + Header (sticky) + <Outlet />
     session/
       StudentStatusList.tsx   # danh sách thành viên + badge đã/chưa trả lời; hỗ trợ GV (tag "(GV)", không hiện badge trả lời); header đổi thành "Thành viên" khi có GV
       LiveQuestionStats.tsx   # thống kê realtime: progress, đúng/sai, confidence
@@ -98,6 +164,44 @@ src/
     dashboard/TeacherDashboardPage.tsx
     dashboard/StudentReviewPage.tsx
 ```
+
+## AppLayout
+
+Sidebar **fixed** (không scroll theo trang), width 232px (collapsed: 64px). Content area dùng `marginLeft` động để tránh overlap.
+
+- **Logo**: gradient rounded square (`#6366f1 → #8b5cf6`) + text "StudyQuest"
+- **Nav**: custom `<button>` (không dùng AntD `Menu`) với class `.sq-nav-item`; active dùng `background: #eef2ff, color: #6366f1, fontWeight: 600`
+- **User card**: docked ở bottom sidebar, hiện tên + vai trò; ẩn khi collapsed (chỉ hiện Avatar)
+- **Header**: sticky top-0, z-index 100; nút toggle sidebar + Bell badge + Avatar dropdown
+
+## ClassListPage
+
+- **Hero banner**: gradient indigo, hiện tên GV, số lớp, số HS, online count
+- **`CourseCard`**: component nội bộ; banner gradient theo subject (xem Subject gradients); hover lift qua `.sq-card-hover`; 2 nút: "Bắt đầu (GV)" (gradient primary) + icon button vào học (học sinh)
+- **`AddClassCard`**: placeholder dạng dashed border, tối giản
+- **Join with code**: section cuối trang, Input + Button inline
+
+## ClassDetailPage
+
+- **Hero banner**: gradient theo subject (dùng `SUBJECT_STYLE` record trong file)
+- **Tabs** (Bảng tin / Lịch học / Thành viên): render trong `Card` borderRadius 16
+- **Schedule card**: border-left accent (`#6366f1` nếu upcoming, `#e2e8f0` nếu đã qua); icon CheckCircle cho buổi đã xong
+
+## TeacherDashboardPage
+
+- **Header section**: dark indigo gradient (`#1e1b4b → #4338ca`)
+- **`StatCard`**: component nội bộ; icon trong hộp màu nhạt (lightBg) + số lớn + label uppercase; 4 card trong Row gutter 16
+- **Bar chart**: màu bar theo rate (emerald ≥70%, amber 40–70%, rose <40%); axisLine/tickLine ẩn
+- **Pie chart**: 3 màu emerald/rose/slate; có mini stat row bên dưới
+- **Detail tabs**: "Chi tiết từng câu hỏi" dùng `Collapse`; "Kết quả học sinh" dùng `Table` với summary row
+
+## StudentReviewPage
+
+- **Score hero card**: accent strip 4px ở top (gradient theo điểm); Progress circle 110px; 3 mini stat box (Đúng/Sai/Bỏ qua) với nền màu
+- **Performance message**: 3 cấp độ — "Xuất sắc!" (emerald), "Khá tốt!" (amber), "Cần cố gắng hơn" (rose)
+- **Bar chart**: bars màu emerald/rose/slate theo kết quả từng câu
+- **Radar chart**: 2 series — "Trả lời" (indigo) và "Đúng" (emerald)
+- **Question card**: border-left accent + header tinted background theo kết quả; MCQ option highlight (đúng: green, sai+chọn: red)
 
 ## TeacherSessionPage — demo state
 
@@ -141,6 +245,8 @@ Các tính năng khác trong trang:
 
 `tsconfig.app.json` strict settings: `noUnusedLocals`, `noUnusedParameters`, `erasableSyntaxOnly`, `noFallthroughCasesInSwitch`. `tsc -b` chạy composite build gồm cả `tsconfig.app.json` và `tsconfig.node.json`.
 
+`React.ReactNode` có thể dùng không cần `import React` (global namespace trong react-jsx transform) — đây là pattern nhất quán trong toàn bộ codebase.
+
 ## Mock data conventions
 
 - `src/mock/questions.ts` — mỗi `Question` có `answers[]` chứa kết quả mock của từng HS (dùng cho cả `LiveQuestionStats` trong session lẫn `TeacherDashboardPage`)
@@ -150,3 +256,5 @@ Các tính năng khác trong trang:
 ## Project status
 
 Giao diện demo tĩnh đã hoàn chỉnh với mock data, thân thiện với mọi thiết bị. Chưa có backend integration, authentication, hay WebSocket/WebRTC thật.
+
+UI đã được redesign theo phong cách EdTech hiện đại (Coursera/Udemy style): font Outfit, design token indigo, subject-coded gradient card, bento dashboard stats, gamified student review.

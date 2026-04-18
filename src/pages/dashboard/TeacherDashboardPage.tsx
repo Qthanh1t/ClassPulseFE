@@ -5,7 +5,7 @@ import {
 import {
   CheckCircleOutlined, CloseCircleOutlined, MinusCircleOutlined,
   TrophyOutlined, ArrowLeftOutlined, TeamOutlined, QuestionCircleOutlined,
-  BarChartOutlined, TableOutlined,
+  BarChartOutlined, TableOutlined, RiseOutlined,
 } from '@ant-design/icons';
 import {
   BarChart, Bar, XAxis, YAxis, Tooltip as RechartTooltip,
@@ -35,12 +35,61 @@ function getStudentResult(studentId: string, question: Question): 'correct' | 'w
 }
 
 const RESULT_ICON = {
-  correct: <CheckCircleOutlined style={{ color: '#52c41a' }} />,
-  wrong: <CloseCircleOutlined style={{ color: '#ff4d4f' }} />,
-  skipped: <MinusCircleOutlined style={{ color: '#bfbfbf' }} />,
+  correct: <CheckCircleOutlined style={{ color: '#10b981' }} />,
+  wrong: <CloseCircleOutlined style={{ color: '#f43f5e' }} />,
+  skipped: <MinusCircleOutlined style={{ color: '#cbd5e1' }} />,
 };
 
-const PIE_COLORS = ['#52c41a', '#ff4d4f', '#bfbfbf'];
+interface StatCardProps {
+  title: string;
+  value: string | number;
+  icon: React.ReactNode;
+  accentColor: string;
+  lightBg: string;
+  suffix?: string;
+}
+
+function StatCard({ title, value, icon, accentColor, lightBg, suffix }: StatCardProps) {
+  return (
+    <div
+      className="sq-stat-card"
+      style={{
+        background: '#fff',
+        borderRadius: 16,
+        border: '1px solid #e2e8f0',
+        padding: '20px 22px',
+        display: 'flex',
+        alignItems: 'center',
+        gap: 16,
+      }}
+    >
+      <div
+        style={{
+          width: 48,
+          height: 48,
+          borderRadius: 14,
+          background: lightBg,
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          flexShrink: 0,
+          fontSize: 22,
+          color: accentColor,
+        }}
+      >
+        {icon}
+      </div>
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <div style={{ fontSize: 12, color: '#64748b', fontWeight: 500, marginBottom: 4, textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+          {title}
+        </div>
+        <div style={{ fontSize: 24, fontWeight: 700, color: '#0f172a', lineHeight: 1.2 }}>
+          {value}{suffix && <span style={{ fontSize: 14, fontWeight: 500, color: '#64748b', marginLeft: 2 }}>{suffix}</span>}
+        </div>
+      </div>
+    </div>
+  );
+}
 
 export default function TeacherDashboardPage() {
   const navigate = useNavigate();
@@ -77,7 +126,7 @@ export default function TeacherDashboardPage() {
     };
   });
 
-  // Pie chart: overall correct/wrong/skipped
+  // Pie chart
   const totalCorrect = mcqQuestions.reduce((acc, q) =>
     acc + q.answers.filter((a) => isAnswerCorrect(a, q)).length, 0);
   const totalWrong = mcqQuestions.reduce((acc, q) =>
@@ -88,31 +137,31 @@ export default function TeacherDashboardPage() {
   const totalSkipped = mcqPossible - totalCorrect - totalWrong;
 
   const pieData = [
-    { name: 'Đúng', value: totalCorrect, color: '#52c41a' },
-    { name: 'Sai', value: totalWrong, color: '#ff4d4f' },
-    { name: 'Bỏ qua', value: totalSkipped, color: '#bfbfbf' },
+    { name: 'Đúng', value: totalCorrect, color: '#10b981' },
+    { name: 'Sai', value: totalWrong, color: '#f43f5e' },
+    { name: 'Bỏ qua', value: totalSkipped, color: '#e2e8f0' },
   ];
 
-  // Student result table columns
+  // Student table
   const columns = [
     {
       title: 'Học sinh',
       key: 'student',
       fixed: 'left' as const,
-      width: 160,
+      width: 170,
       render: (_: unknown, record: { id: string; name: string; avatarColor?: string }) => (
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <Avatar size={28} style={{ background: record.avatarColor, flexShrink: 0 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          <Avatar size={30} style={{ background: record.avatarColor, flexShrink: 0, fontWeight: 600, fontSize: 12 }}>
             {record.name.charAt(0)}
           </Avatar>
-          <Text style={{ fontSize: 13 }}>{record.name}</Text>
+          <Text style={{ fontSize: 13, fontWeight: 500 }}>{record.name}</Text>
         </div>
       ),
     },
     ...session.questions.map((q, idx) => ({
       title: (
         <Tooltip title={<span dangerouslySetInnerHTML={{ __html: q.content }} />}>
-          <span>Câu {idx + 1}</span>
+          <span style={{ fontSize: 12, fontWeight: 600 }}>Câu {idx + 1}</span>
         </Tooltip>
       ),
       key: q.id,
@@ -126,12 +175,16 @@ export default function TeacherDashboardPage() {
     {
       title: 'Điểm',
       key: 'score',
-      width: 80,
+      width: 90,
       align: 'center' as const,
       render: (_: unknown, record: { id: string }) => {
         const correct = mcqQuestions.filter((q) => getStudentResult(record.id, q) === 'correct').length;
+        const pct = mcqQuestions.length > 0 ? correct / mcqQuestions.length : 0;
         return (
-          <Tag color={correct >= mcqQuestions.length * 0.7 ? 'success' : correct >= mcqQuestions.length * 0.4 ? 'warning' : 'error'}>
+          <Tag
+            color={pct >= 0.7 ? 'success' : pct >= 0.4 ? 'warning' : 'error'}
+            style={{ borderRadius: 20, padding: '1px 10px', fontWeight: 600 }}
+          >
             {correct}/{mcqQuestions.length}
           </Tag>
         );
@@ -140,136 +193,236 @@ export default function TeacherDashboardPage() {
   ];
 
   return (
-    <div className="p-6">
+    <div style={{ padding: '28px 32px', maxWidth: 1200 }}>
       {/* Header */}
-      <div className="flex items-center justify-between mb-6">
-        <div>
-          <Button icon={<ArrowLeftOutlined />} onClick={() => navigate('/classes')} style={{ marginBottom: 8 }} />
-          <Title level={4} style={{ margin: 0 }}>{session.classroomName}</Title>
-          <Text type="secondary">Kết quả buổi học · {session.date} · {session.teacherName}</Text>
-        </div>
-        <div style={{ display: 'flex', gap: 8 }}>
-          <Button onClick={() => navigate(`/session/teacher/${session.classroomId}`)}>
-            Buổi học mới
-          </Button>
-          <Button onClick={() => navigate(`/review/${session.id}`)}>
-            Xem góc học sinh
-          </Button>
+      <div
+        style={{
+          background: 'linear-gradient(135deg, #1e1b4b 0%, #312e81 50%, #4338ca 100%)',
+          borderRadius: 20,
+          padding: '24px 28px',
+          marginBottom: 24,
+          position: 'relative',
+          overflow: 'hidden',
+        }}
+      >
+        <div style={{ position: 'absolute', right: -30, top: -30, width: 160, height: 160, borderRadius: '50%', background: 'rgba(255,255,255,0.04)' }} />
+        <div style={{ position: 'absolute', right: 80, bottom: -40, width: 120, height: 120, borderRadius: '50%', background: 'rgba(255,255,255,0.03)' }} />
+
+        <div style={{ position: 'relative' }}>
+          <Button
+            icon={<ArrowLeftOutlined />}
+            onClick={() => navigate('/classes')}
+            style={{ marginBottom: 12, color: 'rgba(255,255,255,0.75)', borderColor: 'rgba(255,255,255,0.2)', background: 'rgba(255,255,255,0.08)', borderRadius: 8 }}
+          />
+          <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', flexWrap: 'wrap', gap: 12 }}>
+            <div>
+              <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.55)', fontWeight: 500, letterSpacing: '0.06em', textTransform: 'uppercase', marginBottom: 4 }}>
+                Kết quả buổi học
+              </div>
+              <Title level={3} style={{ color: '#fff', margin: '0 0 4px', fontSize: 22, fontWeight: 700 }}>
+                {session.classroomName}
+              </Title>
+              <Text style={{ color: 'rgba(255,255,255,0.65)', fontSize: 13 }}>
+                {session.date} · {session.teacherName}
+              </Text>
+            </div>
+            <div style={{ display: 'flex', gap: 8 }}>
+              <Button
+                onClick={() => navigate(`/session/teacher/${session.classroomId}`)}
+                style={{
+                  background: 'rgba(255,255,255,0.12)',
+                  border: '1px solid rgba(255,255,255,0.2)',
+                  color: '#fff',
+                  borderRadius: 8,
+                  fontWeight: 500,
+                }}
+              >
+                Buổi học mới
+              </Button>
+              <Button
+                type="primary"
+                icon={<RiseOutlined />}
+                onClick={() => navigate(`/review/${session.id}`)}
+                style={{
+                  background: '#6366f1',
+                  border: 'none',
+                  borderRadius: 8,
+                  fontWeight: 600,
+                }}
+              >
+                Góc học sinh
+              </Button>
+            </div>
+          </div>
         </div>
       </div>
 
-      {/* Summary stats */}
-      <Row gutter={16} style={{ marginBottom: 24 }}>
-        {[
-          { title: 'Câu hỏi', value: session.questions.length, icon: <QuestionCircleOutlined />, color: '#1677ff' },
-          { title: 'Tỉ lệ trả lời', value: `${avgResponseRate}%`, icon: <TeamOutlined />, color: '#52c41a' },
-          { title: 'Tỉ lệ đúng (TB)', value: `${avgCorrectRate}%`, icon: <TrophyOutlined />, color: '#fa8c16' },
-          { title: 'HS không tương tác', value: session.silentStudentIds.length, icon: <MinusCircleOutlined />, color: '#ff4d4f' },
-        ].map(({ title, value, icon, color }) => (
-          <Col key={title} xs={12} sm={6}>
-            <Card style={{ borderRadius: 10, borderTop: `3px solid ${color}` }}>
-              <Statistic
-                title={<Text type="secondary" style={{ fontSize: 13 }}>{title}</Text>}
-                value={value}
-                prefix={<span style={{ color }}>{icon}</span>}
-              />
-            </Card>
-          </Col>
-        ))}
+      {/* Stat cards */}
+      <Row gutter={[16, 16]} style={{ marginBottom: 24 }}>
+        <Col xs={12} sm={6}>
+          <StatCard
+            title="Câu hỏi"
+            value={session.questions.length}
+            icon={<QuestionCircleOutlined />}
+            accentColor="#6366f1"
+            lightBg="#eef2ff"
+          />
+        </Col>
+        <Col xs={12} sm={6}>
+          <StatCard
+            title="Tỉ lệ trả lời"
+            value={avgResponseRate}
+            suffix="%"
+            icon={<TeamOutlined />}
+            accentColor="#10b981"
+            lightBg="#f0fdf4"
+          />
+        </Col>
+        <Col xs={12} sm={6}>
+          <StatCard
+            title="Tỉ lệ đúng TB"
+            value={avgCorrectRate}
+            suffix="%"
+            icon={<TrophyOutlined />}
+            accentColor="#f59e0b"
+            lightBg="#fffbeb"
+          />
+        </Col>
+        <Col xs={12} sm={6}>
+          <StatCard
+            title="Không tương tác"
+            value={session.silentStudentIds.length}
+            icon={<MinusCircleOutlined />}
+            accentColor="#f43f5e"
+            lightBg="#fff1f2"
+          />
+        </Col>
       </Row>
 
-      {/* Charts section */}
-      <Row gutter={16} style={{ marginBottom: 24 }}>
-        {/* Bar chart: per-question correct rate */}
+      {/* Charts row */}
+      <Row gutter={[16, 16]} style={{ marginBottom: 20 }}>
+        {/* Bar chart */}
         <Col xs={24} md={16}>
           <Card
-            style={{ borderRadius: 12 }}
-            title={
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                <BarChartOutlined style={{ color: '#1677ff' }} />
-                <span>Tỉ lệ đúng theo từng câu hỏi</span>
-              </div>
-            }
+            style={{ borderRadius: 16, border: '1px solid #e2e8f0', height: '100%' }}
+            styles={{ body: { padding: '20px 20px 12px' } }}
           >
-            <ResponsiveContainer width="100%" height={220}>
-              <BarChart data={questionChartData} margin={{ top: 8, right: 16, bottom: 0, left: -10 }}>
-                <XAxis dataKey="name" tick={{ fontSize: 12 }} />
-                <YAxis domain={[0, 100]} tickFormatter={(v) => `${v}%`} tick={{ fontSize: 11 }} />
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 16 }}>
+              <div style={{ width: 32, height: 32, background: '#eef2ff', borderRadius: 8, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <BarChartOutlined style={{ color: '#6366f1', fontSize: 16 }} />
+              </div>
+              <div>
+                <div style={{ fontSize: 14, fontWeight: 700, color: '#0f172a' }}>Tỉ lệ đúng theo câu hỏi</div>
+                <div style={{ fontSize: 12, color: '#94a3b8' }}>Phân tích kết quả từng câu hỏi</div>
+              </div>
+            </div>
+
+            <ResponsiveContainer width="100%" height={200}>
+              <BarChart data={questionChartData} margin={{ top: 4, right: 8, bottom: 0, left: -12 }}>
+                <XAxis dataKey="name" tick={{ fontSize: 12, fill: '#64748b' }} axisLine={false} tickLine={false} />
+                <YAxis domain={[0, 100]} tickFormatter={(v) => `${v}%`} tick={{ fontSize: 11, fill: '#94a3b8' }} axisLine={false} tickLine={false} />
                 <RechartTooltip
                   formatter={(value: unknown) => [`${String(value)}%`, 'Tỉ lệ đúng']}
+                  contentStyle={{ borderRadius: 10, border: '1px solid #e2e8f0', fontSize: 13, boxShadow: '0 4px 12px rgba(0,0,0,0.06)' }}
                 />
-                <Bar dataKey="rate" radius={[4, 4, 0, 0]} maxBarSize={48}>
+                <Bar dataKey="rate" radius={[6, 6, 0, 0]} maxBarSize={52}>
                   {questionChartData.map((entry, index) => (
                     <Cell
                       key={`bar-${index}`}
-                      fill={entry.rate >= 70 ? '#52c41a' : entry.rate >= 40 ? '#fa8c16' : '#ff4d4f'}
+                      fill={entry.rate >= 70 ? '#10b981' : entry.rate >= 40 ? '#f59e0b' : '#f43f5e'}
                     />
                   ))}
                 </Bar>
               </BarChart>
             </ResponsiveContainer>
-            <div style={{ display: 'flex', gap: 12, marginTop: 4, justifyContent: 'center' }}>
+
+            <div style={{ display: 'flex', gap: 16, marginTop: 8, justifyContent: 'center' }}>
               {[
-                { label: '≥ 70%', color: '#52c41a' },
-                { label: '40–70%', color: '#fa8c16' },
-                { label: '< 40%', color: '#ff4d4f' },
+                { label: 'Tốt (≥70%)', color: '#10b981' },
+                { label: 'Khá (40–70%)', color: '#f59e0b' },
+                { label: 'Yếu (<40%)', color: '#f43f5e' },
               ].map(({ label, color }) => (
-                <div key={label} style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-                  <div style={{ width: 10, height: 10, borderRadius: 2, background: color }} />
-                  <Text style={{ fontSize: 11, color: '#8c8c8c' }}>{label}</Text>
+                <div key={label} style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+                  <div style={{ width: 8, height: 8, borderRadius: 2, background: color }} />
+                  <Text style={{ fontSize: 11, color: '#94a3b8' }}>{label}</Text>
                 </div>
               ))}
             </div>
           </Card>
         </Col>
 
-        {/* Pie chart: overall correct/wrong/skipped */}
+        {/* Pie chart */}
         <Col xs={24} md={8}>
           <Card
-            style={{ borderRadius: 12, height: '100%' }}
-            title="Tổng quan kết quả"
+            style={{ borderRadius: 16, border: '1px solid #e2e8f0', height: '100%' }}
+            styles={{ body: { padding: '20px 20px 12px' } }}
           >
-            <ResponsiveContainer width="100%" height={200}>
+            <div style={{ fontSize: 14, fontWeight: 700, color: '#0f172a', marginBottom: 4 }}>Tổng quan kết quả</div>
+            <div style={{ fontSize: 12, color: '#94a3b8', marginBottom: 8 }}>Phân bố đúng / sai / bỏ qua</div>
+            <ResponsiveContainer width="100%" height={180}>
               <PieChart>
                 <Pie
                   data={pieData}
                   cx="50%"
                   cy="45%"
-                  innerRadius={52}
-                  outerRadius={80}
+                  innerRadius={50}
+                  outerRadius={76}
                   paddingAngle={3}
                   dataKey="value"
-                  label={(props: { name?: string; percent?: number }) => `${props.name ?? ''} ${Math.round((props.percent ?? 0) * 100)}%`}
-                  labelLine={false}
                 >
                   {pieData.map((_entry, index) => (
-                    <Cell key={`pie-${index}`} fill={PIE_COLORS[index]} />
+                    <Cell key={`pie-${index}`} fill={pieData[index].color} />
                   ))}
                 </Pie>
-                <Legend iconSize={10} iconType="circle" />
-                <RechartTooltip formatter={(value: unknown, name: unknown) => [String(value), String(name)]} />
+                <Legend
+                  iconSize={8}
+                  iconType="circle"
+                  formatter={(value) => <span style={{ fontSize: 12, color: '#64748b' }}>{value}</span>}
+                />
+                <RechartTooltip
+                  formatter={(value: unknown, name: unknown) => [String(value), String(name)]}
+                  contentStyle={{ borderRadius: 10, border: '1px solid #e2e8f0', fontSize: 13 }}
+                />
               </PieChart>
             </ResponsiveContainer>
+
+            {/* Quick stats below pie */}
+            <div style={{ display: 'flex', justifyContent: 'center', gap: 16, paddingTop: 4 }}>
+              {[
+                { label: 'Đúng', value: totalCorrect, color: '#10b981' },
+                { label: 'Sai', value: totalWrong, color: '#f43f5e' },
+                { label: 'Bỏ qua', value: totalSkipped, color: '#94a3b8' },
+              ].map(({ label, value, color }) => (
+                <div key={label} style={{ textAlign: 'center' }}>
+                  <Statistic
+                    value={value}
+                    valueStyle={{ fontSize: 18, fontWeight: 700, color }}
+                  />
+                  <div style={{ fontSize: 11, color: '#94a3b8' }}>{label}</div>
+                </div>
+              ))}
+            </div>
           </Card>
         </Col>
       </Row>
 
-      {/* Per-question detail + Student table — tabbed */}
-      <Card style={{ borderRadius: 12 }}>
+      {/* Detail tabs */}
+      <Card style={{ borderRadius: 16, border: '1px solid #e2e8f0' }} styles={{ body: { padding: '0 20px 20px' } }}>
         <Tabs
           defaultActiveKey="questions"
           items={[
             {
               key: 'questions',
               label: (
-                <span>
-                  <QuestionCircleOutlined style={{ marginRight: 6 }} />
-                  Chi tiết từng câu hỏi
-                </span>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <QuestionCircleOutlined />
+                  <span>Chi tiết từng câu hỏi</span>
+                </div>
               ),
               children: (
                 <Collapse
                   size="small"
+                  style={{ borderRadius: 12, border: '1px solid #e2e8f0' }}
                   items={session.questions.map((q, idx) => {
                     const answered = q.answers.filter((a) => a.selectedOptions.length > 0 || (a.essayText?.length ?? 0) > 0);
                     const correct = q.type !== 'essay' ? answered.filter((a) => isAnswerCorrect(a, q)).length : answered.length;
@@ -277,34 +430,30 @@ export default function TeacherDashboardPage() {
                     const highConf = answered.filter((a) => a.confidence === 'high').length;
                     const medConf = answered.filter((a) => a.confidence === 'medium').length;
                     const lowConf = answered.filter((a) => a.confidence === 'low').length;
+                    const rateColor = rate >= 70 ? '#10b981' : rate >= 40 ? '#f59e0b' : '#f43f5e';
 
                     return {
                       key: q.id,
                       label: (
                         <div style={{ display: 'flex', alignItems: 'center', gap: 10, width: '100%' }}>
-                          <Tag color="blue" style={{ flexShrink: 0 }}>Câu {idx + 1}</Tag>
-                          <Text style={{ flex: 1, fontSize: 13 }} ellipsis>
+                          <Tag color="blue" style={{ flexShrink: 0, borderRadius: 6, fontWeight: 600 }}>C{idx + 1}</Tag>
+                          <Text style={{ flex: 1, fontSize: 13, color: '#374151' }} ellipsis>
                             <span dangerouslySetInnerHTML={{ __html: q.content.replace(/<[^>]+>/g, '') }} />
                           </Text>
-                          <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
-                            <Progress
-                              percent={rate}
-                              size="small"
-                              style={{ width: 80 }}
-                              strokeColor={rate >= 70 ? '#52c41a' : rate >= 40 ? '#fa8c16' : '#ff4d4f'}
-                            />
-                            <Text style={{ fontSize: 12, color: '#8c8c8c' }}>
-                              {answered.length}/{STUDENTS.length} HS
-                            </Text>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexShrink: 0 }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                              <div style={{ width: 6, height: 6, borderRadius: '50%', background: rateColor }} />
+                              <Text style={{ fontSize: 12, color: rateColor, fontWeight: 600 }}>{rate}%</Text>
+                            </div>
+                            <Text style={{ fontSize: 11, color: '#94a3b8' }}>{answered.length}/{STUDENTS.length} HS</Text>
                           </div>
                         </div>
                       ),
                       children: (
-                        <div style={{ display: 'flex', gap: 20, flexWrap: 'wrap' }}>
-                          {/* Option distribution bar chart */}
+                        <div style={{ display: 'flex', gap: 24, flexWrap: 'wrap', padding: '4px 0' }}>
                           {q.options && (
                             <div style={{ flex: 2, minWidth: 240 }}>
-                              <Text strong style={{ fontSize: 13, display: 'block', marginBottom: 8 }}>
+                              <Text strong style={{ fontSize: 13, display: 'block', marginBottom: 10, color: '#374151' }}>
                                 Phân bố đáp án
                               </Text>
                               <ResponsiveContainer width="100%" height={120}>
@@ -317,17 +466,18 @@ export default function TeacherDashboardPage() {
                                   }))}
                                   margin={{ top: 4, right: 4, bottom: 0, left: -16 }}
                                 >
-                                  <XAxis dataKey="name" tick={{ fontSize: 11 }} />
-                                  <YAxis allowDecimals={false} tick={{ fontSize: 10 }} />
+                                  <XAxis dataKey="name" tick={{ fontSize: 11 }} axisLine={false} tickLine={false} />
+                                  <YAxis allowDecimals={false} tick={{ fontSize: 10 }} axisLine={false} tickLine={false} />
                                   <RechartTooltip
                                     formatter={(value: unknown, _name: unknown, props: { payload?: { text?: string } }) => [
                                       `${String(value)} học sinh`,
                                       props.payload?.text ?? '',
                                     ]}
+                                    contentStyle={{ borderRadius: 8, fontSize: 12 }}
                                   />
-                                  <Bar dataKey="count" radius={[3, 3, 0, 0]}>
+                                  <Bar dataKey="count" radius={[4, 4, 0, 0]}>
                                     {q.options.map((opt, i) => (
-                                      <Cell key={i} fill={opt.isCorrect ? '#52c41a' : '#ff7875'} />
+                                      <Cell key={i} fill={opt.isCorrect ? '#10b981' : '#fca5a5'} />
                                     ))}
                                   </Bar>
                                 </BarChart>
@@ -335,25 +485,30 @@ export default function TeacherDashboardPage() {
                             </div>
                           )}
 
-                          {/* Confidence breakdown */}
-                          <div style={{ flex: 1, minWidth: 160 }}>
-                            <Text strong style={{ fontSize: 13, display: 'block', marginBottom: 8 }}>
+                          <div style={{ flex: 1, minWidth: 180 }}>
+                            <Text strong style={{ fontSize: 13, display: 'block', marginBottom: 10, color: '#374151' }}>
                               Mức độ tự tin
                             </Text>
                             {[
-                              { label: 'Cao', count: highConf, color: '#52c41a' },
-                              { label: 'Trung bình', count: medConf, color: '#fa8c16' },
-                              { label: 'Thấp', count: lowConf, color: '#ff4d4f' },
-                            ].map(({ label, count, color }) => (
-                              <div key={label} style={{ marginBottom: 6 }}>
-                                <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                                  <Text style={{ fontSize: 13, color }}>{label}</Text>
-                                  <Text style={{ fontSize: 13 }}>{count}</Text>
+                              { label: 'Cao', count: highConf, color: '#10b981', bg: '#f0fdf4' },
+                              { label: 'Trung bình', count: medConf, color: '#f59e0b', bg: '#fffbeb' },
+                              { label: 'Thấp', count: lowConf, color: '#f43f5e', bg: '#fff1f2' },
+                            ].map(({ label, count, color, bg }) => (
+                              <div key={label} style={{ marginBottom: 10 }}>
+                                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
+                                  <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                                    <div style={{ width: 24, height: 24, borderRadius: 6, background: bg, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                      <div style={{ width: 8, height: 8, borderRadius: '50%', background: color }} />
+                                    </div>
+                                    <Text style={{ fontSize: 13, color: '#374151' }}>{label}</Text>
+                                  </div>
+                                  <Text style={{ fontSize: 13, fontWeight: 600, color }}>{count}</Text>
                                 </div>
                                 <Progress
                                   percent={answered.length > 0 ? Math.round((count / answered.length) * 100) : 0}
                                   size="small"
                                   strokeColor={color}
+                                  trailColor="#f1f5f9"
                                   showInfo={false}
                                 />
                               </div>
@@ -369,10 +524,10 @@ export default function TeacherDashboardPage() {
             {
               key: 'students',
               label: (
-                <span>
-                  <TableOutlined style={{ marginRight: 6 }} />
-                  Kết quả học sinh
-                </span>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <TableOutlined />
+                  <span>Kết quả học sinh</span>
+                </div>
               ),
               children: (
                 <Table
@@ -382,21 +537,21 @@ export default function TeacherDashboardPage() {
                   pagination={false}
                   size="small"
                   scroll={{ x: 'max-content' }}
+                  style={{ borderRadius: 12, border: '1px solid #e2e8f0', overflow: 'hidden' }}
                   summary={() => (
                     <Table.Summary fixed>
                       <Table.Summary.Row>
                         <Table.Summary.Cell index={0}>
-                          <Text strong style={{ fontSize: 12 }}>Tỉ lệ đúng</Text>
+                          <Text strong style={{ fontSize: 12, color: '#374151' }}>Tỉ lệ đúng</Text>
                         </Table.Summary.Cell>
                         {session.questions.map((q, idx) => {
                           const answered = q.answers.filter((a) => a.selectedOptions.length > 0 || (a.essayText?.length ?? 0) > 0);
                           const correct = q.type !== 'essay' ? answered.filter((a) => isAnswerCorrect(a, q)).length : answered.length;
                           const pct = Math.round((correct / STUDENTS.length) * 100);
+                          const color = pct >= 70 ? '#10b981' : pct >= 40 ? '#f59e0b' : '#f43f5e';
                           return (
                             <Table.Summary.Cell key={q.id} index={idx + 1} align="center">
-                              <Text style={{ fontSize: 12, color: pct >= 70 ? '#52c41a' : pct >= 40 ? '#fa8c16' : '#ff4d4f' }}>
-                                {pct}%
-                              </Text>
+                              <Text style={{ fontSize: 12, color, fontWeight: 600 }}>{pct}%</Text>
                             </Table.Summary.Cell>
                           );
                         })}
