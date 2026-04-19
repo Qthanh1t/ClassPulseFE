@@ -55,10 +55,11 @@ const DEFAULT_SUBJECT: SubjectConfig = {
   label: 'General',
 };
 
-function CourseCard({ cls, onStart, onJoinAsStudent }: {
+function CourseCard({ cls, onStart, onJoinAsStudent, onCardClick }: {
   cls: Classroom;
   onStart: () => void;
   onJoinAsStudent: () => void;
+  onCardClick: () => void;
 }) {
   const config = SUBJECT_CONFIG[cls.subject] ?? DEFAULT_SUBJECT;
 
@@ -74,7 +75,7 @@ function CourseCard({ cls, onStart, onJoinAsStudent }: {
         display: 'flex',
         flexDirection: 'column',
       }}
-      onClick={onStart}
+      onClick={onCardClick}
     >
       {/* Colored banner */}
       <div
@@ -342,6 +343,7 @@ export default function ClassListPage() {
           <Col key={cls.id} xs={24} sm={12} lg={8}>
             <CourseCard
               cls={cls}
+              onCardClick={() => navigate(`/classes/${cls.id}`)}
               onStart={() => navigate(`/session/teacher/${cls.id}`)}
               onJoinAsStudent={() => navigate(`/session/student/${cls.id}`)}
             />
