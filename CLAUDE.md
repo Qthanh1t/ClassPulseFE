@@ -151,7 +151,7 @@ src/
       StudentStatusList.tsx   # danh sách thành viên + badge đã/chưa trả lời; hỗ trợ GV (tag "(GV)", không hiện badge trả lời); header đổi thành "Thành viên" khi có GV
       LiveQuestionStats.tsx   # thống kê realtime: progress, đúng/sai, confidence
       ConfidenceSelector.tsx  # 3 nút Thấp/Trung bình/Cao
-      CreateQuestionModal.tsx # modal 2 bước: chọn template → soạn thảo + cài đặt thời gian (Switch + preset 30s/1p/1.5p/2p/3p + custom); onSubmit(timerSeconds: number | null)
+      CreateQuestionModal.tsx # modal 2 bước: chọn template → soạn thảo + cài đặt thời gian (Switch + preset 30s/1p/1.5p/2p/3p + custom); onSubmit(timerSeconds: number | null); đáp án MCQ hỗ trợ LaTeX inline ($...$, $$...$$) với nút chèn Σ và preview KaTeX bên dưới mỗi ô
       BreakoutPanel.tsx       # panel nhóm + micro task + broadcast
       ChatPanel.tsx           # panel chat realtime; export MOCK_CHAT_MESSAGES, ChatMessage type, getNow()
       RichTextEditor.tsx      # rich text editor (CKEditor5): bold/italic/underline/strike/list/align/font-size; custom MathPlugin (KaTeX inline+block); file attachment list (ngoài editor, không chỉnh sửa được); font size 3 mức (Nhỏ/Vừa/Lớn) qua nút tự quản lý

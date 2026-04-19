@@ -1,16 +1,19 @@
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import {
   Modal, Steps, Button, Radio, Input, Checkbox, Space,
-  Typography, Card, Divider, Switch, Segmented, InputNumber,
+  Typography, Card, Divider, Switch, Segmented, InputNumber, Tooltip,
 } from 'antd';
+import type { InputRef } from 'antd';
 import {
   CheckSquareOutlined, FormOutlined, UnorderedListOutlined,
-  PlusOutlined, DeleteOutlined, ClockCircleOutlined,
+  PlusOutlined, DeleteOutlined, ClockCircleOutlined, FunctionOutlined,
 } from '@ant-design/icons';
+import katex from 'katex';
+import 'katex/dist/katex.min.css';
 import type { QuestionType } from '../../types';
 import RichTextEditor from './RichTextEditor';
 
-const { Text, Title } = Typography;
+const { Text } = Typography;
 
 const TEMPLATES: { type: QuestionType; label: string; desc: string; icon: React.ReactNode }[] = [
   {
@@ -40,6 +43,123 @@ interface Option {
 }
 
 const PRESET_DURATIONS = [30, 60, 90, 120, 180];
+const LABELS = ['A', 'B', 'C', 'D', 'E', 'F'];
+
+// ── LaTeX inline helpers ─────────────────────────────────────────────────────
+
+type Segment = { text: string; isLatex: boolean; display: boolean };
+
+function parseMixedLatex(text: string): Segment[] {
+  const parts: Segment[] = [];
+  const re = /\$\$([^$]+)\$\$|\$([^$\n]+)\$/g;
+  let last = 0;
+  let m: RegExpExecArray | null;
+  while ((m = re.exec(text)) !== null) {
+    if (m.index > last) parts.push({ text: text.slice(last, m.index), isLatex: false, display: false });
+    if (m[1] !== undefined) parts.push({ text: m[1], isLatex: true, display: true });
+    else parts.push({ text: m[2], isLatex: true, display: false });
+    last = m.index + m[0].length;
+  }
+  if (last < text.length) parts.push({ text: text.slice(last), isLatex: false, display: false });
+  return parts;
+}
+
+function KatexSpan({ latex, display }: { latex: string; display: boolean }) {
+  try {
+    const html = katex.renderToString(latex, { displayMode: display, throwOnError: true });
+    return <span dangerouslySetInnerHTML={{ __html: html }} />;
+  } catch (e) {
+    return (
+      <span style={{ color: '#f43f5e', fontSize: 11, fontStyle: 'italic' }}>
+        [Lỗi: {(e as Error).message.split('\n')[0]}]
+      </span>
+    );
+  }
+}
+
+interface OptionRowProps {
+  opt: Option;
+  idx: number;
+  selectedType: QuestionType;
+  canRemove: boolean;
+  onToggle: () => void;
+  onTextChange: (text: string) => void;
+  onRemove: () => void;
+}
+
+function OptionRow({ opt, idx, selectedType, canRemove, onToggle, onTextChange, onRemove }: OptionRowProps) {
+  const inputRef = useRef<InputRef>(null);
+  const hasLatex = opt.text.includes('$');
+  const segments = hasLatex ? parseMixedLatex(opt.text) : [];
+
+  const insertLatex = () => {
+    const el = inputRef.current?.input;
+    if (!el) return;
+    const start = el.selectionStart ?? opt.text.length;
+    const end = el.selectionEnd ?? opt.text.length;
+    const selected = opt.text.slice(start, end);
+    const formula = selected || 'x';
+    const newText = `${opt.text.slice(0, start)}$${formula}$${opt.text.slice(end)}`;
+    onTextChange(newText);
+    setTimeout(() => {
+      el.setSelectionRange(start + 1, start + 1 + formula.length);
+      el.focus();
+    }, 0);
+  };
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+        {selectedType === 'single' ? (
+          <Radio checked={opt.isCorrect} onChange={onToggle} />
+        ) : (
+          <Checkbox checked={opt.isCorrect} onChange={onToggle} />
+        )}
+        <span style={{ fontWeight: 600, minWidth: 20, color: '#6366f1', fontSize: 14 }}>
+          {LABELS[idx] ?? String(idx + 1)}
+        </span>
+        <Input
+          ref={inputRef}
+          placeholder={`Nội dung lựa chọn ${LABELS[idx] ?? String(idx + 1)}`}
+          value={opt.text}
+          onChange={(e) => onTextChange(e.target.value)}
+          style={{ flex: 1 }}
+          suffix={
+            <Tooltip title="Chèn công thức LaTeX ($...$)">
+              <Button
+                size="small"
+                type="text"
+                icon={<FunctionOutlined style={{ color: '#6366f1', fontSize: 13 }} />}
+                onClick={insertLatex}
+                style={{ padding: '0 2px' }}
+              />
+            </Tooltip>
+          }
+        />
+        {canRemove && (
+          <Button size="small" type="text" danger icon={<DeleteOutlined />} onClick={onRemove} />
+        )}
+      </div>
+      {hasLatex && segments.length > 0 && (
+        <div style={{
+          marginLeft: 56,
+          padding: '4px 10px',
+          background: '#f8fafc',
+          border: '1px solid #e2e8f0',
+          borderRadius: 6,
+          fontSize: 13,
+          lineHeight: '1.6',
+        }}>
+          {segments.map((seg, i) =>
+            seg.isLatex
+              ? <KatexSpan key={i} latex={seg.text} display={seg.display} />
+              : <span key={i}>{seg.text}</span>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
 
 interface Props {
   open: boolean;
@@ -105,7 +225,6 @@ export default function CreateQuestionModal({ open, onClose, onSubmit }: Props) 
     );
   };
 
-  const LABELS = ['A', 'B', 'C', 'D', 'E', 'F'];
 
   return (
     <Modal
@@ -197,35 +316,18 @@ export default function CreateQuestionModal({ open, onClose, onSubmit }: Props) 
               </Divider>
               <Space direction="vertical" style={{ width: '100%' }} size={8}>
                 {options.map((opt, idx) => (
-                  <div key={opt.id} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                    {selectedType === 'single' ? (
-                      <Radio checked={opt.isCorrect} onChange={() => toggleCorrect(opt.id)} />
-                    ) : (
-                      <Checkbox checked={opt.isCorrect} onChange={() => toggleCorrect(opt.id)} />
-                    )}
-                    <Title level={5} style={{ margin: 0, minWidth: 20, color: '#1677ff' }}>
-                      {LABELS[idx] ?? String(idx + 1)}
-                    </Title>
-                    <Input
-                      placeholder={`Nội dung lựa chọn ${LABELS[idx] ?? String(idx + 1)}`}
-                      value={opt.text}
-                      onChange={(e) =>
-                        setOptions((prev) =>
-                          prev.map((o) => (o.id === opt.id ? { ...o, text: e.target.value } : o)),
-                        )
-                      }
-                      style={{ flex: 1 }}
-                    />
-                    {options.length > 2 && (
-                      <Button
-                        size="small"
-                        type="text"
-                        danger
-                        icon={<DeleteOutlined />}
-                        onClick={() => removeOption(opt.id)}
-                      />
-                    )}
-                  </div>
+                  <OptionRow
+                    key={opt.id}
+                    opt={opt}
+                    idx={idx}
+                    selectedType={selectedType}
+                    canRemove={options.length > 2}
+                    onToggle={() => toggleCorrect(opt.id)}
+                    onTextChange={(text) =>
+                      setOptions((prev) => prev.map((o) => (o.id === opt.id ? { ...o, text } : o)))
+                    }
+                    onRemove={() => removeOption(opt.id)}
+                  />
                 ))}
               </Space>
 
