@@ -41,7 +41,7 @@ Mô hình "Closed Feedback Loop Classroom": giáo viên giảng → đặt câu 
 - **Tailwind CSS v4** (via `@tailwindcss/vite` — no `tailwind.config.js` needed)
 - **Ant Design v6** + **@ant-design/icons** — primary UI component library; theme được set qua `ConfigProvider` trong `App.tsx`
 - **react-router-dom v7** — routing
-- **TipTap v3** (`@tiptap/react`, `starter-kit`, `extension-underline`, `extension-text-align`) — rich text editor dùng trong `CreateQuestionModal`
+- **CKEditor5 v48** (`ckeditor5`, `@ckeditor/ckeditor5-react`) — rich text editor dùng trong `CreateQuestionModal`; tích hợp KaTeX (`katex`) cho công thức toán
 - **Recharts v3** — biểu đồ (BarChart, PieChart, RadarChart) dùng trong `TeacherDashboardPage` và `StudentReviewPage`
 
 ## Design system
@@ -154,7 +154,7 @@ src/
       CreateQuestionModal.tsx # modal 2 bước: chọn template → soạn thảo + cài đặt thời gian (Switch + preset 30s/1p/1.5p/2p/3p + custom); onSubmit(timerSeconds: number | null)
       BreakoutPanel.tsx       # panel nhóm + micro task + broadcast
       ChatPanel.tsx           # panel chat realtime; export MOCK_CHAT_MESSAGES, ChatMessage type, getNow()
-      RichTextEditor.tsx      # rich text editor (TipTap): bold/italic/underline/strike/heading/list/align
+      RichTextEditor.tsx      # rich text editor (CKEditor5): bold/italic/underline/strike/list/align/font-size; custom MathPlugin (KaTeX inline+block); file attachment list (ngoài editor, không chỉnh sửa được); font size 3 mức (Nhỏ/Vừa/Lớn) qua nút tự quản lý
       CtrlBtn.tsx             # nút điều khiển dùng chung cho 2 session page: dark bg, circle/round, danger
   pages/
     classroom/ClassListPage.tsx
