@@ -1,12 +1,14 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { ConfigProvider } from 'antd';
 import AppLayout from './components/layout/AppLayout';
+import LoginPage from './pages/LoginPage';
 import ClassListPage from './pages/classroom/ClassListPage';
 import ClassDetailPage from './pages/classroom/ClassDetailPage';
 import TeacherSessionPage from './pages/session/TeacherSessionPage';
 import StudentSessionPage from './pages/session/StudentSessionPage';
 import TeacherDashboardPage from './pages/dashboard/TeacherDashboardPage';
 import StudentReviewPage from './pages/dashboard/StudentReviewPage';
+import ProfilePage from './pages/ProfilePage';
 
 export default function App() {
   return (
@@ -41,12 +43,14 @@ export default function App() {
     >
       <BrowserRouter>
         <Routes>
-          <Route path="/" element={<Navigate to="/classes" replace />} />
+          <Route path="/" element={<Navigate to="/login" replace />} />
+          <Route path="/login" element={<LoginPage />} />
           <Route element={<AppLayout />}>
             <Route path="/classes" element={<ClassListPage />} />
             <Route path="/classes/:id" element={<ClassDetailPage />} />
             <Route path="/dashboard/:sessionId" element={<TeacherDashboardPage />} />
             <Route path="/review/:sessionId" element={<StudentReviewPage />} />
+            <Route path="/profile" element={<ProfilePage />} />
           </Route>
           {/* Session pages dùng layout riêng (fullscreen) */}
           <Route path="/session/teacher/:id" element={<TeacherSessionPage />} />

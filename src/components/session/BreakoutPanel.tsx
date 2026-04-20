@@ -26,9 +26,9 @@ export default function BreakoutPanel({ groups, onClose }: Props) {
         }}
       >
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <TeamOutlined style={{ color: '#1677ff' }} />
+          <TeamOutlined style={{ color: '#6366f1' }} />
           <Title level={5} style={{ margin: 0 }}>Breakout Rooms</Title>
-          <Badge count={groups.length} color="#1677ff" />
+          <Badge count={groups.length} color="#6366f1" />
         </div>
         <div style={{ display: 'flex', gap: 8 }}>
           <Button
@@ -81,7 +81,7 @@ export default function BreakoutPanel({ groups, onClose }: Props) {
                   styles={{ body: { padding: '8px 12px' } }}
                 >
                   <Text style={{ fontSize: 12 }}>
-                    <span style={{ color: '#1677ff', fontWeight: 600 }}>Nhiệm vụ: </span>
+                    <span style={{ color: '#6366f1', fontWeight: 600 }}>Nhiệm vụ: </span>
                     {group.task}
                   </Text>
                 </Card>
@@ -93,7 +93,7 @@ export default function BreakoutPanel({ groups, onClose }: Props) {
 
       {/* Broadcast modal */}
       <Modal
-        title={<><MessageOutlined style={{ color: '#1677ff', marginRight: 8 }} />Thông báo đến tất cả nhóm</>}
+        title={<><MessageOutlined style={{ color: '#6366f1', marginRight: 8 }} />Thông báo đến tất cả nhóm</>}
         open={broadcastOpen}
         onCancel={() => setBroadcastOpen(false)}
         onOk={() => setBroadcastOpen(false)}

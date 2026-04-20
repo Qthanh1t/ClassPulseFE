@@ -1,12 +1,12 @@
-import { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import {
-  Avatar, Badge, Button, Checkbox, Modal, Radio, Segmented, Tag, Tooltip, Typography, Alert,
+  Avatar, Badge, Button, Checkbox, Modal, Progress, Radio, Segmented, Tag, Tooltip, Typography, Alert,
   Input as AntInput,
 } from 'antd';
 import {
   CheckCircleOutlined, ClockCircleOutlined, TeamOutlined,
   SendOutlined, MessageOutlined, AudioOutlined, AudioMutedOutlined,
-  VideoCameraOutlined, MinusOutlined, ExpandAltOutlined,
+  VideoCameraOutlined, MinusOutlined, ExpandAltOutlined, ExclamationCircleOutlined,
   BellOutlined, ArrowLeftOutlined, DesktopOutlined,
 } from '@ant-design/icons';
 import { useNavigate } from 'react-router-dom';
@@ -24,6 +24,7 @@ const { Text, Title } = Typography;
 const { TextArea } = AntInput;
 
 const STUDENT = STUDENTS[0]; // demo as s1 — Nguyễn Văn An
+const QUESTION_TIMER_SECONDS = 90; // mock timer shown to student
 
 type StudentDemoState = 'idle' | 'question' | 'breakout';
 
@@ -63,6 +64,13 @@ export default function StudentSessionPage() {
 
   // ── Broadcast (breakout) ──
   const [broadcastMsg, setBroadcastMsg] = useState<string | null>(null);
+
+  // ── Question timer (student-side) ──
+  const [timeRemaining, setTimeRemaining] = useState(0);
+  const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  // ── Leave confirm modal ──
+  const [leaveOpen, setLeaveOpen] = useState(false);
 
   const question = session.questions[questionIdx];
   const myGroup = session.breakoutGroups?.find((g) => g.studentIds.includes(STUDENT.id));
@@ -108,7 +116,7 @@ export default function StudentSessionPage() {
         id: String(Date.now()),
         senderId: STUDENT.id,
         senderName: STUDENT.name,
-        avatarColor: STUDENT.avatarColor ?? '#1677ff',
+        avatarColor: STUDENT.avatarColor ?? '#6366f1',
         content: text,
         time: getNow(),
       },
@@ -116,6 +124,28 @@ export default function StudentSessionPage() {
   };
 
   const canSubmit = selectedOptions.length > 0 || essayText.trim().length > 0;
+
+  // Start/stop countdown when question state changes
+  useEffect(() => {
+    if (demoState === 'question' && !submitted) {
+      setTimeRemaining(QUESTION_TIMER_SECONDS);
+      timerRef.current = setInterval(() => {
+        setTimeRemaining((prev) => {
+          if (prev <= 1) {
+            clearInterval(timerRef.current!);
+            setSubmitted(true);
+            return 0;
+          }
+          return prev - 1;
+        });
+      }, 1000);
+    } else {
+      if (timerRef.current) clearInterval(timerRef.current);
+    }
+    return () => { if (timerRef.current) clearInterval(timerRef.current); };
+  }, [demoState]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const answeredCount = [selectedOptions.length > 0 || essayText.trim().length > 0].filter(Boolean).length;
 
   // Shared white-card panel style (same as TeacherSessionPage)
   const panelStyle: React.CSSProperties = {
@@ -161,19 +191,17 @@ export default function StudentSessionPage() {
         </div>
 
         {/* Center: Demo switcher */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-          <Text style={{ fontSize: 11, color: 'rgba(255,255,255,0.5)' }}>Demo:</Text>
-          <Segmented
-            size="small"
-            value={demoState}
-            onChange={handleDemoStateChange}
-            options={[
-              { value: 'idle', label: 'Lớp học' },
-              { value: 'question', label: '📝 Có câu hỏi' },
-              { value: 'breakout', label: '👥 Breakout' },
-            ]}
-          />
-        </div>
+        <Segmented
+          size="small"
+          value={demoState}
+          onChange={handleDemoStateChange}
+          options={[
+            { value: 'idle', label: 'Lớp học' },
+            { value: 'question', label: '📝 Có câu hỏi' },
+            { value: 'breakout', label: '👥 Breakout' },
+          ]}
+          style={{ background: 'rgba(255,255,255,0.1)' }}
+        />
 
         {/* Right: pending question indicator */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -181,7 +209,7 @@ export default function StudentSessionPage() {
             <Button
               size="small"
               type="primary"
-              style={{ background: '#fa8c16', borderColor: '#fa8c16', fontSize: 12 }}
+              style={{ background: '#6366f1', borderColor: '#6366f1', fontSize: 12 }}
               onClick={() => setQuestionPanelOpen(true)}
             >
               📝 Câu hỏi đang chờ
@@ -247,7 +275,7 @@ export default function StudentSessionPage() {
                   </div>
                 )}
                 <div style={{ position: 'absolute', bottom: 10, left: 12, background: 'rgba(0,0,0,0.5)', padding: '3px 10px', borderRadius: 6, display: 'flex', alignItems: 'center', gap: 6 }}>
-                  <Avatar size={20} style={{ background: '#1677ff', fontSize: 11 }}>L</Avatar>
+                  <Avatar size={20} style={{ background: 'linear-gradient(135deg, #6366f1, #8b5cf6)', fontSize: 11 }}>L</Avatar>
                   <Text style={{ color: '#fff', fontSize: 12 }}>{session.teacherName}</Text>
                   <Badge status="processing" />
                 </div>
@@ -259,7 +287,7 @@ export default function StudentSessionPage() {
               {/* Student thumbnails */}
               <div style={{ display: 'flex', gap: 8, flexShrink: 0 }}>
                 {/* Self */}
-                <div style={{ flex: 1, maxWidth: 120, background: '#2d2d44', borderRadius: 8, aspectRatio: '4/3', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 4, position: 'relative', border: '2px solid #1677ff' }}>
+                <div style={{ flex: 1, maxWidth: 120, background: '#2d2d44', borderRadius: 8, aspectRatio: '4/3', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 4, position: 'relative', border: '2px solid #6366f1' }}>
                   {cameraOn ? (
                     <Avatar size={36} style={{ background: STUDENT.avatarColor }}>{STUDENT.name.charAt(0)}</Avatar>
                   ) : (
@@ -287,10 +315,10 @@ export default function StudentSessionPage() {
             <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 10, overflow: 'hidden' }}>
 
               {/* Group banner */}
-              <div style={{ background: 'linear-gradient(135deg, #1677ff22, #0958d922)', border: '1px solid #1677ff44', borderRadius: 10, padding: '8px 16px', display: 'flex', alignItems: 'center', gap: 12, flexShrink: 0 }}>
-                <TeamOutlined style={{ color: '#4096ff', fontSize: 16 }} />
+              <div style={{ background: 'linear-gradient(135deg, #6366f122, #4f46e522)', border: '1px solid #6366f144', borderRadius: 10, padding: '8px 16px', display: 'flex', alignItems: 'center', gap: 12, flexShrink: 0 }}>
+                <TeamOutlined style={{ color: '#6366f1', fontSize: 16 }} />
                 <div style={{ flex: 1, minWidth: 0 }}>
-                  <Text strong style={{ color: '#91caff', fontSize: 13 }}>{myGroup.name}</Text>
+                  <Text strong style={{ color: '#a5b4fc', fontSize: 13 }}>{myGroup.name}</Text>
                   <Text style={{ color: 'rgba(255,255,255,0.6)', fontSize: 12, marginLeft: 10 }}>{myGroup.task}</Text>
                 </div>
                 <Button
@@ -329,7 +357,7 @@ export default function StudentSessionPage() {
                         justifyContent: 'center',
                         gap: 6,
                         position: 'relative',
-                        border: isSelf ? '2px solid #1677ff' : '2px solid transparent',
+                        border: isSelf ? '2px solid #6366f1' : '2px solid transparent',
                       }}
                     >
                       {isSelf && !cameraOn ? (
@@ -388,7 +416,7 @@ export default function StudentSessionPage() {
               }}
             >
               {/* Panel header */}
-              <div style={{ padding: '10px 14px', background: 'linear-gradient(135deg, #1677ff, #0958d9)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexShrink: 0 }}>
+              <div style={{ padding: '10px 14px', background: 'linear-gradient(135deg, #6366f1, #4f46e5)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexShrink: 0 }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                   <Text strong style={{ color: '#fff', fontSize: 13 }}>
                     📝 Câu hỏi {questionIdx + 1}/{session.questions.length}
@@ -397,15 +425,37 @@ export default function StudentSessionPage() {
                     {question.type === 'single' ? 'Trắc nghiệm' : question.type === 'multiple' ? 'Nhiều đáp án' : 'Tự luận'}
                   </Tag>
                 </div>
-                <Tooltip title="Thu nhỏ">
-                  <Button
-                    size="small"
-                    type="text"
-                    icon={<MinusOutlined style={{ color: 'rgba(255,255,255,0.8)' }} />}
-                    onClick={() => setQuestionPanelOpen(false)}
-                    style={{ background: 'rgba(255,255,255,0.15)' }}
-                  />
-                </Tooltip>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  {!submitted && timeRemaining > 0 && (
+                    <Progress
+                      type="circle"
+                      size={34}
+                      percent={Math.round((timeRemaining / QUESTION_TIMER_SECONDS) * 100)}
+                      strokeColor={
+                        timeRemaining / QUESTION_TIMER_SECONDS > 0.5 ? '#34d399'
+                          : timeRemaining / QUESTION_TIMER_SECONDS > 0.2 ? '#fbbf24'
+                            : '#f87171'
+                      }
+                      trailColor="rgba(255,255,255,0.2)"
+                      format={() => (
+                        <span style={{ fontSize: 9, fontWeight: 700, color: '#fff' }}>
+                          {timeRemaining >= 60
+                            ? `${Math.floor(timeRemaining / 60)}:${String(timeRemaining % 60).padStart(2, '0')}`
+                            : `${timeRemaining}s`}
+                        </span>
+                      )}
+                    />
+                  )}
+                  <Tooltip title="Thu nhỏ">
+                    <Button
+                      size="small"
+                      type="text"
+                      icon={<MinusOutlined style={{ color: 'rgba(255,255,255,0.8)' }} />}
+                      onClick={() => setQuestionPanelOpen(false)}
+                      style={{ background: 'rgba(255,255,255,0.15)' }}
+                    />
+                  </Tooltip>
+                </div>
               </div>
 
               {/* Panel body */}
@@ -419,7 +469,7 @@ export default function StudentSessionPage() {
                         <div
                           key={opt.id}
                           onClick={() => handleSelectSingle(opt.id)}
-                          style={{ padding: '10px 12px', border: `2px solid ${selectedOptions.includes(opt.id) ? '#1677ff' : '#e8e8e8'}`, borderRadius: 8, cursor: submitted ? 'default' : 'pointer', background: selectedOptions.includes(opt.id) ? '#e6f4ff' : '#fafafa', display: 'flex', alignItems: 'center', gap: 8, transition: 'all 0.15s' }}
+                          style={{ padding: '10px 12px', border: `2px solid ${selectedOptions.includes(opt.id) ? '#6366f1' : '#e8e8e8'}`, borderRadius: 8, cursor: submitted ? 'default' : 'pointer', background: selectedOptions.includes(opt.id) ? '#eef2ff' : '#fafafa', display: 'flex', alignItems: 'center', gap: 8, transition: 'all 0.15s' }}
                         >
                           <Radio value={opt.id} />
                           <Tag style={{ minWidth: 24, textAlign: 'center', margin: 0, fontSize: 11 }}>{opt.label}</Tag>
@@ -436,7 +486,7 @@ export default function StudentSessionPage() {
                       <div
                         key={opt.id}
                         onClick={() => handleSelectMultiple(opt.id)}
-                        style={{ padding: '10px 12px', border: `2px solid ${selectedOptions.includes(opt.id) ? '#1677ff' : '#e8e8e8'}`, borderRadius: 8, cursor: submitted ? 'default' : 'pointer', background: selectedOptions.includes(opt.id) ? '#e6f4ff' : '#fafafa', display: 'flex', alignItems: 'center', gap: 8 }}
+                        style={{ padding: '10px 12px', border: `2px solid ${selectedOptions.includes(opt.id) ? '#6366f1' : '#e8e8e8'}`, borderRadius: 8, cursor: submitted ? 'default' : 'pointer', background: selectedOptions.includes(opt.id) ? '#eef2ff' : '#fafafa', display: 'flex', alignItems: 'center', gap: 8 }}
                       >
                         <Checkbox checked={selectedOptions.includes(opt.id)} />
                         <Tag style={{ minWidth: 24, textAlign: 'center', margin: 0, fontSize: 11 }}>{opt.label}</Tag>
@@ -497,7 +547,7 @@ export default function StudentSessionPage() {
           <div style={{ ...panelStyle, width: 280 }}>
             <ChatPanel
               messages={chatMessages}
-              currentUser={{ id: STUDENT.id, name: STUDENT.name, avatarColor: STUDENT.avatarColor ?? '#1677ff' }}
+              currentUser={{ id: STUDENT.id, name: STUDENT.name, avatarColor: STUDENT.avatarColor ?? '#6366f1' }}
               onSend={handleSendChat}
               onClose={() => setShowChat(false)}
               height="100%"
@@ -571,12 +621,39 @@ export default function StudentSessionPage() {
           type="primary"
           danger
           shape="round"
-          onClick={() => navigate(`/review/${session.id}`)}
+          onClick={() => setLeaveOpen(true)}
           style={{ fontWeight: 600, flexShrink: 0 }}
         >
           Rời lớp
         </Button>
       </div>
+
+      {/* ── Leave confirm modal ── */}
+      <Modal
+        title={<div style={{ display: 'flex', alignItems: 'center', gap: 8 }}><ExclamationCircleOutlined style={{ color: '#faad14', fontSize: 18 }} /><span>Rời khỏi lớp học?</span></div>}
+        open={leaveOpen}
+        onOk={() => navigate(`/review/${session.id}`)}
+        onCancel={() => setLeaveOpen(false)}
+        okText="Rời lớp & Xem kết quả"
+        cancelText="Tiếp tục học"
+        okButtonProps={{ danger: true, type: 'primary' }}
+        centered
+        width={400}
+      >
+        <div style={{ padding: '8px 0' }}>
+          <p style={{ marginBottom: 12, color: '#595959' }}>Bạn sẽ rời buổi học và xem lại kết quả của mình.</p>
+          <div style={{ background: '#f5f5f5', borderRadius: 8, padding: '10px 16px', display: 'flex', gap: 24 }}>
+            <div>
+              <Text type="secondary" style={{ fontSize: 12 }}>Đã trả lời</Text>
+              <div><Text strong style={{ fontSize: 16 }}>{answeredCount} / {session.questions.length}</Text></div>
+            </div>
+            <div>
+              <Text type="secondary" style={{ fontSize: 12 }}>Câu hỏi trong buổi</Text>
+              <div><Text strong style={{ fontSize: 16 }}>{session.questions.length}</Text></div>
+            </div>
+          </div>
+        </div>
+      </Modal>
 
       {/* ── New question notification modal ── */}
       <Modal

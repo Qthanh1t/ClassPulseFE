@@ -16,7 +16,7 @@ Mô hình "Closed Feedback Loop Classroom": giáo viên giảng → đặt câu 
 ### Core features
 1. **Classroom management** — tạo lớp, đăng bài, lịch học (tương tự Microsoft Teams)
 2. **Confidence-based Answering** — học sinh trả lời câu hỏi + chọn mức độ tự tin (Thấp/Trung bình/Cao); hỗ trợ template trắc nghiệm 1 đáp án, nhiều đáp án, tự luận; có trình soạn thảo rich text; hỗ trợ giới hạn thời gian tùy chọn, câu hỏi tự kết thúc khi hết giờ
-3. **Silent Student Detection** — phát hiện và lưu thông tin học sinh không trả lời câu hỏi
+3. **Silent Student Detection** — phát hiện học sinh không trả lời câu hỏi; alert hiển thị tên cụ thể
 4. **Dynamic Breakout Group** — chia phòng thảo luận nhóm trong buổi học
 5. **Micro Task** — giao nhiệm vụ cho từng nhóm; giáo viên vẫn có thể broadcast thông báo cho cả lớp khi đang trong breakout
 6. **Quick Action Button** — giáo viên nhanh chóng tạo câu hỏi hoặc chia nhóm trong buổi học
@@ -123,15 +123,17 @@ Chưa có test runner.
 
 | Path | Component | Ghi chú |
 |---|---|---|
-| `/` | redirect → `/classes` | |
+| `/` | redirect → `/login` | |
+| `/login` | `LoginPage` | Không dùng `AppLayout`; layout 2 cột brand + form |
 | `/classes` | `ClassListPage` | Dùng `AppLayout` (sidebar) |
 | `/classes/:id` | `ClassDetailPage` | Dùng `AppLayout` |
 | `/session/teacher/:id` | `TeacherSessionPage` | Layout riêng, fullscreen |
 | `/session/student/:id` | `StudentSessionPage` | Layout riêng, fullscreen |
 | `/dashboard/:sessionId` | `TeacherDashboardPage` | Dùng `AppLayout` |
 | `/review/:sessionId` | `StudentReviewPage` | Dùng `AppLayout` |
+| `/profile` | `ProfilePage` | Dùng `AppLayout`; hiện thông tin + stats giáo viên |
 
-Session pages (`/session/*`) **không dùng `AppLayout`** — chúng có header riêng dạng fullscreen.
+Session pages (`/session/*`) và `LoginPage` **không dùng `AppLayout`** — chúng có layout riêng.
 
 ## Code structure
 
@@ -141,8 +143,8 @@ src/
   index.css                   # Outfit font import, CSS tokens (:root), utility classes (.sq-*)
   App.tsx                     # Router + AntD ConfigProvider (theme toàn cục)
   mock/                       # static mock data (dùng cho đến khi có backend)
-    classrooms.ts             # Classroom, Post, Schedule
-    students.ts               # User[] (STUDENTS, TEACHER constants)
+    classrooms.ts             # Classroom, Post, Schedule — có data cho cả 3 lớp c1/c2/c3
+    students.ts               # User[] (STUDENTS, TEACHER constants); avatarColor dùng #6366f1
     questions.ts              # Question[] với answers[] của từng HS
     sessions.ts               # LIVE_SESSION (dùng trong cả session + dashboard)
   components/
@@ -157,10 +159,12 @@ src/
       RichTextEditor.tsx      # rich text editor (CKEditor5): bold/italic/underline/strike/list/align/font-size; custom MathPlugin (KaTeX inline+block); file attachment list (ngoài editor, không chỉnh sửa được); font size 3 mức (Nhỏ/Vừa/Lớn) qua nút tự quản lý
       CtrlBtn.tsx             # nút điều khiển dùng chung cho 2 session page: dark bg, circle/round, danger
   pages/
+    LoginPage.tsx             # trang đăng nhập: 2 cột brand/form, role switcher GV/HS, cả 2 navigate /classes
+    ProfilePage.tsx           # trang hồ sơ: avatar, stats (lớp/buổi học/câu hỏi/học sinh)
     classroom/ClassListPage.tsx
-    classroom/ClassDetailPage.tsx   # tabs: Bảng tin | Lịch học | Thành viên
-    session/TeacherSessionPage.tsx  # layout 3 cột, có Segmented demo-state switcher
-    session/StudentSessionPage.tsx
+    classroom/ClassDetailPage.tsx   # tabs: Bảng tin | Lịch học | Thành viên; past schedule có nút "Xem kết quả →"
+    session/TeacherSessionPage.tsx  # layout 3 cột, có Segmented demo-state switcher (không có label "Demo:")
+    session/StudentSessionPage.tsx  # có student-side countdown timer (90s), leave confirm modal
     dashboard/TeacherDashboardPage.tsx
     dashboard/StudentReviewPage.tsx
 ```
@@ -173,6 +177,15 @@ Sidebar **fixed** (không scroll theo trang), width 232px (collapsed: 64px). Con
 - **Nav**: custom `<button>` (không dùng AntD `Menu`) với class `.sq-nav-item`; active dùng `background: #eef2ff, color: #6366f1, fontWeight: 600`
 - **User card**: docked ở bottom sidebar, hiện tên + vai trò; ẩn khi collapsed (chỉ hiện Avatar)
 - **Header**: sticky top-0, z-index 100; nút toggle sidebar + Bell badge + Avatar dropdown
+- **Avatar dropdown**: "Hồ sơ" → navigate `/profile`; "Đăng xuất" → navigate `/login`
+
+## LoginPage
+
+Layout 2 cột (không dùng AppLayout):
+- **Bên trái**: gradient indigo brand panel — logo, headline, danh sách 4 tính năng nổi bật
+- **Bên phải**: form đăng nhập — badge "Demo Mode", role switcher (2 card GV/HS), email + password, nút "Vào StudyQuest →"
+- Cả 2 role đều navigate → `/classes` sau khi đăng nhập
+- Form UI only, không validate thật
 
 ## ClassListPage
 
@@ -185,7 +198,7 @@ Sidebar **fixed** (không scroll theo trang), width 232px (collapsed: 64px). Con
 
 - **Hero banner**: gradient theo subject (dùng `SUBJECT_STYLE` record trong file)
 - **Tabs** (Bảng tin / Lịch học / Thành viên): render trong `Card` borderRadius 16
-- **Schedule card**: border-left accent (`#6366f1` nếu upcoming, `#e2e8f0` nếu đã qua); icon CheckCircle cho buổi đã xong
+- **Schedule card**: border-left accent (`#6366f1` nếu upcoming, `#e2e8f0` nếu đã qua); icon CheckCircle cho buổi đã xong; buổi đã qua có thêm nút nhỏ "Xem kết quả →" → navigate `/dashboard/sess1`
 
 ## TeacherDashboardPage
 
@@ -205,7 +218,7 @@ Sidebar **fixed** (không scroll theo trang), width 232px (collapsed: 64px). Con
 
 ## TeacherSessionPage — demo state
 
-Trang này dùng `Segmented` control ở top bar để switch giữa 4 state demo (thay cho websocket thật):
+Trang này dùng `Segmented` control ở top bar để switch giữa 4 state demo (thay cho websocket thật). Segmented không có label "Demo:" — blend vào dark header với `background: rgba(255,255,255,0.1)`.
 
 | State | Mô tả |
 |---|---|
@@ -221,10 +234,11 @@ Các tính năng khác trong trang:
 - **End session modal**: confirm trước khi điều hướng → `/dashboard/:sessionId`
 - **Raised hand**: mock `raisedHandIds = ['s3', 's5']`, hiển thị ✋ trên thumbnail HS
 - **Question timer**: khi GV đặt thời gian, hiển thị circular progress (44px) đếm ngược cạnh nút "Kết thúc"; màu xanh→cam→đỏ theo % còn lại; tự chuyển state `ended` khi về 0; reset khi kết thúc thủ công hoặc chuyển câu tiếp
+- **Silent student alert**: khi `demoState === 'running'`, hiển thị Alert warning với avatar + tên cụ thể của từng HS trong `silentStudentIds`
 
 ## StudentSessionPage — demo state
 
-Trang này dùng `Segmented` control ở top bar để switch giữa 3 state demo:
+Trang này dùng `Segmented` control ở top bar để switch giữa 3 state demo (không có label "Demo:"):
 
 | State | Mô tả |
 |---|---|
@@ -234,12 +248,13 @@ Trang này dùng `Segmented` control ở top bar để switch giữa 3 state dem
 
 Các tính năng khác trong trang:
 - **Panel thành viên** (trái, 200px): hiển thị `[TEACHER, ...STUDENTS]` qua `StudentStatusList`; GV có tag "(GV)"; toggle bằng nút `TeamOutlined` ở bottom bar
-- **Floating question panel**: hiển thị câu hỏi, đáp án (single/multiple/essay), `ConfidenceSelector`; thu nhỏ được sau khi nộp
+- **Floating question panel**: hiển thị câu hỏi, đáp án (single/multiple/essay), `ConfidenceSelector`; thu nhỏ được sau khi nộp; header hiện countdown timer Progress circle 34px (mock `QUESTION_TIMER_SECONDS = 90`); tự submit khi hết giờ
 - **Bottom control bar** (dùng `CtrlBtn`): Mic | Camera | Screen Share | ✋ | — | Participants | Chat | Câu hỏi | — | Rời lớp; có `overflowX: auto`
 - **Screen share**: state `screenShareOn`, hiển thị overlay/badge trên self-tile khi breakout
 - **Chat panel** (`ChatPanel`): dùng `MOCK_CHAT_MESSAGES` làm dữ liệu ban đầu
 - **Broadcast alert**: khi ở breakout, GV gửi thông báo hiện `Alert` ở trên cùng
 - **Breakout grid**: ẩn video GV, hiện equal CSS grid (`auto-fill minmax(180px,1fr)`) của các thành viên nhóm; self-tile có viền xanh + mic-off/raised-hand indicator
+- **Leave confirm modal**: click "Rời lớp" → Modal confirm hiện số câu đã trả lời; nút "Rời lớp & Xem kết quả" → navigate `/review/:sessionId`
 
 ## TypeScript configuration
 
@@ -251,6 +266,8 @@ Các tính năng khác trong trang:
 
 - `src/mock/questions.ts` — mỗi `Question` có `answers[]` chứa kết quả mock của từng HS (dùng cho cả `LiveQuestionStats` trong session lẫn `TeacherDashboardPage`)
 - `LIVE_SESSION` trong `sessions.ts` import trực tiếp `QUESTIONS` từ `questions.ts`
+- `POSTS` và `SCHEDULES` trong `classrooms.ts` có data cho cả 3 lớp (c1/c2/c3)
+- `TEACHER.avatarColor` và `STUDENTS[0].avatarColor` dùng `#6366f1` (không phải `#1677ff`)
 - Khi tích hợp backend: thay thế các import từ `mock/` bằng API calls, giữ nguyên cấu trúc types
 
 ## Project status

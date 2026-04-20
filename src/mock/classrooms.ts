@@ -31,6 +31,49 @@ export const CLASSROOMS: Classroom[] = [
 ];
 
 export const POSTS: Post[] = [
+  // c2 — Database
+  {
+    id: 'p_c2_1',
+    classroomId: 'c2',
+    authorName: 'Nguyễn Thị Lan',
+    authorRole: 'teacher',
+    content: 'Chào các bạn! Buổi tới chúng ta sẽ thực hành viết query tối ưu với EXPLAIN ANALYZE. Các bạn hãy cài sẵn PostgreSQL 16 và pgAdmin nhé.',
+    createdAt: '2026-04-12 08:30',
+  },
+  {
+    id: 'p_c2_2',
+    classroomId: 'c2',
+    authorName: 'Phạm Thị Dung',
+    authorRole: 'student',
+    content: 'Cô ơi, em hay bị nhầm giữa LEFT JOIN và INNER JOIN trong trường hợp có NULL. Buổi tới cô có thể giải thích thêm không ạ?',
+    createdAt: '2026-04-12 10:00',
+  },
+  {
+    id: 'p_c2_3',
+    classroomId: 'c2',
+    authorName: 'Nguyễn Thị Lan',
+    authorRole: 'teacher',
+    content: 'Câu hỏi hay lắm! Mình sẽ dùng sơ đồ Venn để giải thích rõ sự khác biệt. Ngoài ra sẽ có bài tập thực hành ngay trên lớp với dataset thật.',
+    createdAt: '2026-04-12 10:45',
+  },
+  // c3 — Architecture
+  {
+    id: 'p_c3_1',
+    classroomId: 'c3',
+    authorName: 'Nguyễn Thị Lan',
+    authorRole: 'teacher',
+    content: 'Buổi học tuần này sẽ tập trung vào Clean Architecture và cách tổ chức project thực tế. Các bạn có thể đọc trước cuốn "Clean Architecture" của Uncle Bob — chương 1-3.',
+    createdAt: '2026-04-11 09:00',
+  },
+  {
+    id: 'p_c3_2',
+    classroomId: 'c3',
+    authorName: 'Hoàng Văn Em',
+    authorRole: 'student',
+    content: 'Em đang làm project microservices và hay bị rối khi quyết định service nào nên handle logic gì. Buổi tới có thể cho ví dụ thực tế không cô?',
+    createdAt: '2026-04-11 11:30',
+  },
+  // c1 — Frontend
   {
     id: 'p1',
     classroomId: 'c1',
@@ -66,6 +109,72 @@ export const POSTS: Post[] = [
 ];
 
 export const SCHEDULES: Schedule[] = [
+  // c2 — Database
+  {
+    id: 'sch_c2_1',
+    classroomId: 'c2',
+    title: 'Buổi 1: SQL nâng cao — Window Functions',
+    date: '2026-04-08',
+    startTime: '13:30',
+    endTime: '15:30',
+    description: 'ROW_NUMBER, RANK, DENSE_RANK, LAG, LEAD',
+  },
+  {
+    id: 'sch_c2_2',
+    classroomId: 'c2',
+    title: 'Buổi 2: Tối ưu truy vấn & Indexing',
+    date: '2026-04-10',
+    startTime: '13:30',
+    endTime: '15:30',
+    description: 'EXPLAIN ANALYZE, B-tree vs Hash index, composite index',
+  },
+  {
+    id: 'sch_c2_3',
+    classroomId: 'c2',
+    title: 'Buổi 3: Thiết kế schema & Normalization',
+    date: '2026-04-15',
+    startTime: '13:30',
+    endTime: '15:30',
+    description: '1NF, 2NF, 3NF, BCNF, denormalization trade-offs',
+  },
+  {
+    id: 'sch_c2_4',
+    classroomId: 'c2',
+    title: 'Buổi 4: Transactions & Concurrency',
+    date: '2026-04-17',
+    startTime: '13:30',
+    endTime: '15:30',
+    description: 'ACID, isolation levels, deadlock detection',
+  },
+  // c3 — Architecture
+  {
+    id: 'sch_c3_1',
+    classroomId: 'c3',
+    title: 'Buổi 1: SOLID Principles thực chiến',
+    date: '2026-04-04',
+    startTime: '09:00',
+    endTime: '11:00',
+    description: 'Review 5 nguyên tắc SOLID qua ví dụ thực tế',
+  },
+  {
+    id: 'sch_c3_2',
+    classroomId: 'c3',
+    title: 'Buổi 2: Clean Architecture',
+    date: '2026-04-11',
+    startTime: '09:00',
+    endTime: '11:00',
+    description: 'Domain, Use Cases, Interface Adapters, Frameworks',
+  },
+  {
+    id: 'sch_c3_3',
+    classroomId: 'c3',
+    title: 'Buổi 3: Microservices Patterns',
+    date: '2026-04-18',
+    startTime: '09:00',
+    endTime: '11:00',
+    description: 'API Gateway, Service Discovery, Circuit Breaker',
+  },
+  // c1 — Frontend
   {
     id: 'sch1',
     classroomId: 'c1',

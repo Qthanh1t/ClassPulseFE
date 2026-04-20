@@ -32,7 +32,7 @@ export const MOCK_CHAT_MESSAGES: ChatMessage[] = [
     id: 'c1',
     senderId: 't1',
     senderName: 'Nguyễn Thị Lan',
-    avatarColor: '#1677ff',
+    avatarColor: '#6366f1',
     content: 'Chào cả lớp! Hôm nay chúng ta sẽ ôn tập React Hooks nhé.',
     time: '14:00',
     isTeacher: true,
@@ -49,7 +49,7 @@ export const MOCK_CHAT_MESSAGES: ChatMessage[] = [
     id: 'c3',
     senderId: 't1',
     senderName: 'Nguyễn Thị Lan',
-    avatarColor: '#1677ff',
+    avatarColor: '#6366f1',
     content: 'useEffect chạy sau mỗi render, điều khiển bằng dependency array nhé!',
     time: '14:03',
     isTeacher: true,
@@ -66,7 +66,7 @@ export const MOCK_CHAT_MESSAGES: ChatMessage[] = [
     id: 'c5',
     senderId: 's1',
     senderName: 'Nguyễn Văn An',
-    avatarColor: '#1677ff',
+    avatarColor: '#6366f1',
     content: 'Thầy ơi, custom hook khác component ở chỗ nào vậy ạ?',
     time: '14:06',
   },
@@ -144,7 +144,7 @@ export default function ChatPanel({ messages, currentUser, onSend, onClose, heig
                   <Text
                     style={{
                       fontSize: 11,
-                      color: msg.isTeacher ? '#1677ff' : '#8c8c8c',
+                      color: msg.isTeacher ? '#6366f1' : '#8c8c8c',
                       display: 'block',
                       marginBottom: 2,
                       fontWeight: msg.isTeacher ? 600 : 400,
@@ -156,7 +156,7 @@ export default function ChatPanel({ messages, currentUser, onSend, onClose, heig
                 )}
                 <div
                   style={{
-                    background: isSelf ? '#1677ff' : msg.isTeacher ? '#e6f4ff' : '#f5f5f5',
+                    background: isSelf ? '#6366f1' : msg.isTeacher ? '#e6f4ff' : '#f5f5f5',
                     color: isSelf ? '#fff' : '#262626',
                     padding: '7px 11px',
                     borderRadius: isSelf ? '12px 12px 2px 12px' : '12px 12px 12px 2px',

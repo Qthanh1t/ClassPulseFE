@@ -59,13 +59,13 @@ export default function LiveQuestionStats({ question }: Props) {
         <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6 }}>
           <Text strong style={{ fontSize: 13 }}>Tiến độ trả lời</Text>
           <Text style={{ fontSize: 13 }}>
-            <span style={{ color: '#1677ff', fontWeight: 600 }}>{answeredCount}</span>
+            <span style={{ color: '#6366f1', fontWeight: 600 }}>{answeredCount}</span>
             <span style={{ color: '#8c8c8c' }}>/{totalStudents} học sinh</span>
           </Text>
         </div>
         <Progress
           percent={Math.round((answeredCount / totalStudents) * 100)}
-          strokeColor="#1677ff"
+          strokeColor="#6366f1"
           size="small"
         />
       </div>

@@ -30,7 +30,7 @@ const NAV_ITEMS: NavItem[] = [
 
 const NAV_SECONDARY: NavItem[] = [
   { key: 'docs', icon: <ReadOutlined />, label: 'Tài liệu', path: '/classes' },
-  { key: 'settings', icon: <SettingOutlined />, label: 'Cài đặt', path: '/classes' },
+  { key: 'settings', icon: <SettingOutlined />, label: 'Cài đặt', path: '/profile' },
 ];
 
 function NavButton({
@@ -304,6 +304,10 @@ export default function AppLayout() {
                   { type: 'divider' },
                   { key: 'logout', icon: <LogoutOutlined />, label: 'Đăng xuất', danger: true },
                 ],
+                onClick: ({ key }) => {
+                  if (key === 'profile') navigate('/profile');
+                  else if (key === 'logout') navigate('/login');
+                },
               }}
               placement="bottomRight"
             >

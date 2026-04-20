@@ -331,7 +331,7 @@ export default function ClassDetailPage() {
                         )}
                       </div>
                     </div>
-                    <div style={{ flexShrink: 0 }}>
+                    <div style={{ flexShrink: 0, display: 'flex', alignItems: 'center', gap: 8 }}>
                       {!isPast ? (
                         <Button
                           type="primary"
@@ -348,7 +348,16 @@ export default function ClassDetailPage() {
                           Vào học
                         </Button>
                       ) : (
-                        <Tag color="default" style={{ borderRadius: 6, margin: 0 }}>Đã xong</Tag>
+                        <>
+                          <Tag color="default" style={{ borderRadius: 6, margin: 0 }}>Đã xong</Tag>
+                          <Button
+                            size="small"
+                            onClick={() => navigate('/dashboard/sess1')}
+                            style={{ borderRadius: 6, fontSize: 12, color: '#6366f1', borderColor: '#c7d2fe' }}
+                          >
+                            Xem kết quả →
+                          </Button>
+                        </>
                       )}
                     </div>
                   </div>

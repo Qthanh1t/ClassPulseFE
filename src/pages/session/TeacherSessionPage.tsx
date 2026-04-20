@@ -125,7 +125,7 @@ export default function TeacherSessionPage() {
         id: String(Date.now()),
         senderId: TEACHER.id,
         senderName: TEACHER.name,
-        avatarColor: TEACHER.avatarColor ?? '#1677ff',
+        avatarColor: TEACHER.avatarColor ?? '#6366f1',
         content: text,
         time: getNow(),
         isTeacher: true,
@@ -173,7 +173,7 @@ export default function TeacherSessionPage() {
           <div
             style={{
               width: 26, height: 26,
-              background: 'linear-gradient(135deg, #1677ff, #0958d9)',
+              background: 'linear-gradient(135deg, #6366f1, #4f46e5)',
               borderRadius: 6,
               display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
             }}
@@ -192,15 +192,13 @@ export default function TeacherSessionPage() {
         </div>
 
         {/* Center: Demo switcher */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-          <Text style={{ fontSize: 11, color: 'rgba(255,255,255,0.5)', whiteSpace: 'nowrap' }}>Demo:</Text>
-          <Segmented
-            size="small"
-            value={demoState}
-            onChange={(v) => setDemoState(v as DemoState)}
-            options={Object.entries(DEMO_LABELS).map(([k, v]) => ({ value: k, label: v }))}
-          />
-        </div>
+        <Segmented
+          size="small"
+          value={demoState}
+          onChange={(v) => setDemoState(v as DemoState)}
+          options={Object.entries(DEMO_LABELS).map(([k, v]) => ({ value: k, label: v }))}
+          style={{ background: 'rgba(255,255,255,0.1)' }}
+        />
 
         {/* Right: elapsed + avatar */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexShrink: 0 }}>
@@ -210,7 +208,7 @@ export default function TeacherSessionPage() {
               {formatElapsed(elapsedSeconds)}
             </Text>
           </div>
-          <Avatar size={26} style={{ background: '#1677ff', fontSize: 12 }}>L</Avatar>
+          <Avatar size={26} style={{ background: 'linear-gradient(135deg, #6366f1, #8b5cf6)', fontSize: 12 }}>L</Avatar>
           <Text style={{ fontSize: 13, color: '#fff' }}>{TEACHER.name}</Text>
         </div>
       </div>
@@ -221,7 +219,16 @@ export default function TeacherSessionPage() {
           type="warning"
           icon={<WarningOutlined />}
           showIcon
-          message={`${session.silentStudentIds.length} học sinh chưa tương tác trong câu hỏi này`}
+          message={
+            <span>
+              <strong>Chưa trả lời: </strong>
+              {session.silentStudentIds.map((sid, i) => {
+                const s = STUDENTS.find((st) => st.id === sid);
+                return s ? <span key={sid}>{i > 0 ? ', ' : ''}<Avatar size={18} style={{ background: s.avatarColor, fontSize: 10, marginRight: 3, verticalAlign: 'middle' }}>{s.name.charAt(0)}</Avatar>{s.name.split(' ').pop()}</span> : null;
+              })}
+              {' '}— hãy nhắc nhở các bạn này!
+            </span>
+          }
           closable
           style={{ borderRadius: 0, border: 'none', borderBottom: '1px solid #ffd591', flexShrink: 0 }}
         />
@@ -263,7 +270,7 @@ export default function TeacherSessionPage() {
                   </div>
                 )}
                 <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, background: 'linear-gradient(transparent, rgba(0,0,0,0.7))', padding: '24px 14px 10px', display: 'flex', alignItems: 'center', gap: 10 }}>
-                  <Avatar size={32} style={{ background: '#1677ff', flexShrink: 0 }}>L</Avatar>
+                  <Avatar size={32} style={{ background: 'linear-gradient(135deg, #6366f1, #8b5cf6)', flexShrink: 0 }}>L</Avatar>
                   <div>
                     <Text strong style={{ color: '#fff', fontSize: 13 }}>{TEACHER.name}</Text>
                     <div style={{ display: 'flex', gap: 4 }}>
@@ -426,7 +433,7 @@ export default function TeacherSessionPage() {
           <div style={{ ...panelStyle, width: 280 }}>
             <ChatPanel
               messages={chatMessages}
-              currentUser={{ id: TEACHER.id, name: TEACHER.name, avatarColor: TEACHER.avatarColor ?? '#1677ff', isTeacher: true }}
+              currentUser={{ id: TEACHER.id, name: TEACHER.name, avatarColor: TEACHER.avatarColor ?? '#6366f1', isTeacher: true }}
               onSend={handleSendChat}
               onClose={() => setShowChat(false)}
               height="100%"

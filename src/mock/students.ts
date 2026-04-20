@@ -1,7 +1,7 @@
 import type { User } from '../types';
 
 export const STUDENTS: User[] = [
-  { id: 's1', name: 'Nguyễn Văn An', role: 'student', avatarColor: '#1677ff' },
+  { id: 's1', name: 'Nguyễn Văn An', role: 'student', avatarColor: '#6366f1' },
   { id: 's2', name: 'Trần Thị Bình', role: 'student', avatarColor: '#52c41a' },
   { id: 's3', name: 'Lê Minh Cường', role: 'student', avatarColor: '#fa8c16' },
   { id: 's4', name: 'Phạm Thị Dung', role: 'student', avatarColor: '#eb2f96' },
@@ -15,5 +15,5 @@ export const TEACHER: User = {
   id: 't1',
   name: 'Nguyễn Thị Lan',
   role: 'teacher',
-  avatarColor: '#1677ff',
+  avatarColor: '#6366f1',
 };

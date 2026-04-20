@@ -20,7 +20,7 @@ const TEMPLATES: { type: QuestionType; label: string; desc: string; icon: React.
     type: 'single',
     label: 'Trắc nghiệm (1 đáp án)',
     desc: 'Học sinh chọn 1 đáp án đúng',
-    icon: <UnorderedListOutlined style={{ fontSize: 24, color: '#1677ff' }} />,
+    icon: <UnorderedListOutlined style={{ fontSize: 24, color: '#6366f1' }} />,
   },
   {
     type: 'multiple',
@@ -264,7 +264,7 @@ export default function CreateQuestionModal({ open, onClose, onSubmit }: Props) 
                     style={{
                       borderRadius: 8,
                       cursor: 'pointer',
-                      border: selectedType === t.type ? '2px solid #1677ff' : '1px solid #d9d9d9',
+                      border: selectedType === t.type ? '2px solid #6366f1' : '1px solid #d9d9d9',
                       background: selectedType === t.type ? '#e6f4ff' : '#fff',
                       marginLeft: 8,
                     }}
@@ -356,7 +356,7 @@ export default function CreateQuestionModal({ open, onClose, onSubmit }: Props) 
           <Divider style={{ margin: '16px 0 12px' }} />
           <div>
             <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: timerEnabled ? 12 : 0 }}>
-              <ClockCircleOutlined style={{ color: timerEnabled ? '#1677ff' : '#8c8c8c' }} />
+              <ClockCircleOutlined style={{ color: timerEnabled ? '#6366f1' : '#8c8c8c' }} />
               <Text strong style={{ fontSize: 13, flex: 1 }}>Giới hạn thời gian</Text>
               <Switch
                 checked={timerEnabled}
