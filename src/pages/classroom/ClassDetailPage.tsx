@@ -1,8 +1,8 @@
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import {
   Avatar, Badge, Button, Card, Empty, Form, Input,
-  Modal, Table, Tabs, Tag, TimePicker, Typography,
+  Modal, Table, Tabs, Tag, TimePicker, Tooltip, Typography,
 } from 'antd';
 import { DatePicker } from 'antd';
 import type { Dayjs } from 'dayjs';
@@ -11,11 +11,13 @@ import {
   TeamOutlined, MessageOutlined, BookOutlined,
   CodeOutlined, DatabaseOutlined, ApartmentOutlined,
   ClockCircleOutlined, CheckCircleOutlined, PlusOutlined, SendOutlined,
+  FolderOpenOutlined, DownloadOutlined, UploadOutlined,
 } from '@ant-design/icons';
 import { CLASSROOMS, POSTS, SCHEDULES } from '../../mock/classrooms';
 import { STUDENTS } from '../../mock/students';
 import type { Post, Schedule } from '../../types';
 import RichTextEditor from '../../components/session/RichTextEditor';
+import type { Attachment } from '../../components/session/RichTextEditor';
 
 const { Title, Text } = Typography;
 
@@ -44,6 +46,21 @@ const DEFAULT_STYLE: SubjectStyle = {
   icon: <BookOutlined style={{ fontSize: 28, color: '#fff' }} />,
 };
 
+interface ClassDocument {
+  id: string;
+  name: string;
+  url: string;
+  size: string;
+  ext: string;
+  uploadedAt: string;
+  source: string;
+}
+
+const FILE_ICON: Record<string, string> = {
+  pdf: '📄', docx: '📝', doc: '📝', xlsx: '📊', xls: '📊',
+  pptx: '📊', ppt: '📊', zip: '🗜️', txt: '📄',
+};
+
 export default function ClassDetailPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
@@ -58,10 +75,28 @@ export default function ClassDetailPage() {
   // ── Post compose ──
   const [composing, setComposing] = useState(false);
   const [postHtml, setPostHtml] = useState('');
+  const [postAttachments, setPostAttachments] = useState<Attachment[]>([]);
+
+  // ── Class documents (Tài liệu tab) ──
+  const docFileRef = useRef<HTMLInputElement>(null);
+  const [classDocuments, setClassDocuments] = useState<ClassDocument[]>(() => {
+    if (cls.id === 'c1') return [
+      { id: 'doc_init_1', name: 'React19_RSC_SlideGuide.pdf', url: '#', size: '2.4 MB', ext: 'pdf', uploadedAt: '10/04/2026', source: 'Đăng bài' },
+      { id: 'doc_init_2', name: 'Hooks_Cheatsheet.docx', url: '#', size: '856 KB', ext: 'docx', uploadedAt: '07/04/2026', source: 'Tải lên trực tiếp' },
+    ];
+    if (cls.id === 'c2') return [
+      { id: 'doc_init_3', name: 'PostgreSQL16_Setup_Guide.pdf', url: '#', size: '1.2 MB', ext: 'pdf', uploadedAt: '08/04/2026', source: 'Đăng bài' },
+      { id: 'doc_init_4', name: 'SQL_WindowFunctions_Exercises.xlsx', url: '#', size: '340 KB', ext: 'xlsx', uploadedAt: '08/04/2026', source: 'Tải lên trực tiếp' },
+    ];
+    if (cls.id === 'c3') return [
+      { id: 'doc_init_5', name: 'CleanArchitecture_Ch1-3_Summary.pdf', url: '#', size: '1.8 MB', ext: 'pdf', uploadedAt: '11/04/2026', source: 'Đăng bài' },
+    ];
+    return [];
+  });
 
   function handlePostSubmit() {
     const stripped = postHtml.replace(/<[^>]*>/g, '').trim();
-    if (!stripped) return;
+    if (!stripped && postAttachments.length === 0) return;
     const newPost: Post = {
       id: `p${Date.now()}`,
       classroomId: cls.id,
@@ -69,9 +104,23 @@ export default function ClassDetailPage() {
       authorRole: 'teacher',
       content: postHtml,
       createdAt: new Date().toLocaleString('vi-VN', { year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' }).replace(',', ''),
+      attachments: postAttachments.length > 0 ? [...postAttachments] : undefined,
     };
     setPosts((prev) => [newPost, ...prev]);
+    if (postAttachments.length > 0) {
+      const now = new Date().toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit', year: 'numeric' });
+      setClassDocuments((prev) => [
+        ...postAttachments.map((att, i) => ({
+          id: `doc_${Date.now()}_${i}`,
+          ...att,
+          uploadedAt: now,
+          source: 'Đăng bài',
+        })),
+        ...prev,
+      ]);
+    }
     setPostHtml('');
+    setPostAttachments([]);
     setComposing(false);
   }
 
@@ -102,6 +151,27 @@ export default function ClassDetailPage() {
     });
   }
 
+  async function handleDocFileChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const ext = file.name.split('.').pop()?.toLowerCase() ?? '';
+    const size = file.size < 1024 * 1024
+      ? `${(file.size / 1024).toFixed(1)} KB`
+      : `${(file.size / 1024 / 1024).toFixed(1)} MB`;
+    const url = URL.createObjectURL(file);
+    const now = new Date().toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit', year: 'numeric' });
+    setClassDocuments((prev) => [{
+      id: `doc_direct_${Date.now()}`,
+      name: file.name,
+      url,
+      size,
+      ext,
+      uploadedAt: now,
+      source: 'Tải lên trực tiếp',
+    }, ...prev]);
+    e.target.value = '';
+  }
+
   const today = new Date().toISOString().slice(0, 10);
 
   const tabItems = [
@@ -128,34 +198,19 @@ export default function ClassDetailPage() {
             {!composing ? (
               <div
                 onClick={() => setComposing(true)}
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 10,
-                  cursor: 'text',
-                }}
+                style={{ display: 'flex', alignItems: 'center', gap: 10, cursor: 'text' }}
               >
                 <Avatar
                   size={36}
-                  style={{
-                    background: 'linear-gradient(135deg, #6366f1, #8b5cf6)',
-                    flexShrink: 0,
-                    fontSize: 14,
-                    fontWeight: 600,
-                  }}
+                  style={{ background: 'linear-gradient(135deg, #6366f1, #8b5cf6)', flexShrink: 0, fontSize: 14, fontWeight: 600 }}
                 >
                   L
                 </Avatar>
                 <div
                   style={{
-                    flex: 1,
-                    padding: '8px 14px',
-                    borderRadius: 10,
-                    background: '#f8fafc',
-                    border: '1px solid #e2e8f0',
-                    color: '#94a3b8',
-                    fontSize: 14,
-                    userSelect: 'none',
+                    flex: 1, padding: '8px 14px', borderRadius: 10,
+                    background: '#f8fafc', border: '1px solid #e2e8f0',
+                    color: '#94a3b8', fontSize: 14, userSelect: 'none',
                   }}
                 >
                   Thông báo gì đó cho lớp...
@@ -165,12 +220,13 @@ export default function ClassDetailPage() {
               <div>
                 <RichTextEditor
                   onChange={setPostHtml}
+                  onAttachmentsChange={setPostAttachments}
                   placeholder="Thông báo gì đó cho lớp..."
                   minHeight={120}
                 />
                 <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 10 }}>
                   <Button
-                    onClick={() => { setComposing(false); setPostHtml(''); }}
+                    onClick={() => { setComposing(false); setPostHtml(''); setPostAttachments([]); }}
                     style={{ borderRadius: 8 }}
                   >
                     Hủy
@@ -179,12 +235,7 @@ export default function ClassDetailPage() {
                     type="primary"
                     icon={<SendOutlined />}
                     onClick={handlePostSubmit}
-                    style={{
-                      background: 'linear-gradient(135deg, #6366f1, #8b5cf6)',
-                      border: 'none',
-                      fontWeight: 600,
-                      borderRadius: 8,
-                    }}
+                    style={{ background: 'linear-gradient(135deg, #6366f1, #8b5cf6)', border: 'none', fontWeight: 600, borderRadius: 8 }}
                   >
                     Đăng bài
                   </Button>
@@ -201,12 +252,7 @@ export default function ClassDetailPage() {
               {posts.map((post) => (
                 <div
                   key={post.id}
-                  style={{
-                    background: '#fff',
-                    borderRadius: 14,
-                    border: '1px solid #e2e8f0',
-                    padding: '16px 20px',
-                  }}
+                  style={{ background: '#fff', borderRadius: 14, border: '1px solid #e2e8f0', padding: '16px 20px' }}
                 >
                   <div style={{ display: 'flex', gap: 12 }}>
                     <Avatar
@@ -215,9 +261,7 @@ export default function ClassDetailPage() {
                         background: post.authorRole === 'teacher'
                           ? 'linear-gradient(135deg, #6366f1, #8b5cf6)'
                           : 'linear-gradient(135deg, #10b981, #059669)',
-                        flexShrink: 0,
-                        fontSize: 14,
-                        fontWeight: 600,
+                        flexShrink: 0, fontSize: 14, fontWeight: 600,
                       }}
                     >
                       {post.authorName.charAt(0)}
@@ -232,12 +276,33 @@ export default function ClassDetailPage() {
                         )}
                         <Text type="secondary" style={{ fontSize: 12, marginLeft: 'auto' }}>{post.createdAt}</Text>
                       </div>
-                      {/* Render HTML content from RichTextEditor */}
                       <div
                         className="ck-content"
                         style={{ fontSize: 14, color: '#374151', lineHeight: 1.6 }}
                         dangerouslySetInnerHTML={{ __html: post.content }}
                       />
+                      {post.attachments && post.attachments.length > 0 && (
+                        <div style={{ marginTop: 10, display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                          {post.attachments.map((att, i) => (
+                            <a
+                              key={i}
+                              href={att.url}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              style={{
+                                display: 'inline-flex', alignItems: 'center', gap: 5,
+                                padding: '4px 10px 4px 8px', border: '1px solid #c7d2fe',
+                                borderRadius: 6, background: '#eef2ff', fontSize: 12,
+                                color: '#6366f1', textDecoration: 'none', fontWeight: 500,
+                              }}
+                            >
+                              <span style={{ fontSize: 14 }}>{FILE_ICON[att.ext] ?? '📎'}</span>
+                              <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 160 }}>{att.name}</span>
+                              <span style={{ color: '#94a3b8', fontSize: 11, marginLeft: 2 }}>{att.size}</span>
+                            </a>
+                          ))}
+                        </div>
+                      )}
                     </div>
                   </div>
                 </div>
@@ -262,12 +327,7 @@ export default function ClassDetailPage() {
               type="primary"
               icon={<PlusOutlined />}
               onClick={() => setScheduleOpen(true)}
-              style={{
-                background: 'linear-gradient(135deg, #6366f1, #8b5cf6)',
-                border: 'none',
-                fontWeight: 600,
-                borderRadius: 8,
-              }}
+              style={{ background: 'linear-gradient(135deg, #6366f1, #8b5cf6)', border: 'none', fontWeight: 600, borderRadius: 8 }}
             >
               Thêm buổi học
             </Button>
@@ -283,29 +343,18 @@ export default function ClassDetailPage() {
                   <div
                     key={s.id}
                     style={{
-                      background: '#fff',
-                      borderRadius: 14,
-                      border: '1px solid #e2e8f0',
-                      padding: '14px 20px',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'space-between',
-                      gap: 12,
-                      opacity: isPast ? 0.65 : 1,
+                      background: '#fff', borderRadius: 14, border: '1px solid #e2e8f0',
+                      padding: '14px 20px', display: 'flex', alignItems: 'center',
+                      justifyContent: 'space-between', gap: 12, opacity: isPast ? 0.65 : 1,
                       borderLeft: `4px solid ${isPast ? '#e2e8f0' : '#6366f1'}`,
                     }}
                   >
                     <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
                       <div
                         style={{
-                          width: 44,
-                          height: 44,
-                          borderRadius: 10,
+                          width: 44, height: 44, borderRadius: 10,
                           background: isPast ? '#f8fafc' : '#eef2ff',
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'center',
-                          flexShrink: 0,
+                          display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
                         }}
                       >
                         {isPast
@@ -338,12 +387,7 @@ export default function ClassDetailPage() {
                           size="small"
                           icon={<PlayCircleOutlined />}
                           onClick={() => navigate(`/session/teacher/${cls.id}`)}
-                          style={{
-                            background: 'linear-gradient(135deg, #6366f1, #8b5cf6)',
-                            border: 'none',
-                            fontWeight: 600,
-                            borderRadius: 8,
-                          }}
+                          style={{ background: 'linear-gradient(135deg, #6366f1, #8b5cf6)', border: 'none', fontWeight: 600, borderRadius: 8 }}
                         >
                           Vào học
                         </Button>
@@ -390,10 +434,7 @@ export default function ClassDetailPage() {
                 key: 'name',
                 render: (_, s) => (
                   <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                    <Avatar
-                      size={34}
-                      style={{ background: s.avatarColor, fontWeight: 600, fontSize: 13 }}
-                    >
+                    <Avatar size={34} style={{ background: s.avatarColor, fontWeight: 600, fontSize: 13 }}>
                       {s.name.charAt(0)}
                     </Avatar>
                     <Text style={{ fontSize: 14, fontWeight: 500, color: '#0f172a' }}>{s.name}</Text>
@@ -429,6 +470,88 @@ export default function ClassDetailPage() {
         </div>
       ),
     },
+    {
+      key: 'docs',
+      label: (
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+          <FolderOpenOutlined />
+          <span>Tài liệu</span>
+        </div>
+      ),
+      children: (
+        <div style={{ maxWidth: 640, paddingTop: 4 }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
+            <div>
+              <Text style={{ fontSize: 14, fontWeight: 600, color: '#0f172a' }}>Tài liệu lớp học</Text>
+              <div>
+                <Text type="secondary" style={{ fontSize: 12 }}>
+                  Tài liệu từ bài đăng và tải lên trực tiếp
+                </Text>
+              </div>
+            </div>
+            <Button
+              type="primary"
+              icon={<UploadOutlined />}
+              onClick={() => docFileRef.current?.click()}
+              style={{ background: 'linear-gradient(135deg, #6366f1, #8b5cf6)', border: 'none', fontWeight: 600, borderRadius: 8 }}
+            >
+              Tải lên
+            </Button>
+          </div>
+
+          {classDocuments.length === 0 ? (
+            <Empty description="Chưa có tài liệu nào" style={{ padding: '32px 0' }} />
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+              {classDocuments.map((doc) => (
+                <div
+                  key={doc.id}
+                  style={{
+                    background: '#fff', borderRadius: 12, border: '1px solid #e2e8f0',
+                    padding: '12px 16px', display: 'flex', alignItems: 'center', gap: 12,
+                  }}
+                >
+                  <div
+                    style={{
+                      width: 40, height: 40, borderRadius: 10, background: '#eef2ff',
+                      display: 'flex', alignItems: 'center', justifyContent: 'center',
+                      fontSize: 20, flexShrink: 0,
+                    }}
+                  >
+                    {FILE_ICON[doc.ext] ?? '📎'}
+                  </div>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontSize: 14, fontWeight: 600, color: '#0f172a', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                      {doc.name}
+                    </div>
+                    <div style={{ display: 'flex', gap: 8, marginTop: 3, alignItems: 'center', flexWrap: 'wrap' }}>
+                      <Text type="secondary" style={{ fontSize: 12 }}>{doc.size}</Text>
+                      <Text type="secondary" style={{ fontSize: 12 }}>{doc.uploadedAt}</Text>
+                      <Tag
+                        color={doc.source === 'Đăng bài' ? 'blue' : 'green'}
+                        style={{ fontSize: 11, borderRadius: 4, margin: 0, padding: '0 6px' }}
+                      >
+                        {doc.source}
+                      </Tag>
+                    </div>
+                  </div>
+                  <Tooltip title="Tải xuống">
+                    <Button
+                      size="small"
+                      type="text"
+                      icon={<DownloadOutlined />}
+                      href={doc.url}
+                      target="_blank"
+                      style={{ color: '#6366f1', flexShrink: 0 }}
+                    />
+                  </Tooltip>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      ),
+    },
   ];
 
   return (
@@ -436,12 +559,9 @@ export default function ClassDetailPage() {
       {/* Hero banner */}
       <div
         style={{
-          background: style.gradient,
-          borderRadius: 20,
-          padding: '24px 28px 28px',
-          marginBottom: 24,
-          position: 'relative',
-          overflow: 'hidden',
+          background: style.gradient, borderRadius: 20,
+          padding: '24px 28px 28px', marginBottom: 24,
+          position: 'relative', overflow: 'hidden',
         }}
       >
         <div style={{ position: 'absolute', right: -30, top: -30, width: 160, height: 160, borderRadius: '50%', background: 'rgba(255,255,255,0.07)' }} />
@@ -451,12 +571,9 @@ export default function ClassDetailPage() {
           icon={<ArrowLeftOutlined />}
           onClick={() => navigate('/classes')}
           style={{
-            marginBottom: 16,
-            color: 'rgba(255,255,255,0.85)',
-            borderColor: 'rgba(255,255,255,0.3)',
-            background: 'rgba(255,255,255,0.12)',
-            borderRadius: 8,
-            fontWeight: 500,
+            marginBottom: 16, color: 'rgba(255,255,255,0.85)',
+            borderColor: 'rgba(255,255,255,0.3)', background: 'rgba(255,255,255,0.12)',
+            borderRadius: 8, fontWeight: 500,
           }}
         >
           Quay lại
@@ -466,22 +583,15 @@ export default function ClassDetailPage() {
           <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
             <div
               style={{
-                width: 56,
-                height: 56,
-                background: 'rgba(255,255,255,0.18)',
-                borderRadius: 14,
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
+                width: 56, height: 56, background: 'rgba(255,255,255,0.18)',
+                borderRadius: 14, display: 'flex', alignItems: 'center', justifyContent: 'center',
                 backdropFilter: 'blur(4px)',
               }}
             >
               {style.icon}
             </div>
             <div>
-              <div style={{ fontSize: 13, color: 'rgba(255,255,255,0.7)', marginBottom: 2, fontWeight: 500 }}>
-                {cls.subject}
-              </div>
+              <div style={{ fontSize: 13, color: 'rgba(255,255,255,0.7)', marginBottom: 2, fontWeight: 500 }}>{cls.subject}</div>
               <Title level={3} style={{ color: '#fff', margin: '0 0 4px', fontSize: 22, fontWeight: 700, lineHeight: 1.3 }}>
                 {cls.name}
               </Title>
@@ -503,13 +613,8 @@ export default function ClassDetailPage() {
             icon={<PlayCircleOutlined />}
             onClick={() => navigate(`/session/teacher/${cls.id}`)}
             style={{
-              background: '#fff',
-              color: '#6366f1',
-              border: 'none',
-              fontWeight: 700,
-              borderRadius: 12,
-              height: 44,
-              paddingInline: 24,
+              background: '#fff', color: '#6366f1', border: 'none',
+              fontWeight: 700, borderRadius: 12, height: 44, paddingInline: 24,
               boxShadow: '0 4px 12px rgba(0,0,0,0.12)',
             }}
           >
@@ -525,88 +630,46 @@ export default function ClassDetailPage() {
 
       {/* Schedule creation modal */}
       <Modal
-        title={
-          <div style={{ fontSize: 16, fontWeight: 700, color: '#0f172a' }}>
-            Thêm buổi học mới
-          </div>
-        }
+        title={<div style={{ fontSize: 16, fontWeight: 700, color: '#0f172a' }}>Thêm buổi học mới</div>}
         open={scheduleOpen}
         onCancel={() => { setScheduleOpen(false); scheduleForm.resetFields(); }}
         onOk={handleScheduleSubmit}
         okText="Lưu lịch"
         cancelText="Hủy"
         okButtonProps={{
-          style: {
-            background: 'linear-gradient(135deg, #6366f1, #8b5cf6)',
-            border: 'none',
-            fontWeight: 600,
-          },
+          style: { background: 'linear-gradient(135deg, #6366f1, #8b5cf6)', border: 'none', fontWeight: 600 },
         }}
         width={480}
       >
-        <Form
-          form={scheduleForm}
-          layout="vertical"
-          style={{ marginTop: 8 }}
-        >
-          <Form.Item
-            label="Tiêu đề buổi học"
-            name="title"
-            rules={[{ required: true, message: 'Vui lòng nhập tiêu đề' }]}
-          >
+        <Form form={scheduleForm} layout="vertical" style={{ marginTop: 8 }}>
+          <Form.Item label="Tiêu đề buổi học" name="title" rules={[{ required: true, message: 'Vui lòng nhập tiêu đề' }]}>
             <Input placeholder="VD: Buổi 5: TypeScript nâng cao" style={{ borderRadius: 8 }} />
           </Form.Item>
-
-          <Form.Item
-            label="Ngày học"
-            name="date"
-            rules={[{ required: true, message: 'Vui lòng chọn ngày' }]}
-          >
-            <DatePicker
-              style={{ width: '100%', borderRadius: 8 }}
-              format="DD/MM/YYYY"
-              placeholder="Chọn ngày"
-            />
+          <Form.Item label="Ngày học" name="date" rules={[{ required: true, message: 'Vui lòng chọn ngày' }]}>
+            <DatePicker style={{ width: '100%', borderRadius: 8 }} format="DD/MM/YYYY" placeholder="Chọn ngày" />
           </Form.Item>
-
           <div style={{ display: 'flex', gap: 12 }}>
-            <Form.Item
-              label="Giờ bắt đầu"
-              name="startTime"
-              rules={[{ required: true, message: 'Vui lòng chọn giờ' }]}
-              style={{ flex: 1 }}
-            >
-              <TimePicker
-                style={{ width: '100%', borderRadius: 8 }}
-                format="HH:mm"
-                minuteStep={5}
-                placeholder="08:00"
-              />
+            <Form.Item label="Giờ bắt đầu" name="startTime" rules={[{ required: true, message: 'Vui lòng chọn giờ' }]} style={{ flex: 1 }}>
+              <TimePicker style={{ width: '100%', borderRadius: 8 }} format="HH:mm" minuteStep={5} placeholder="08:00" />
             </Form.Item>
-            <Form.Item
-              label="Giờ kết thúc"
-              name="endTime"
-              rules={[{ required: true, message: 'Vui lòng chọn giờ' }]}
-              style={{ flex: 1 }}
-            >
-              <TimePicker
-                style={{ width: '100%', borderRadius: 8 }}
-                format="HH:mm"
-                minuteStep={5}
-                placeholder="10:00"
-              />
+            <Form.Item label="Giờ kết thúc" name="endTime" rules={[{ required: true, message: 'Vui lòng chọn giờ' }]} style={{ flex: 1 }}>
+              <TimePicker style={{ width: '100%', borderRadius: 8 }} format="HH:mm" minuteStep={5} placeholder="10:00" />
             </Form.Item>
           </div>
-
           <Form.Item label="Mô tả (tùy chọn)" name="description">
-            <Input.TextArea
-              placeholder="Nội dung buổi học, tài liệu cần chuẩn bị..."
-              rows={3}
-              style={{ borderRadius: 8 }}
-            />
+            <Input.TextArea placeholder="Nội dung buổi học, tài liệu cần chuẩn bị..." rows={3} style={{ borderRadius: 8 }} />
           </Form.Item>
         </Form>
       </Modal>
+
+      {/* Hidden file input for direct doc upload */}
+      <input
+        ref={docFileRef}
+        type="file"
+        accept=".pdf,.docx,.doc,.xlsx,.xls,.pptx,.ppt,.txt,.zip"
+        style={{ display: 'none' }}
+        onChange={handleDocFileChange}
+      />
     </div>
   );
 }

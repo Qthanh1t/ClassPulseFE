@@ -8,7 +8,6 @@ import {
   UserOutlined,
   BellOutlined,
   LogoutOutlined,
-  ReadOutlined,
   SettingOutlined,
 } from '@ant-design/icons';
 import { useNavigate, useLocation, Outlet } from 'react-router-dom';
@@ -29,7 +28,6 @@ const NAV_ITEMS: NavItem[] = [
 ];
 
 const NAV_SECONDARY: NavItem[] = [
-  { key: 'docs', icon: <ReadOutlined />, label: 'Tài liệu', path: '/classes' },
   { key: 'settings', icon: <SettingOutlined />, label: 'Cài đặt', path: '/profile' },
 ];
 

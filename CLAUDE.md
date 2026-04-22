@@ -162,9 +162,9 @@ src/
     LoginPage.tsx             # trang đăng nhập: 2 cột brand/form, role switcher GV/HS, cả 2 navigate /classes
     ProfilePage.tsx           # trang hồ sơ: avatar, stats (lớp/buổi học/câu hỏi/học sinh)
     classroom/ClassListPage.tsx
-    classroom/ClassDetailPage.tsx   # tabs: Bảng tin | Lịch học | Thành viên; past schedule có nút "Xem kết quả →"
+    classroom/ClassDetailPage.tsx   # tabs: Bảng tin | Lịch học | Thành viên | Tài liệu; bài đăng hỗ trợ đính kèm file
     session/TeacherSessionPage.tsx  # layout 3 cột, có Segmented demo-state switcher (không có label "Demo:")
-    session/StudentSessionPage.tsx  # có student-side countdown timer (90s), leave confirm modal
+    session/StudentSessionPage.tsx  # countdown timer (90s), phóng to panel, demo 3 loại câu hỏi, tự luận dùng RichTextEditor
     dashboard/TeacherDashboardPage.tsx
     dashboard/StudentReviewPage.tsx
 ```
@@ -174,6 +174,8 @@ src/
 Sidebar **fixed** (không scroll theo trang), width 232px (collapsed: 64px). Content area dùng `marginLeft` động để tránh overlap.
 
 - **Logo**: gradient rounded square (`#6366f1 → #8b5cf6`) + text "StudyQuest"
+- **Nav primary** (`NAV_ITEMS`): Lớp học, Dashboard
+- **Nav secondary** (`NAV_SECONDARY`): Cài đặt — (đã bỏ mục "Tài liệu"; tài liệu giờ nằm trong tab của ClassDetailPage)
 - **Nav**: custom `<button>` (không dùng AntD `Menu`) với class `.sq-nav-item`; active dùng `background: #eef2ff, color: #6366f1, fontWeight: 600`
 - **User card**: docked ở bottom sidebar, hiện tên + vai trò; ẩn khi collapsed (chỉ hiện Avatar)
 - **Header**: sticky top-0, z-index 100; nút toggle sidebar + Bell badge + Avatar dropdown
@@ -197,8 +199,10 @@ Layout 2 cột (không dùng AppLayout):
 ## ClassDetailPage
 
 - **Hero banner**: gradient theo subject (dùng `SUBJECT_STYLE` record trong file)
-- **Tabs** (Bảng tin / Lịch học / Thành viên): render trong `Card` borderRadius 16
+- **Tabs** (Bảng tin / Lịch học / Thành viên / Tài liệu): render trong `Card` borderRadius 16
 - **Schedule card**: border-left accent (`#6366f1` nếu upcoming, `#e2e8f0` nếu đã qua); icon CheckCircle cho buổi đã xong; buổi đã qua có thêm nút nhỏ "Xem kết quả →" → navigate `/dashboard/sess1`
+- **Bảng tin — đính kèm file**: compose box dùng `RichTextEditor` với prop `onAttachmentsChange`; khi đăng bài, `Post.attachments[]` lưu danh sách file; mỗi file hiển thị chip màu indigo (icon + tên + dung lượng) ngay dưới nội dung bài
+- **Tab Tài liệu**: tổng hợp tài liệu từ 2 nguồn — file đính kèm bài đăng (badge "Đăng bài") và upload trực tiếp của GV (badge "Tải lên trực tiếp"); nút "Tải lên" trigger hidden `<input type="file">`; mỗi lớp có mock initial documents; interface `ClassDocument { id, name, url, size, ext, uploadedAt, source }`; constant `FILE_ICON` map ext → emoji icon
 
 ## TeacherDashboardPage
 
@@ -249,6 +253,9 @@ Trang này dùng `Segmented` control ở top bar để switch giữa 3 state dem
 Các tính năng khác trong trang:
 - **Panel thành viên** (trái, 200px): hiển thị `[TEACHER, ...STUDENTS]` qua `StudentStatusList`; GV có tag "(GV)"; toggle bằng nút `TeamOutlined` ở bottom bar
 - **Floating question panel**: hiển thị câu hỏi, đáp án (single/multiple/essay), `ConfidenceSelector`; thu nhỏ được sau khi nộp; header hiện countdown timer Progress circle 34px (mock `QUESTION_TIMER_SECONDS = 90`); tự submit khi hết giờ
+- **Demo loại câu hỏi**: dải nút "Trắc nghiệm / Nhiều đáp án / Tự luận" trong panel, map tới question index `{ single: 0, multiple: 2, essay: 4 }`; đổi type → reset đáp án + restart timer; type hiện tại lưu trong `demoQType` state
+- **Phóng to panel**: nút `ExpandAltOutlined` / `CompressOutlined` trong header panel; khi expanded dùng `position: absolute, inset: 0` để phủ toàn vùng video
+- **Tự luận dùng RichTextEditor**: câu tự luận render `RichTextEditor` thay vì `TextArea`; sau khi submit hiển thị HTML read-only qua `dangerouslySetInnerHTML`; `canSubmit` strip HTML tags trước khi kiểm tra rỗng
 - **Bottom control bar** (dùng `CtrlBtn`): Mic | Camera | Screen Share | ✋ | — | Participants | Chat | Câu hỏi | — | Rời lớp; có `overflowX: auto`
 - **Screen share**: state `screenShareOn`, hiển thị overlay/badge trên self-tile khi breakout
 - **Chat panel** (`ChatPanel`): dùng `MOCK_CHAT_MESSAGES` làm dữ liệu ban đầu
@@ -266,6 +273,7 @@ Các tính năng khác trong trang:
 
 - `src/mock/questions.ts` — mỗi `Question` có `answers[]` chứa kết quả mock của từng HS (dùng cho cả `LiveQuestionStats` trong session lẫn `TeacherDashboardPage`)
 - `LIVE_SESSION` trong `sessions.ts` import trực tiếp `QUESTIONS` từ `questions.ts`
+- `Post` interface có thêm trường `attachments?: { name, url, size, ext }[]` — optional, chỉ có khi bài đăng kèm file
 - `POSTS` và `SCHEDULES` trong `classrooms.ts` có data cho cả 3 lớp (c1/c2/c3)
 - `TEACHER.avatarColor` và `STUDENTS[0].avatarColor` dùng `#6366f1` (không phải `#1677ff`)
 - Khi tích hợp backend: thay thế các import từ `mock/` bằng API calls, giữ nguyên cấu trúc types

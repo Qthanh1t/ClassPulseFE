@@ -24,6 +24,7 @@ export interface Post {
   authorRole: UserRole;
   content: string;
   createdAt: string;
+  attachments?: { name: string; url: string; size: string; ext: string }[];
 }
 
 export interface Schedule {
