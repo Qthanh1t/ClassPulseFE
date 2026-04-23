@@ -142,6 +142,12 @@ export default function TeacherDashboardPage() {
     { name: 'Bỏ qua', value: totalSkipped, color: '#e2e8f0' },
   ];
 
+  const CONF_CONFIG = {
+    high:   { label: 'Cao',  color: '#10b981', bg: '#f0fdf4' },
+    medium: { label: 'TB',   color: '#f59e0b', bg: '#fffbeb' },
+    low:    { label: 'Thấp', color: '#f43f5e', bg: '#fff1f2' },
+  } as const;
+
   // Student table
   const columns = [
     {
@@ -165,11 +171,33 @@ export default function TeacherDashboardPage() {
         </Tooltip>
       ),
       key: q.id,
-      width: 72,
+      width: 88,
       align: 'center' as const,
       render: (_: unknown, record: { id: string }) => {
         const res = getStudentResult(record.id, q);
-        return RESULT_ICON[res];
+        const answer = q.answers.find((a) => a.studentId === record.id);
+        const conf = answer?.confidence ?? null;
+        const confCfg = conf ? CONF_CONFIG[conf] : null;
+        return (
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4, padding: '2px 0' }}>
+            {RESULT_ICON[res]}
+            {confCfg ? (
+              <span style={{
+                fontSize: 10,
+                fontWeight: 600,
+                color: confCfg.color,
+                background: confCfg.bg,
+                borderRadius: 4,
+                padding: '1px 6px',
+                lineHeight: 1.5,
+              }}>
+                {confCfg.label}
+              </span>
+            ) : (
+              <span style={{ fontSize: 10, color: '#cbd5e1' }}>—</span>
+            )}
+          </div>
+        );
       },
     })),
     {
@@ -530,6 +558,38 @@ export default function TeacherDashboardPage() {
                 </div>
               ),
               children: (
+                <div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 20, marginBottom: 12, flexWrap: 'wrap' }}>
+                  <Text style={{ fontSize: 12, color: '#94a3b8', fontWeight: 500 }}>Kết quả:</Text>
+                  {[
+                    { icon: <CheckCircleOutlined style={{ color: '#10b981', fontSize: 13 }} />, label: 'Đúng' },
+                    { icon: <CloseCircleOutlined style={{ color: '#f43f5e', fontSize: 13 }} />, label: 'Sai' },
+                    { icon: <MinusCircleOutlined style={{ color: '#cbd5e1', fontSize: 13 }} />, label: 'Bỏ qua' },
+                  ].map(({ icon, label }) => (
+                    <div key={label} style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                      {icon}
+                      <Text style={{ fontSize: 12, color: '#64748b' }}>{label}</Text>
+                    </div>
+                  ))}
+                  <div style={{ width: 1, height: 14, background: '#e2e8f0', margin: '0 4px' }} />
+                  <Text style={{ fontSize: 12, color: '#94a3b8', fontWeight: 500 }}>Tự tin:</Text>
+                  {[
+                    { label: 'Cao', color: '#10b981', bg: '#f0fdf4' },
+                    { label: 'TB', color: '#f59e0b', bg: '#fffbeb' },
+                    { label: 'Thấp', color: '#f43f5e', bg: '#fff1f2' },
+                  ].map(({ label, color, bg }) => (
+                    <span key={label} style={{
+                      fontSize: 11,
+                      fontWeight: 600,
+                      color,
+                      background: bg,
+                      borderRadius: 4,
+                      padding: '1px 7px',
+                    }}>
+                      {label}
+                    </span>
+                  ))}
+                </div>
                 <Table
                   dataSource={STUDENTS}
                   columns={columns}
@@ -560,6 +620,7 @@ export default function TeacherDashboardPage() {
                     </Table.Summary>
                   )}
                 />
+                </div>
               ),
             },
           ]}

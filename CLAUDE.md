@@ -210,7 +210,7 @@ Layout 2 cột (không dùng AppLayout):
 - **`StatCard`**: component nội bộ; icon trong hộp màu nhạt (lightBg) + số lớn + label uppercase; 4 card trong Row gutter 16
 - **Bar chart**: màu bar theo rate (emerald ≥70%, amber 40–70%, rose <40%); axisLine/tickLine ẩn
 - **Pie chart**: 3 màu emerald/rose/slate; có mini stat row bên dưới
-- **Detail tabs**: "Chi tiết từng câu hỏi" dùng `Collapse`; "Kết quả học sinh" dùng `Table` với summary row
+- **Detail tabs**: "Chi tiết từng câu hỏi" dùng `Collapse`; "Kết quả học sinh" dùng `Table` với summary row — mỗi ô câu hỏi hiển thị 2 thông tin xếp dọc: icon kết quả (✓/✗/–) + badge tự tin nhỏ (Cao/TB/Thấp màu emerald/amber/rose); có legend giải thích ký hiệu phía trên bảng; cột câu hỏi rộng 88px
 
 ## StudentReviewPage
 
