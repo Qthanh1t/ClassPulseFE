@@ -142,7 +142,7 @@ export default function AppLayout() {
                 fontFamily: 'inherit',
               }}
             >
-              StudyQuest
+              ClassPulse
             </span>
           )}
         </button>

@@ -56,7 +56,7 @@ export default function LoginPage() {
           <div style={{ width: 44, height: 44, background: 'rgba(255,255,255,0.2)', borderRadius: 12, display: 'flex', alignItems: 'center', justifyContent: 'center', backdropFilter: 'blur(8px)', border: '1px solid rgba(255,255,255,0.3)' }}>
             <BookOutlined style={{ color: '#fff', fontSize: 20 }} />
           </div>
-          <span style={{ fontSize: 22, fontWeight: 700, color: '#fff', letterSpacing: '-0.3px' }}>StudyQuest</span>
+          <span style={{ fontSize: 22, fontWeight: 700, color: '#fff', letterSpacing: '-0.3px' }}>ClassPulse</span>
         </div>
 
         {/* Headline */}
@@ -184,7 +184,7 @@ export default function LoginPage() {
               boxShadow: role ? '0 4px 14px rgba(99,102,241,0.35)' : undefined,
             }}
           >
-            {loading ? 'Đang vào...' : role ? 'Vào StudyQuest →' : 'Chọn vai trò để tiếp tục'}
+            {loading ? 'Đang vào...' : role ? 'Vào ClassPulse →' : 'Chọn vai trò để tiếp tục'}
           </Button>
 
           <Text type="secondary" style={{ display: 'block', textAlign: 'center', marginTop: 16, fontSize: 12 }}>

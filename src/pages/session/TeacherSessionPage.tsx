@@ -10,6 +10,7 @@ import {
   AudioOutlined, AudioMutedOutlined, VideoCameraOutlined,
   MessageOutlined, TeamOutlined, ClockCircleOutlined,
   PoweroffOutlined, ExclamationCircleOutlined,
+  AimOutlined, CloseOutlined,
 } from '@ant-design/icons';
 import { useNavigate, useParams } from 'react-router-dom';
 import { LIVE_SESSION } from '../../mock/sessions';
@@ -68,6 +69,8 @@ export default function TeacherSessionPage() {
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>(MOCK_CHAT_MESSAGES);
   const [raisedHandIds] = useState<string[]>(['s3', 's5']);
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
+  const [focusedStudentId, setFocusedStudentId] = useState<string | null>(null);
+  const [hoveredStudentId, setHoveredStudentId] = useState<string | null>(null);
 
   // Question timer
   const [questionTimer, setQuestionTimer] = useState<number | null>(null); // total seconds
@@ -100,6 +103,7 @@ export default function TeacherSessionPage() {
 
   const session = LIVE_SESSION;
   const currentQuestion: Question = session.questions[activeQuestionIdx];
+  const focusedStudent = focusedStudentId ? STUDENTS.find((s) => s.id === focusedStudentId) ?? null : null;
 
   const handlePublishQuestion = (timerSeconds: number | null) => {
     setQuestionTimer(timerSeconds);
@@ -200,8 +204,21 @@ export default function TeacherSessionPage() {
           style={{ background: 'rgba(255,255,255,0.1)' }}
         />
 
-        {/* Right: elapsed + avatar */}
+        {/* Right: focus badge + elapsed + avatar */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexShrink: 0 }}>
+          {focusedStudent && (
+            <Tag
+              color="purple"
+              icon={<AimOutlined />}
+              style={{ borderRadius: 20, fontSize: 12, display: 'flex', alignItems: 'center', gap: 4 }}
+            >
+              Focus: {focusedStudent.name.split(' ').pop()}
+              <CloseOutlined
+                style={{ fontSize: 10, marginLeft: 4, cursor: 'pointer' }}
+                onClick={() => setFocusedStudentId(null)}
+              />
+            </Tag>
+          )}
           <div style={{ display: 'flex', alignItems: 'center', gap: 5, background: 'rgba(255,255,255,0.1)', padding: '3px 10px', borderRadius: 6 }}>
             <ClockCircleOutlined style={{ color: 'rgba(255,255,255,0.6)', fontSize: 12 }} />
             <Text style={{ fontSize: 12, fontFamily: 'monospace', color: 'rgba(255,255,255,0.8)' }}>
@@ -256,43 +273,120 @@ export default function TeacherSessionPage() {
           {/* ── IDLE: Video classroom ── */}
           {demoState === 'idle' && (
             <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 10, minHeight: 0 }}>
-              {/* Main video */}
-              <div style={{ flex: 1, borderRadius: 12, overflow: 'hidden', position: 'relative', minHeight: 280 }}>
-                <img
-                  src={heroImg}
-                  alt="Screen share"
-                  style={{ width: '100%', height: '100%', objectFit: 'cover' }}
-                />
-                {screenShareOn && (
-                  <div style={{ position: 'absolute', top: 10, left: 12, background: 'rgba(0,0,0,0.6)', padding: '3px 10px', borderRadius: 6, display: 'flex', alignItems: 'center', gap: 6 }}>
-                    <DesktopOutlined style={{ color: '#52c41a', fontSize: 12 }} />
-                    <Text style={{ color: '#fff', fontSize: 12 }}>Đang chia sẻ màn hình</Text>
-                  </div>
-                )}
-                <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, background: 'linear-gradient(transparent, rgba(0,0,0,0.7))', padding: '24px 14px 10px', display: 'flex', alignItems: 'center', gap: 10 }}>
-                  <Avatar size={32} style={{ background: 'linear-gradient(135deg, #6366f1, #8b5cf6)', flexShrink: 0 }}>L</Avatar>
-                  <div>
-                    <Text strong style={{ color: '#fff', fontSize: 13 }}>{TEACHER.name}</Text>
-                    <div style={{ display: 'flex', gap: 4 }}>
-                      {!micOn && <Tag color="error" style={{ fontSize: 11, padding: '0 5px' }}>Mic tắt</Tag>}
-                      {!cameraOn && <Tag color="error" style={{ fontSize: 11, padding: '0 5px' }}>Camera tắt</Tag>}
-                      {micOn && cameraOn && <Text style={{ color: 'rgba(255,255,255,0.7)', fontSize: 12 }}>Đang giảng bài</Text>}
+              {/* Main video area: single-pane (normal) or 2-pane (focus mode) */}
+              {focusedStudent ? (
+                <div style={{ flex: 1, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, minHeight: 0 }}>
+                  {/* Teacher tile */}
+                  <div style={{ borderRadius: 12, overflow: 'hidden', position: 'relative', border: '2px solid rgba(99,102,241,0.4)' }}>
+                    <img src={heroImg} alt="Screen share" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                    {screenShareOn && (
+                      <div style={{ position: 'absolute', top: 10, left: 12, background: 'rgba(0,0,0,0.6)', padding: '3px 10px', borderRadius: 6, display: 'flex', alignItems: 'center', gap: 6 }}>
+                        <DesktopOutlined style={{ color: '#52c41a', fontSize: 12 }} />
+                        <Text style={{ color: '#fff', fontSize: 12 }}>Đang chia sẻ màn hình</Text>
+                      </div>
+                    )}
+                    <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, background: 'linear-gradient(transparent, rgba(0,0,0,0.7))', padding: '24px 14px 10px', display: 'flex', alignItems: 'center', gap: 10 }}>
+                      <Avatar size={32} style={{ background: 'linear-gradient(135deg, #6366f1, #8b5cf6)', flexShrink: 0 }}>L</Avatar>
+                      <div>
+                        <Text strong style={{ color: '#fff', fontSize: 13 }}>{TEACHER.name}</Text>
+                        <div style={{ display: 'flex', gap: 4 }}>
+                          {!micOn && <Tag color="error" style={{ fontSize: 11, padding: '0 5px' }}>Mic tắt</Tag>}
+                          {!cameraOn && <Tag color="error" style={{ fontSize: 11, padding: '0 5px' }}>Camera tắt</Tag>}
+                          {micOn && cameraOn && <Text style={{ color: 'rgba(255,255,255,0.7)', fontSize: 12 }}>Đang giảng bài</Text>}
+                        </div>
+                      </div>
+                      <Badge status="processing" text={<Text style={{ color: 'rgba(255,255,255,0.7)', fontSize: 11 }}>LIVE</Text>} style={{ marginLeft: 'auto' }} />
                     </div>
                   </div>
-                  <Badge status="processing" text={<Text style={{ color: 'rgba(255,255,255,0.7)', fontSize: 11 }}>LIVE</Text>} style={{ marginLeft: 'auto' }} />
+                  {/* Focused student tile */}
+                  <div style={{ borderRadius: 12, background: '#2a2a40', border: '2px solid #6366f1', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 14, position: 'relative' }}>
+                    <Tag color="purple" style={{ position: 'absolute', top: 10, right: 10, borderRadius: 20, fontWeight: 600 }}>
+                      <AimOutlined style={{ marginRight: 4 }} />FOCUS
+                    </Tag>
+                    <Avatar size={80} style={{ background: focusedStudent.avatarColor, fontSize: 30, boxShadow: '0 0 0 4px rgba(99,102,241,0.3)' }}>
+                      {focusedStudent.name.charAt(0)}
+                    </Avatar>
+                    <div style={{ textAlign: 'center' }}>
+                      <Text strong style={{ color: '#fff', fontSize: 16, display: 'block' }}>{focusedStudent.name}</Text>
+                      <Text style={{ color: 'rgba(255,255,255,0.45)', fontSize: 12, fontStyle: 'italic' }}>Camera đang được phóng to</Text>
+                    </div>
+                    <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, background: 'linear-gradient(transparent, rgba(0,0,0,0.5))', padding: '16px 14px 10px', display: 'flex', justifyContent: 'center' }}>
+                      <Badge status="processing" text={<Text style={{ color: 'rgba(255,255,255,0.6)', fontSize: 11 }}>Đang kết nối</Text>} />
+                    </div>
+                  </div>
                 </div>
-              </div>
+              ) : (
+                <div style={{ flex: 1, borderRadius: 12, overflow: 'hidden', position: 'relative', minHeight: 280 }}>
+                  <img src={heroImg} alt="Screen share" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                  {screenShareOn && (
+                    <div style={{ position: 'absolute', top: 10, left: 12, background: 'rgba(0,0,0,0.6)', padding: '3px 10px', borderRadius: 6, display: 'flex', alignItems: 'center', gap: 6 }}>
+                      <DesktopOutlined style={{ color: '#52c41a', fontSize: 12 }} />
+                      <Text style={{ color: '#fff', fontSize: 12 }}>Đang chia sẻ màn hình</Text>
+                    </div>
+                  )}
+                  <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, background: 'linear-gradient(transparent, rgba(0,0,0,0.7))', padding: '24px 14px 10px', display: 'flex', alignItems: 'center', gap: 10 }}>
+                    <Avatar size={32} style={{ background: 'linear-gradient(135deg, #6366f1, #8b5cf6)', flexShrink: 0 }}>L</Avatar>
+                    <div>
+                      <Text strong style={{ color: '#fff', fontSize: 13 }}>{TEACHER.name}</Text>
+                      <div style={{ display: 'flex', gap: 4 }}>
+                        {!micOn && <Tag color="error" style={{ fontSize: 11, padding: '0 5px' }}>Mic tắt</Tag>}
+                        {!cameraOn && <Tag color="error" style={{ fontSize: 11, padding: '0 5px' }}>Camera tắt</Tag>}
+                        {micOn && cameraOn && <Text style={{ color: 'rgba(255,255,255,0.7)', fontSize: 12 }}>Đang giảng bài</Text>}
+                      </div>
+                    </div>
+                    <Badge status="processing" text={<Text style={{ color: 'rgba(255,255,255,0.7)', fontSize: 11 }}>LIVE</Text>} style={{ marginLeft: 'auto' }} />
+                  </div>
+                </div>
+              )}
 
               {/* Student thumbnails */}
               <div style={{ display: 'flex', gap: 8, flexShrink: 0 }}>
-                {STUDENTS.map((s) => (
-                  <div key={s.id} style={{ flex: 1, background: '#2d2d44', borderRadius: 8, aspectRatio: '4/3', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 3, position: 'relative' }}>
-                    <Avatar size={28} style={{ background: s.avatarColor, fontSize: 12 }}>{s.name.charAt(0)}</Avatar>
-                    <Text style={{ color: 'rgba(255,255,255,0.8)', fontSize: 10 }} ellipsis>{s.name.split(' ').pop()}</Text>
-                    <Badge status="processing" />
-                    {raisedHandIds.includes(s.id) && <span style={{ position: 'absolute', top: 3, right: 4, fontSize: 12 }}>✋</span>}
-                  </div>
-                ))}
+                {STUDENTS.map((s) => {
+                  const isFocused = focusedStudentId === s.id;
+                  const isHovered = hoveredStudentId === s.id;
+                  return (
+                    <Tooltip
+                      key={s.id}
+                      title={isFocused ? 'Đang focus · Click để hủy' : 'Click để focus học sinh này'}
+                    >
+                      <div
+                        style={{
+                          flex: 1,
+                          background: isFocused ? '#2a2a40' : '#2d2d44',
+                          borderRadius: 8,
+                          aspectRatio: '4/3',
+                          display: 'flex',
+                          flexDirection: 'column',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          gap: 3,
+                          position: 'relative',
+                          cursor: 'pointer',
+                          border: isFocused ? '2px solid #6366f1' : '2px solid transparent',
+                          transition: 'border-color 0.15s, background 0.15s',
+                        }}
+                        onMouseEnter={() => setHoveredStudentId(s.id)}
+                        onMouseLeave={() => setHoveredStudentId(null)}
+                        onClick={() => setFocusedStudentId(isFocused ? null : s.id)}
+                      >
+                        {(isHovered || isFocused) && (
+                          <AimOutlined
+                            style={{
+                              position: 'absolute',
+                              top: 4, left: 5,
+                              color: isFocused ? '#818cf8' : 'rgba(255,255,255,0.75)',
+                              fontSize: 13,
+                            }}
+                          />
+                        )}
+                        <Avatar size={28} style={{ background: s.avatarColor, fontSize: 12 }}>{s.name.charAt(0)}</Avatar>
+                        <Text style={{ color: 'rgba(255,255,255,0.8)', fontSize: 10 }} ellipsis>{s.name.split(' ').pop()}</Text>
+                        <Badge status="processing" />
+                        {raisedHandIds.includes(s.id) && <span style={{ position: 'absolute', top: 3, right: 4, fontSize: 12 }}>✋</span>}
+                      </div>
+                    </Tooltip>
+                  );
+                })}
               </div>
             </div>
           )}
@@ -374,12 +468,9 @@ export default function TeacherSessionPage() {
           )}
 
           {/* ── BREAKOUT: Teacher management view ── */}
-          {demoState === 'breakout' && session.breakoutGroups && (
+          {demoState === 'breakout' && (
             <Card style={{ borderRadius: 12 }}>
-              <BreakoutPanel
-                groups={session.breakoutGroups}
-                onClose={() => setDemoState('idle')}
-              />
+              <BreakoutPanel onClose={() => setDemoState('idle')} />
             </Card>
           )}
         </div>

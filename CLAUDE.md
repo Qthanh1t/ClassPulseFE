@@ -4,26 +4,32 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project overview
 
-**StudyQuest** — Web hỗ trợ giảng dạy cho nhóm nhỏ (đồ án tốt nghiệp).
+**ClassPulse** — Nền tảng tương tác thời gian thực cho lớp học nhóm nhỏ (đồ án tốt nghiệp).
 
-Mô hình "Closed Feedback Loop Classroom": giáo viên giảng → đặt câu hỏi → học sinh trả lời kèm mức độ tự tin → hệ thống phân tích → dashboard thời gian thực.
+Triết lý cốt lõi: **tối đa hóa tương tác hai chiều** trong mỗi buổi học. Không chỉ là Q&A — mọi kênh tương tác (video, câu hỏi, raise hand, chat, breakout, focus spotlight) đều hoạt động trong cùng một phiên, mục tiêu là không để học sinh nào "mất kết nối" với buổi học.
 
 ### Roles
-- **Teacher**: quản lý lớp, tạo câu hỏi, theo dõi dashboard, tạo breakout room
-- **Student**: tham gia lớp, trả lời câu hỏi, xem báo cáo cá nhân
+- **Teacher**: quản lý lớp, điều phối tương tác (câu hỏi, breakout, focus, broadcast), xem dashboard
+- **Student**: tham gia lớp, tương tác đa kênh (trả lời câu hỏi, raise hand, chat), xem báo cáo cá nhân
 - **Admin**: quản lý user, lớp học, hệ thống
 
-### Core features
-1. **Classroom management** — tạo lớp, đăng bài, lịch học (tương tự Microsoft Teams)
-2. **Confidence-based Answering** — học sinh trả lời câu hỏi + chọn mức độ tự tin (Thấp/Trung bình/Cao); hỗ trợ template trắc nghiệm 1 đáp án, nhiều đáp án, tự luận; có trình soạn thảo rich text; hỗ trợ giới hạn thời gian tùy chọn, câu hỏi tự kết thúc khi hết giờ
-3. **Silent Student Detection** — phát hiện học sinh không trả lời câu hỏi; alert hiển thị tên cụ thể
-4. **Dynamic Breakout Group** — chia phòng thảo luận nhóm trong buổi học
-5. **Micro Task** — giao nhiệm vụ cho từng nhóm; giáo viên vẫn có thể broadcast thông báo cho cả lớp khi đang trong breakout
-6. **Quick Action Button** — giáo viên nhanh chóng tạo câu hỏi hoặc chia nhóm trong buổi học
-7. **Teacher Dashboard** — thống kê kết quả theo từng câu hỏi + confidence, danh sách học sinh và kết quả
-8. **Student Session Review** — danh sách câu hỏi, số đúng/sai/không trả lời, mức tự tin đã chọn
+### Core features — tất cả xảy ra realtime trong buổi học
 
-**Lưu ý quan trọng**: Tạo câu hỏi, trả lời, và thống kê đều xảy ra **trong cùng một buổi học online** (realtime). Khi chưa có câu hỏi đang chạy, màn hình giáo viên, học sinh hiển thị vùng video/screen share của giáo viên.
+1. **Classroom Management** — tạo lớp, đăng bài kèm file, lịch học (tương tự Microsoft Teams)
+2. **Live Video Session** — video/audio realtime (WebRTC); GV screen share; thumbnail từng HS
+3. **Confidence-based Q&A** — GV đặt câu hỏi (trắc nghiệm 1/nhiều đáp án, tự luận) + timer tùy chọn; HS trả lời kèm mức tự tin (Thấp/Trung bình/Cao); câu hỏi tự kết thúc khi hết giờ
+4. **Silent Student Detection** — phát hiện HS không trả lời; alert hiển thị tên cụ thể để GV nhắc nhở
+5. **Raise Hand** — HS giơ tay, GV thấy ✋ trên thumbnail và danh sách thành viên
+6. **Live Chat** — chat realtime trong buổi học
+7. **Dynamic Breakout Rooms** — GV tự tạo số phòng tùy ý, gán HS vào từng phòng; GV có thể "vào" bất kỳ phòng nào để trao đổi trực tiếp (kể cả trao đổi riêng 1-1 hoặc 1-nhóm nhỏ); HS còn lại vẫn hoạt động bình thường trong phòng của họ
+8. **Focus Mode (Spotlight)** — GV chọn 1 HS để focus; camera/màn hình HS đó được phóng to ngang với GV (layout 2 ô cạnh nhau), hỗ trợ trao đổi trực tiếp 1-1 trong phòng chính
+9. **Micro Task** — giao nhiệm vụ cụ thể cho từng nhóm breakout
+10. **Broadcast** — GV gửi thông báo đến tất cả HS kể cả khi đang trong breakout
+11. **Quick Actions** — GV nhanh chóng tạo câu hỏi hoặc mở breakout ngay trong buổi học
+12. **Teacher Dashboard** — thống kê kết quả + confidence theo từng câu hỏi; danh sách HS và điểm số
+13. **Student Session Review** — HS xem lại câu hỏi, đúng/sai/bỏ qua, mức tự tin đã chọn
+
+**Lưu ý quan trọng**: Mọi tính năng tương tác (Q&A, breakout, focus, chat, raise hand) đều xảy ra **trong cùng một buổi học online** (realtime). Khi không có câu hỏi đang chạy, màn hình GV và HS hiển thị vùng video/screen share của GV.
 
 ## System architecture
 
@@ -154,7 +160,7 @@ src/
       LiveQuestionStats.tsx   # thống kê realtime: progress, đúng/sai, confidence
       ConfidenceSelector.tsx  # 3 nút Thấp/Trung bình/Cao
       CreateQuestionModal.tsx # modal 2 bước: chọn template → soạn thảo + cài đặt thời gian (Switch + preset 30s/1p/1.5p/2p/3p + custom); onSubmit(timerSeconds: number | null); đáp án MCQ hỗ trợ LaTeX inline ($...$, $$...$$) với nút chèn Σ và preview KaTeX bên dưới mỗi ô
-      BreakoutPanel.tsx       # panel nhóm + micro task + broadcast
+      BreakoutPanel.tsx       # panel breakout 2 mode: setup (tạo phòng, gán HS) → active (GV vào/rời phòng, broadcast); không có "loại phòng riêng" — private exchange = GV join phòng có ít HS
       ChatPanel.tsx           # panel chat realtime; export MOCK_CHAT_MESSAGES, ChatMessage type, getNow()
       RichTextEditor.tsx      # rich text editor (CKEditor5): bold/italic/underline/strike/list/align/font-size; custom MathPlugin (KaTeX inline+block); file attachment list (ngoài editor, không chỉnh sửa được); font size 3 mức (Nhỏ/Vừa/Lớn) qua nút tự quản lý
       CtrlBtn.tsx             # nút điều khiển dùng chung cho 2 session page: dark bg, circle/round, danger
@@ -163,7 +169,7 @@ src/
     ProfilePage.tsx           # trang hồ sơ: avatar, stats (lớp/buổi học/câu hỏi/học sinh)
     classroom/ClassListPage.tsx
     classroom/ClassDetailPage.tsx   # tabs: Bảng tin | Lịch học | Thành viên | Tài liệu; bài đăng hỗ trợ đính kèm file
-    session/TeacherSessionPage.tsx  # layout 3 cột, có Segmented demo-state switcher (không có label "Demo:")
+    session/TeacherSessionPage.tsx  # layout 3 cột, có Segmented demo-state switcher; thêm focus feature: focusedStudentId state, hover icon AimOutlined trên thumbnail, layout 2-pane (GV + HS) khi focus bật, badge focus trong top bar
     session/StudentSessionPage.tsx  # countdown timer (90s), phóng to panel, demo 3 loại câu hỏi, tự luận dùng RichTextEditor
     dashboard/TeacherDashboardPage.tsx
     dashboard/StudentReviewPage.tsx
@@ -226,10 +232,10 @@ Trang này dùng `Segmented` control ở top bar để switch giữa 4 state dem
 
 | State | Mô tả |
 |---|---|
-| `idle` | Vùng video/screen share (ảnh `src/assets/hero.png` + overlay tên GV) + thumbnails HS |
+| `idle` | Vùng video/screen share (ảnh `src/assets/hero.png` + overlay tên GV) + thumbnails HS; hỗ trợ **focus mode** (xem bên dưới) |
 | `running` | Câu hỏi đang chạy + `LiveQuestionStats` cập nhật theo mock data |
 | `ended` | Kết quả đầy đủ sau khi kết thúc câu hỏi |
-| `breakout` | `BreakoutPanel` với danh sách nhóm và micro task |
+| `breakout` | `BreakoutPanel` với 2 mode: **setup** (tạo phòng, gán HS) → **active** (GV vào/rời phòng, broadcast) |
 
 Các tính năng khác trong trang:
 - **Bottom control bar**: toggle mic/camera/screen share; toggle student list panel, quick actions panel, chat panel; nút "Kết thúc buổi học"
@@ -239,6 +245,7 @@ Các tính năng khác trong trang:
 - **Raised hand**: mock `raisedHandIds = ['s3', 's5']`, hiển thị ✋ trên thumbnail HS
 - **Question timer**: khi GV đặt thời gian, hiển thị circular progress (44px) đếm ngược cạnh nút "Kết thúc"; màu xanh→cam→đỏ theo % còn lại; tự chuyển state `ended` khi về 0; reset khi kết thúc thủ công hoặc chuyển câu tiếp
 - **Silent student alert**: khi `demoState === 'running'`, hiển thị Alert warning với avatar + tên cụ thể của từng HS trong `silentStudentIds`
+- **Focus mode**: `focusedStudentId: string | null` state; khi `demoState === 'idle'` + focus bật → main video area chia 2 grid (GV trái, HS phải phóng to với viền indigo); top bar hiện Tag "Focus: [tên]" + nút X unfocus; thumbnail HS đang focus có viền indigo + nền nhạt; hover thumbnail → hiện `AimOutlined` icon để trigger focus
 
 ## StudentSessionPage — demo state
 
