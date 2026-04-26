@@ -4,29 +4,37 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project overview
 
-**StudyQuest** — Web hỗ trợ giảng dạy cho nhóm nhỏ (đồ án tốt nghiệp).
+**ClassPulse** — Nền tảng tương tác thời gian thực cho lớp học nhóm nhỏ (đồ án tốt nghiệp).
 
-Mô hình "Closed Feedback Loop Classroom": giáo viên giảng → đặt câu hỏi → học sinh trả lời kèm mức độ tự tin → hệ thống phân tích → dashboard thời gian thực.
+Triết lý cốt lõi: **tối đa hóa tương tác hai chiều** trong mỗi buổi học. Không chỉ là Q&A — mọi kênh tương tác (video, câu hỏi, raise hand, chat, breakout, focus spotlight) đều hoạt động trong cùng một phiên, mục tiêu là không để học sinh nào "mất kết nối" với buổi học.
 
 ### Roles
-- **Teacher**: quản lý lớp, tạo câu hỏi, theo dõi dashboard, tạo breakout room
-- **Student**: tham gia lớp, trả lời câu hỏi, xem báo cáo cá nhân
+- **Teacher**: quản lý lớp, điều phối tương tác (câu hỏi, breakout, focus, broadcast), xem dashboard
+- **Student**: tham gia lớp, tương tác đa kênh (trả lời câu hỏi, raise hand, chat), xem báo cáo cá nhân
 - **Admin**: quản lý user, lớp học, hệ thống
 
-### Core features
-1. **Classroom management** — tạo lớp, đăng bài, lịch học (tương tự Microsoft Teams)
-2. **Confidence-based Answering** — học sinh trả lời câu hỏi + chọn mức độ tự tin; hỗ trợ template trắc nghiệm (1 đáp án / nhiều đáp án) và tự luận; có trình soạn thảo cơ bản
-3. **Silent Student Detection** — phát hiện và lưu thông tin học sinh không tương tác
-4. **Dynamic Breakout Group** — chia phòng thảo luận nhóm trong buổi học
-5. **Micro Task** — giao nhiệm vụ cho từng nhóm khi đang trong breakout room
-6. **Quick Action Button** — giáo viên nhanh chóng tạo câu hỏi hoặc chia nhóm trong buổi học
-7. **Teacher Dashboard** — thống kê kết quả theo từng câu hỏi, danh sách học sinh và kết quả
-8. **Student Session Review** — danh sách câu hỏi, số đúng/sai/không trả lời trong buổi học
+### Core features — tất cả xảy ra realtime trong buổi học
+
+1. **Classroom Management** — tạo lớp, đăng bài kèm file, lịch học (tương tự Microsoft Teams)
+2. **Live Video Session** — video/audio realtime (WebRTC); GV screen share; thumbnail từng HS
+3. **Confidence-based Q&A** — GV đặt câu hỏi (trắc nghiệm 1/nhiều đáp án, tự luận) + timer tùy chọn; HS trả lời kèm mức tự tin (Thấp/Trung bình/Cao); câu hỏi tự kết thúc khi hết giờ
+4. **Silent Student Detection** — phát hiện HS không trả lời; alert hiển thị tên cụ thể để GV nhắc nhở
+5. **Raise Hand** — HS giơ tay, GV thấy ✋ trên thumbnail và danh sách thành viên
+6. **Live Chat** — chat realtime trong buổi học
+7. **Dynamic Breakout Rooms** — GV tự tạo số phòng tùy ý, gán HS vào từng phòng; GV có thể "vào" bất kỳ phòng nào để trao đổi trực tiếp (kể cả trao đổi riêng 1-1 hoặc 1-nhóm nhỏ); HS còn lại vẫn hoạt động bình thường trong phòng của họ
+8. **Focus Mode (Spotlight)** — GV chọn 1 HS để focus; camera/màn hình HS đó được phóng to ngang với GV (layout 2 ô cạnh nhau), hỗ trợ trao đổi trực tiếp 1-1 trong phòng chính
+9. **Micro Task** — giao nhiệm vụ cụ thể cho từng nhóm breakout
+10. **Broadcast** — GV gửi thông báo đến tất cả HS kể cả khi đang trong breakout
+11. **Quick Actions** — GV nhanh chóng tạo câu hỏi hoặc mở breakout ngay trong buổi học
+12. **Teacher Dashboard** — thống kê kết quả + confidence theo từng câu hỏi; danh sách HS và điểm số
+13. **Student Session Review** — HS xem lại câu hỏi, đúng/sai/bỏ qua, mức tự tin đã chọn
+
+**Lưu ý quan trọng**: Mọi tính năng tương tác (Q&A, breakout, focus, chat, raise hand) đều xảy ra **trong cùng một buổi học online** (realtime). Khi không có câu hỏi đang chạy, màn hình GV và HS hiển thị vùng video/screen share của GV.
 
 ## System architecture
 
 | Layer | Technology |
-|-------|------------|
+|---|---|
 | Frontend (this repo) | React 19 + TypeScript + Vite |
 | Backend | Java (separate repo) |
 | Realtime | WebSocket / Socket.io |
@@ -37,12 +45,79 @@ Mô hình "Closed Feedback Loop Classroom": giáo viên giảng → đặt câu 
 
 - **React 19** + **TypeScript 6** + **Vite 8**
 - **Tailwind CSS v4** (via `@tailwindcss/vite` — no `tailwind.config.js` needed)
-- ESLint với `typescript-eslint`, `eslint-plugin-react-hooks`, `eslint-plugin-react-refresh`
+- **Ant Design v6** + **@ant-design/icons** — primary UI component library; theme được set qua `ConfigProvider` trong `App.tsx`
+- **react-router-dom v7** — routing
+- **CKEditor5 v48** (`ckeditor5`, `@ckeditor/ckeditor5-react`) — rich text editor dùng trong `CreateQuestionModal`; tích hợp KaTeX (`katex`) cho công thức toán
+- **Recharts v3** — biểu đồ (BarChart, PieChart, RadarChart) dùng trong `TeacherDashboardPage` và `StudentReviewPage`
+
+## Design system
+
+Toàn bộ giao diện tuân theo design system sau. **Không dùng màu #1677ff (AntD blue mặc định) trong code mới.**
+
+### Color tokens (CSS custom properties — `src/index.css`)
+
+| Token | Giá trị | Dùng cho |
+|---|---|---|
+| `--sq-primary` | `#6366f1` | Indigo — màu chính, nút primary, active nav |
+| `--sq-primary-dark` | `#4f46e5` | Hover/pressed states |
+| `--sq-primary-light` | `#eef2ff` | Background active nav, tag màu nhạt |
+| `--sq-bg` | `#f8fafc` | Background trang (Slate 50) |
+| `--sq-surface` | `#ffffff` | Card, modal, sidebar |
+| `--sq-border` | `#e2e8f0` | Border toàn bộ (Slate 200) |
+| `--sq-text` | `#0f172a` | Text chính (Slate 900) |
+| `--sq-text-secondary` | `#64748b` | Text phụ (Slate 500) |
+| `--sq-text-muted` | `#94a3b8` | Text mờ, label (Slate 400) |
+| `--sq-emerald` | `#10b981` | Đúng, thành công, online |
+| `--sq-amber` | `#f59e0b` | Cảnh báo, điểm trung bình |
+| `--sq-rose` | `#f43f5e` | Sai, lỗi, không tham gia |
+
+### Typography
+
+Font: **Outfit** (Google Fonts — import trong `index.css`). Fallback: `-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif`.
+
+- Heading: `fontWeight: 700`, `color: #0f172a`
+- Body: `fontSize: 14`, `color: #374151`
+- Secondary: `fontSize: 13`, `color: #64748b`
+- Muted/label: `fontSize: 12–13`, `color: #94a3b8`
+
+### Subject gradients (dùng cho banner card lớp học)
+
+| Subject | Gradient |
+|---|---|
+| `Frontend` | `linear-gradient(135deg, #6366f1, #8b5cf6)` — Indigo/Violet |
+| `Database` | `linear-gradient(135deg, #0ea5e9, #0369a1)` — Sky/Blue |
+| `Architecture` | `linear-gradient(135deg, #f59e0b, #dc2626)` — Amber/Red |
+| Default | `linear-gradient(135deg, #10b981, #059669)` — Emerald |
+
+### AntD ConfigProvider (App.tsx)
+
+`colorPrimary: '#6366f1'`, `borderRadius: 10`, font Outfit, custom component tokens cho Card (borderRadius 16), Button (borderRadius 10), Tag (borderRadius 6), Tabs (inkBarColor indigo), Progress (defaultColor indigo).
+
+### CSS utility classes (`index.css`)
+
+- `.sq-card-hover` — hover lift animation (`translateY(-3px)`, `box-shadow`) cho course card
+- `.sq-nav-item` — transition màu/bg cho nav button trong sidebar; `.sq-nav-item.active` để set active state
+- `.sq-stat-card` — hover box-shadow cho stat card trên dashboard
+
+### Border radius conventions
+
+- Page section / hero banner: `borderRadius: 20`
+- Card lớp học, dashboard card: `borderRadius: 16`
+- Nội dung nhỏ hơn (post, schedule item): `borderRadius: 14`
+- Button, input, tag: `borderRadius: 10` (inherit từ ConfigProvider)
+- Tag pill: `borderRadius: 20` (override cho pill style)
+
+### Gradient button primary
+
+Thay vì dùng `type="primary"` mặc định, nút chính quan trọng dùng:
+```
+style={{ background: 'linear-gradient(135deg, #6366f1, #8b5cf6)', border: 'none', fontWeight: 600 }}
+```
 
 ## Commands
 
 ```bash
-npm run dev        # khởi động dev server với HMR
+npm run dev        # khởi động dev server với HMR (localhost:5173)
 npm run build      # type-check (tsc -b) rồi build production
 npm run lint       # chạy ESLint
 npm run preview    # xem trước bản build
@@ -50,10 +125,168 @@ npm run preview    # xem trước bản build
 
 Chưa có test runner.
 
+## Routing
+
+| Path | Component | Ghi chú |
+|---|---|---|
+| `/` | redirect → `/login` | |
+| `/login` | `LoginPage` | Không dùng `AppLayout`; layout 2 cột brand + form |
+| `/classes` | `ClassListPage` | Dùng `AppLayout` (sidebar) |
+| `/classes/:id` | `ClassDetailPage` | Dùng `AppLayout` |
+| `/session/teacher/:id` | `TeacherSessionPage` | Layout riêng, fullscreen |
+| `/session/student/:id` | `StudentSessionPage` | Layout riêng, fullscreen |
+| `/dashboard/:sessionId` | `TeacherDashboardPage` | Dùng `AppLayout` |
+| `/review/:sessionId` | `StudentReviewPage` | Dùng `AppLayout` |
+| `/profile` | `ProfilePage` | Dùng `AppLayout`; hiện thông tin + stats giáo viên |
+
+Session pages (`/session/*`) và `LoginPage` **không dùng `AppLayout`** — chúng có layout riêng.
+
+## Code structure
+
+```
+src/
+  types/index.ts              # tất cả TypeScript interfaces
+  index.css                   # Outfit font import, CSS tokens (:root), utility classes (.sq-*)
+  App.tsx                     # Router + AntD ConfigProvider (theme toàn cục)
+  mock/                       # static mock data (dùng cho đến khi có backend)
+    classrooms.ts             # Classroom, Post, Schedule — có data cho cả 3 lớp c1/c2/c3
+    students.ts               # User[] (STUDENTS, TEACHER constants); avatarColor dùng #6366f1
+    questions.ts              # Question[] với answers[] của từng HS
+    sessions.ts               # LIVE_SESSION (dùng trong cả session + dashboard)
+  components/
+    layout/AppLayout.tsx      # Sidebar (232px, fixed) + Header (sticky) + <Outlet />
+    session/
+      StudentStatusList.tsx   # danh sách thành viên + badge đã/chưa trả lời; hỗ trợ GV (tag "(GV)", không hiện badge trả lời); header đổi thành "Thành viên" khi có GV
+      LiveQuestionStats.tsx   # thống kê realtime: progress, đúng/sai, confidence
+      ConfidenceSelector.tsx  # 3 nút Thấp/Trung bình/Cao
+      CreateQuestionModal.tsx # modal 2 bước: chọn template → soạn thảo + cài đặt thời gian (Switch + preset 30s/1p/1.5p/2p/3p + custom); onSubmit(timerSeconds: number | null); đáp án MCQ hỗ trợ LaTeX inline ($...$, $$...$$) với nút chèn Σ và preview KaTeX bên dưới mỗi ô
+      BreakoutPanel.tsx       # panel breakout 2 mode: setup (tạo phòng, gán HS) → active (GV vào/rời phòng, broadcast); không có "loại phòng riêng" — private exchange = GV join phòng có ít HS
+      ChatPanel.tsx           # panel chat realtime; export MOCK_CHAT_MESSAGES, ChatMessage type, getNow()
+      RichTextEditor.tsx      # rich text editor (CKEditor5): bold/italic/underline/strike/list/align/font-size; custom MathPlugin (KaTeX inline+block); file attachment list (ngoài editor, không chỉnh sửa được); font size 3 mức (Nhỏ/Vừa/Lớn) qua nút tự quản lý
+      CtrlBtn.tsx             # nút điều khiển dùng chung cho 2 session page: dark bg, circle/round, danger
+  pages/
+    LoginPage.tsx             # trang đăng nhập: 2 cột brand/form, role switcher GV/HS, cả 2 navigate /classes
+    ProfilePage.tsx           # trang hồ sơ: avatar, stats (lớp/buổi học/câu hỏi/học sinh)
+    classroom/ClassListPage.tsx
+    classroom/ClassDetailPage.tsx   # tabs: Bảng tin | Lịch học | Thành viên | Tài liệu; bài đăng hỗ trợ đính kèm file
+    session/TeacherSessionPage.tsx  # layout 3 cột, có Segmented demo-state switcher; thêm focus feature: focusedStudentId state, hover icon AimOutlined trên thumbnail, layout 2-pane (GV + HS) khi focus bật, badge focus trong top bar
+    session/StudentSessionPage.tsx  # countdown timer (90s), phóng to panel, demo 3 loại câu hỏi, tự luận dùng RichTextEditor
+    dashboard/TeacherDashboardPage.tsx
+    dashboard/StudentReviewPage.tsx
+```
+
+## AppLayout
+
+Sidebar **fixed** (không scroll theo trang), width 232px (collapsed: 64px). Content area dùng `marginLeft` động để tránh overlap.
+
+- **Logo**: gradient rounded square (`#6366f1 → #8b5cf6`) + text "StudyQuest"
+- **Nav primary** (`NAV_ITEMS`): Lớp học, Dashboard
+- **Nav secondary** (`NAV_SECONDARY`): Cài đặt — (đã bỏ mục "Tài liệu"; tài liệu giờ nằm trong tab của ClassDetailPage)
+- **Nav**: custom `<button>` (không dùng AntD `Menu`) với class `.sq-nav-item`; active dùng `background: #eef2ff, color: #6366f1, fontWeight: 600`
+- **User card**: docked ở bottom sidebar, hiện tên + vai trò; ẩn khi collapsed (chỉ hiện Avatar)
+- **Header**: sticky top-0, z-index 100; nút toggle sidebar + Bell badge + Avatar dropdown
+- **Avatar dropdown**: "Hồ sơ" → navigate `/profile`; "Đăng xuất" → navigate `/login`
+
+## LoginPage
+
+Layout 2 cột (không dùng AppLayout):
+- **Bên trái**: gradient indigo brand panel — logo, headline, danh sách 4 tính năng nổi bật
+- **Bên phải**: form đăng nhập — badge "Demo Mode", role switcher (2 card GV/HS), email + password, nút "Vào StudyQuest →"
+- Cả 2 role đều navigate → `/classes` sau khi đăng nhập
+- Form UI only, không validate thật
+
+## ClassListPage
+
+- **Hero banner**: gradient indigo, hiện tên GV, số lớp, số HS, online count
+- **`CourseCard`**: component nội bộ; banner gradient theo subject (xem Subject gradients); hover lift qua `.sq-card-hover`; 2 nút: "Bắt đầu (GV)" (gradient primary) + icon button vào học (học sinh)
+- **`AddClassCard`**: placeholder dạng dashed border, tối giản
+- **Join with code**: section cuối trang, Input + Button inline
+
+## ClassDetailPage
+
+- **Hero banner**: gradient theo subject (dùng `SUBJECT_STYLE` record trong file)
+- **Tabs** (Bảng tin / Lịch học / Thành viên / Tài liệu): render trong `Card` borderRadius 16
+- **Schedule card**: border-left accent (`#6366f1` nếu upcoming, `#e2e8f0` nếu đã qua); icon CheckCircle cho buổi đã xong; buổi đã qua có thêm nút nhỏ "Xem kết quả →" → navigate `/dashboard/sess1`
+- **Bảng tin — đính kèm file**: compose box dùng `RichTextEditor` với prop `onAttachmentsChange`; khi đăng bài, `Post.attachments[]` lưu danh sách file; mỗi file hiển thị chip màu indigo (icon + tên + dung lượng) ngay dưới nội dung bài
+- **Tab Tài liệu**: tổng hợp tài liệu từ 2 nguồn — file đính kèm bài đăng (badge "Đăng bài") và upload trực tiếp của GV (badge "Tải lên trực tiếp"); nút "Tải lên" trigger hidden `<input type="file">`; mỗi lớp có mock initial documents; interface `ClassDocument { id, name, url, size, ext, uploadedAt, source }`; constant `FILE_ICON` map ext → emoji icon
+
+## TeacherDashboardPage
+
+- **Header section**: dark indigo gradient (`#1e1b4b → #4338ca`)
+- **`StatCard`**: component nội bộ; icon trong hộp màu nhạt (lightBg) + số lớn + label uppercase; 4 card trong Row gutter 16
+- **Bar chart**: màu bar theo rate (emerald ≥70%, amber 40–70%, rose <40%); axisLine/tickLine ẩn
+- **Pie chart**: 3 màu emerald/rose/slate; có mini stat row bên dưới
+- **Detail tabs**: "Chi tiết từng câu hỏi" dùng `Collapse`; "Kết quả học sinh" dùng `Table` với summary row — mỗi ô câu hỏi hiển thị 2 thông tin xếp dọc: icon kết quả (✓/✗/–) + badge tự tin nhỏ (Cao/TB/Thấp màu emerald/amber/rose); có legend giải thích ký hiệu phía trên bảng; cột câu hỏi rộng 88px
+
+## StudentReviewPage
+
+- **Score hero card**: accent strip 4px ở top (gradient theo điểm); Progress circle 110px; 3 mini stat box (Đúng/Sai/Bỏ qua) với nền màu
+- **Performance message**: 3 cấp độ — "Xuất sắc!" (emerald), "Khá tốt!" (amber), "Cần cố gắng hơn" (rose)
+- **Bar chart**: bars màu emerald/rose/slate theo kết quả từng câu
+- **Radar chart**: 2 series — "Trả lời" (indigo) và "Đúng" (emerald)
+- **Question card**: border-left accent + header tinted background theo kết quả; MCQ option highlight (đúng: green, sai+chọn: red)
+
+## TeacherSessionPage — demo state
+
+Trang này dùng `Segmented` control ở top bar để switch giữa 4 state demo (thay cho websocket thật). Segmented không có label "Demo:" — blend vào dark header với `background: rgba(255,255,255,0.1)`.
+
+| State | Mô tả |
+|---|---|
+| `idle` | Vùng video/screen share (ảnh `src/assets/hero.png` + overlay tên GV) + thumbnails HS; hỗ trợ **focus mode** (xem bên dưới) |
+| `running` | Câu hỏi đang chạy + `LiveQuestionStats` cập nhật theo mock data |
+| `ended` | Kết quả đầy đủ sau khi kết thúc câu hỏi |
+| `breakout` | `BreakoutPanel` với 2 mode: **setup** (tạo phòng, gán HS) → **active** (GV vào/rời phòng, broadcast) |
+
+Các tính năng khác trong trang:
+- **Bottom control bar**: toggle mic/camera/screen share; toggle student list panel, quick actions panel, chat panel; nút "Kết thúc buổi học"
+- **Session timer**: đếm thời gian từ khi vào trang (hiển thị `HH:MM:SS` ở top bar)
+- **Chat panel** (`ChatPanel`): bật/tắt bằng nút chat ở bottom bar; dùng `MOCK_CHAT_MESSAGES` làm dữ liệu ban đầu
+- **End session modal**: confirm trước khi điều hướng → `/dashboard/:sessionId`
+- **Raised hand**: mock `raisedHandIds = ['s3', 's5']`, hiển thị ✋ trên thumbnail HS
+- **Question timer**: khi GV đặt thời gian, hiển thị circular progress (44px) đếm ngược cạnh nút "Kết thúc"; màu xanh→cam→đỏ theo % còn lại; tự chuyển state `ended` khi về 0; reset khi kết thúc thủ công hoặc chuyển câu tiếp
+- **Silent student alert**: khi `demoState === 'running'`, hiển thị Alert warning với avatar + tên cụ thể của từng HS trong `silentStudentIds`
+- **Focus mode**: `focusedStudentId: string | null` state; khi `demoState === 'idle'` + focus bật → main video area chia 2 grid (GV trái, HS phải phóng to với viền indigo); top bar hiện Tag "Focus: [tên]" + nút X unfocus; thumbnail HS đang focus có viền indigo + nền nhạt; hover thumbnail → hiện `AimOutlined` icon để trigger focus
+
+## StudentSessionPage — demo state
+
+Trang này dùng `Segmented` control ở top bar để switch giữa 3 state demo (không có label "Demo:"):
+
+| State | Mô tả |
+|---|---|
+| `idle` | Lớp học bình thường — video GV full + thumbnails các HS |
+| `question` | Xuất hiện notification modal "GV vừa đặt câu hỏi"; floating question panel (góc dưới phải) để trả lời + chọn confidence |
+| `breakout` | Banner tên nhóm + task; video grid chỉ hiện thành viên cùng nhóm; có nút demo "GV gửi thông báo" để trigger broadcast alert |
+
+Các tính năng khác trong trang:
+- **Panel thành viên** (trái, 200px): hiển thị `[TEACHER, ...STUDENTS]` qua `StudentStatusList`; GV có tag "(GV)"; toggle bằng nút `TeamOutlined` ở bottom bar
+- **Floating question panel**: hiển thị câu hỏi, đáp án (single/multiple/essay), `ConfidenceSelector`; thu nhỏ được sau khi nộp; header hiện countdown timer Progress circle 34px (mock `QUESTION_TIMER_SECONDS = 90`); tự submit khi hết giờ
+- **Demo loại câu hỏi**: dải nút "Trắc nghiệm / Nhiều đáp án / Tự luận" trong panel, map tới question index `{ single: 0, multiple: 2, essay: 4 }`; đổi type → reset đáp án + restart timer; type hiện tại lưu trong `demoQType` state
+- **Phóng to panel**: nút `ExpandAltOutlined` / `CompressOutlined` trong header panel; khi expanded dùng `position: absolute, inset: 0` để phủ toàn vùng video
+- **Tự luận dùng RichTextEditor**: câu tự luận render `RichTextEditor` thay vì `TextArea`; sau khi submit hiển thị HTML read-only qua `dangerouslySetInnerHTML`; `canSubmit` strip HTML tags trước khi kiểm tra rỗng
+- **Bottom control bar** (dùng `CtrlBtn`): Mic | Camera | Screen Share | ✋ | — | Participants | Chat | Câu hỏi | — | Rời lớp; có `overflowX: auto`
+- **Screen share**: state `screenShareOn`, hiển thị overlay/badge trên self-tile khi breakout
+- **Chat panel** (`ChatPanel`): dùng `MOCK_CHAT_MESSAGES` làm dữ liệu ban đầu
+- **Broadcast alert**: khi ở breakout, GV gửi thông báo hiện `Alert` ở trên cùng
+- **Breakout grid**: ẩn video GV, hiện equal CSS grid (`auto-fill minmax(180px,1fr)`) của các thành viên nhóm; self-tile có viền xanh + mic-off/raised-hand indicator
+- **Leave confirm modal**: click "Rời lớp" → Modal confirm hiện số câu đã trả lời; nút "Rời lớp & Xem kết quả" → navigate `/review/:sessionId`
+
 ## TypeScript configuration
 
-`tsconfig.app.json` bao phủ `src/` với strict settings: `noUnusedLocals`, `noUnusedParameters`, `erasableSyntaxOnly`, `noFallthroughCasesInSwitch`. `tsc -b` chạy composite build gồm cả `tsconfig.app.json` và `tsconfig.node.json`.
+`tsconfig.app.json` strict settings: `noUnusedLocals`, `noUnusedParameters`, `erasableSyntaxOnly`, `noFallthroughCasesInSwitch`. `tsc -b` chạy composite build gồm cả `tsconfig.app.json` và `tsconfig.node.json`.
+
+`React.ReactNode` có thể dùng không cần `import React` (global namespace trong react-jsx transform) — đây là pattern nhất quán trong toàn bộ codebase.
+
+## Mock data conventions
+
+- `src/mock/questions.ts` — mỗi `Question` có `answers[]` chứa kết quả mock của từng HS (dùng cho cả `LiveQuestionStats` trong session lẫn `TeacherDashboardPage`)
+- `LIVE_SESSION` trong `sessions.ts` import trực tiếp `QUESTIONS` từ `questions.ts`
+- `Post` interface có thêm trường `attachments?: { name, url, size, ext }[]` — optional, chỉ có khi bài đăng kèm file
+- `POSTS` và `SCHEDULES` trong `classrooms.ts` có data cho cả 3 lớp (c1/c2/c3)
+- `TEACHER.avatarColor` và `STUDENTS[0].avatarColor` dùng `#6366f1` (không phải `#1677ff`)
+- Khi tích hợp backend: thay thế các import từ `mock/` bằng API calls, giữ nguyên cấu trúc types
 
 ## Project status
 
-Đang ở giai đoạn scaffold ban đầu — `src/App.tsx` chỉ có placeholder. Chưa bắt đầu implement tính năng.
+Giao diện demo tĩnh đã hoàn chỉnh với mock data, thân thiện với mọi thiết bị. Chưa có backend integration, authentication, hay WebSocket/WebRTC thật.
+
+UI đã được redesign theo phong cách EdTech hiện đại (Coursera/Udemy style): font Outfit, design token indigo, subject-coded gradient card, bento dashboard stats, gamified student review.
