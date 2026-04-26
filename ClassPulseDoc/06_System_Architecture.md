@@ -34,7 +34,7 @@
 | **Cache / Pub-Sub** | Redis | 7.x | Jedis client via Spring Data Redis |
 | **Message Relay** | ActiveMQ / Redis Pub-Sub | — | STOMP broker relay |
 | **File Storage** | MinIO | Latest | S3-compatible, self-hosted |
-| **Build** | Maven | 3.9.x | |
+| **Build** | Gradle | 8.x (Kotlin DSL) | `build.gradle.kts` |
 | **Container** | Docker + Docker Compose | — | Phát triển local + deploy |
 | **API Docs** | Springdoc OpenAPI (Swagger) | 2.x | Auto-gen từ annotations |
 | **Auth** | Spring Security + JWT (JJWT) | 6.x | Chi tiết → 05_Auth_Authorization.md |
@@ -292,7 +292,12 @@ classpulse-backend/
 ├── docker-compose.yml                             # dev environment
 ├── docker-compose.prod.yml
 ├── Dockerfile
-├── pom.xml
+├── build.gradle.kts
+├── settings.gradle.kts
+├── gradle/
+│   └── wrapper/
+│       ├── gradle-wrapper.jar
+│       └── gradle-wrapper.properties
 └── .env.example
 ```
 
