@@ -1,131 +1,81 @@
-import { useState, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import {
   Avatar, Badge, Button, Card, Empty, Form, Input,
-  Modal, Table, Tabs, Tag, TimePicker, Tooltip, Typography,
+  Modal, Spin, Table, Tabs, Tag, TimePicker, Tooltip, Typography, Upload, message,
 } from 'antd';
 import { DatePicker } from 'antd';
 import type { Dayjs } from 'dayjs';
+import type { UploadFile } from 'antd';
 import {
   ArrowLeftOutlined, CalendarOutlined, PlayCircleOutlined,
   TeamOutlined, MessageOutlined, BookOutlined,
   CodeOutlined, DatabaseOutlined, ApartmentOutlined,
   ClockCircleOutlined, CheckCircleOutlined, PlusOutlined, SendOutlined,
-  FolderOpenOutlined, DownloadOutlined, UploadOutlined,
+  FolderOpenOutlined, DownloadOutlined, UploadOutlined, PaperClipOutlined,
+  DeleteOutlined,
 } from '@ant-design/icons';
-import { CLASSROOMS, POSTS, SCHEDULES } from '../../mock/classrooms';
-import { STUDENTS } from '../../mock/students';
-import type { Post, Schedule } from '../../types';
+import { classroomService } from '../../services/classroom.service';
+import { postService } from '../../services/post.service';
+import { scheduleService } from '../../services/schedule.service';
+import { documentService } from '../../services/document.service';
+import { useAuthStore } from '../../store/authStore';
+import type { ClassroomDto, PostDto, ScheduleDto, MemberDto, DocumentDto } from '../../types/api';
 import RichTextEditor from '../../components/session/RichTextEditor';
-import type { Attachment } from '../../components/session/RichTextEditor';
 
 const { Title, Text } = Typography;
 
-interface SubjectStyle {
-  gradient: string;
-  icon: React.ReactNode;
-}
+interface SubjectStyle { gradient: string; icon: React.ReactNode }
 
 const SUBJECT_STYLE: Record<string, SubjectStyle> = {
-  Frontend: {
-    gradient: 'linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%)',
-    icon: <CodeOutlined style={{ fontSize: 28, color: '#fff' }} />,
-  },
-  Database: {
-    gradient: 'linear-gradient(135deg, #0ea5e9 0%, #0369a1 100%)',
-    icon: <DatabaseOutlined style={{ fontSize: 28, color: '#fff' }} />,
-  },
-  Architecture: {
-    gradient: 'linear-gradient(135deg, #f59e0b 0%, #dc2626 100%)',
-    icon: <ApartmentOutlined style={{ fontSize: 28, color: '#fff' }} />,
-  },
+  Frontend: { gradient: 'linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%)', icon: <CodeOutlined style={{ fontSize: 28, color: '#fff' }} /> },
+  Database: { gradient: 'linear-gradient(135deg, #0ea5e9 0%, #0369a1 100%)', icon: <DatabaseOutlined style={{ fontSize: 28, color: '#fff' }} /> },
+  Architecture: { gradient: 'linear-gradient(135deg, #f59e0b 0%, #dc2626 100%)', icon: <ApartmentOutlined style={{ fontSize: 28, color: '#fff' }} /> },
 };
-
 const DEFAULT_STYLE: SubjectStyle = {
   gradient: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
   icon: <BookOutlined style={{ fontSize: 28, color: '#fff' }} />,
 };
-
-interface ClassDocument {
-  id: string;
-  name: string;
-  url: string;
-  size: string;
-  ext: string;
-  uploadedAt: string;
-  source: string;
-}
 
 const FILE_ICON: Record<string, string> = {
   pdf: '📄', docx: '📝', doc: '📝', xlsx: '📊', xls: '📊',
   pptx: '📊', ppt: '📊', zip: '🗜️', txt: '📄',
 };
 
+function formatBytes(bytes: number) {
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+  return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
+}
+
 export default function ClassDetailPage() {
-  const { id } = useParams<{ id: string }>();
+  const { id = '' } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const user = useAuthStore((s) => s.user);
+  const [messageApi, contextHolder] = message.useMessage();
 
-  const cls = CLASSROOMS.find((c) => c.id === id) ?? CLASSROOMS[0];
-  const style = SUBJECT_STYLE[cls.subject] ?? DEFAULT_STYLE;
+  // ── Data state ──
+  const [cls, setCls] = useState<ClassroomDto | null>(null);
+  const [posts, setPosts] = useState<PostDto[]>([]);
+  const [schedules, setSchedules] = useState<ScheduleDto[]>([]);
+  const [members, setMembers] = useState<MemberDto[]>([]);
+  const [documents, setDocuments] = useState<DocumentDto[]>([]);
 
-  // ── Local state for posts & schedules ──
-  const [posts, setPosts] = useState<Post[]>(() => POSTS.filter((p) => p.classroomId === cls.id));
-  const [schedules, setSchedules] = useState<Schedule[]>(() => SCHEDULES.filter((s) => s.classroomId === cls.id));
+  // ── Loading state ──
+  const [clsLoading, setClsLoading] = useState(true);
+  const [postsLoading, setPostsLoading] = useState(true);
+  const [schedulesLoading, setSchedulesLoading] = useState(true);
+  const [membersLoading, setMembersLoading] = useState(false);
+  const [docsLoading, setDocsLoading] = useState(false);
 
   // ── Post compose ──
   const [composing, setComposing] = useState(false);
   const [postHtml, setPostHtml] = useState('');
-  const [postAttachments, setPostAttachments] = useState<Attachment[]>([]);
-
-  // ── Class documents (Tài liệu tab) ──
-  const docFileRef = useRef<HTMLInputElement>(null);
-  const [classDocuments, setClassDocuments] = useState<ClassDocument[]>(() => {
-    if (cls.id === 'c1') return [
-      { id: 'doc_init_1', name: 'React19_RSC_SlideGuide.pdf', url: '#', size: '2.4 MB', ext: 'pdf', uploadedAt: '10/04/2026', source: 'Đăng bài' },
-      { id: 'doc_init_2', name: 'Hooks_Cheatsheet.docx', url: '#', size: '856 KB', ext: 'docx', uploadedAt: '07/04/2026', source: 'Tải lên trực tiếp' },
-    ];
-    if (cls.id === 'c2') return [
-      { id: 'doc_init_3', name: 'PostgreSQL16_Setup_Guide.pdf', url: '#', size: '1.2 MB', ext: 'pdf', uploadedAt: '08/04/2026', source: 'Đăng bài' },
-      { id: 'doc_init_4', name: 'SQL_WindowFunctions_Exercises.xlsx', url: '#', size: '340 KB', ext: 'xlsx', uploadedAt: '08/04/2026', source: 'Tải lên trực tiếp' },
-    ];
-    if (cls.id === 'c3') return [
-      { id: 'doc_init_5', name: 'CleanArchitecture_Ch1-3_Summary.pdf', url: '#', size: '1.8 MB', ext: 'pdf', uploadedAt: '11/04/2026', source: 'Đăng bài' },
-    ];
-    return [];
-  });
-
-  function handlePostSubmit() {
-    const stripped = postHtml.replace(/<[^>]*>/g, '').trim();
-    if (!stripped && postAttachments.length === 0) return;
-    const newPost: Post = {
-      id: `p${Date.now()}`,
-      classroomId: cls.id,
-      authorName: 'Nguyễn Thị Lan',
-      authorRole: 'teacher',
-      content: postHtml,
-      createdAt: new Date().toLocaleString('vi-VN', { year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' }).replace(',', ''),
-      attachments: postAttachments.length > 0 ? [...postAttachments] : undefined,
-    };
-    setPosts((prev) => [newPost, ...prev]);
-    if (postAttachments.length > 0) {
-      const now = new Date().toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit', year: 'numeric' });
-      setClassDocuments((prev) => [
-        ...postAttachments.map((att, i) => ({
-          id: `doc_${Date.now()}_${i}`,
-          ...att,
-          uploadedAt: now,
-          source: 'Đăng bài',
-        })),
-        ...prev,
-      ]);
-    }
-    setPostHtml('');
-    setPostAttachments([]);
-    setComposing(false);
-  }
+  const [postFiles, setPostFiles] = useState<UploadFile[]>([]);
+  const [posting, setPosting] = useState(false);
 
   // ── Schedule modal ──
   const [scheduleOpen, setScheduleOpen] = useState(false);
+  const [scheduleSaving, setScheduleSaving] = useState(false);
   const [scheduleForm] = Form.useForm<{
     title: string;
     date: Dayjs;
@@ -134,85 +84,172 @@ export default function ClassDetailPage() {
     description?: string;
   }>();
 
-  function handleScheduleSubmit() {
-    scheduleForm.validateFields().then((values) => {
-      const newSchedule: Schedule = {
-        id: `sch${Date.now()}`,
-        classroomId: cls.id,
+  // ── Doc upload ──
+  const docFileRef = useRef<HTMLInputElement>(null);
+  const [docUploading, setDocUploading] = useState(false);
+
+  const isTeacher = user?.role === 'teacher';
+
+  // ── Load classroom ──
+  useEffect(() => {
+    classroomService.get(id)
+      .then(setCls)
+      .catch(() => messageApi.error('Không thể tải thông tin lớp'))
+      .finally(() => setClsLoading(false));
+  }, [id, messageApi]);
+
+  // ── Load posts ──
+  const loadPosts = useCallback(() => {
+    setPostsLoading(true);
+    postService.list(id)
+      .then(({ posts: data }) => setPosts(data))
+      .catch(() => messageApi.error('Không thể tải bài đăng'))
+      .finally(() => setPostsLoading(false));
+  }, [id, messageApi]);
+
+  useEffect(() => { loadPosts(); }, [loadPosts]);
+
+  // ── Load schedules ──
+  const loadSchedules = useCallback(() => {
+    setSchedulesLoading(true);
+    scheduleService.list(id)
+      .then(setSchedules)
+      .catch(() => messageApi.error('Không thể tải lịch học'))
+      .finally(() => setSchedulesLoading(false));
+  }, [id, messageApi]);
+
+  useEffect(() => { loadSchedules(); }, [loadSchedules]);
+
+  // ── Load members (lazy, on tab switch) ──
+  const loadMembers = useCallback(() => {
+    if (members.length > 0) return;
+    setMembersLoading(true);
+    classroomService.getMembers(id)
+      .then(setMembers)
+      .catch(() => messageApi.error('Không thể tải danh sách thành viên'))
+      .finally(() => setMembersLoading(false));
+  }, [id, members.length, messageApi]);
+
+  // ── Load documents (lazy, on tab switch) ──
+  const loadDocuments = useCallback(() => {
+    if (documents.length > 0) return;
+    setDocsLoading(true);
+    documentService.list(id)
+      .then(({ documents: data }) => setDocuments(data))
+      .catch(() => messageApi.error('Không thể tải tài liệu'))
+      .finally(() => setDocsLoading(false));
+  }, [id, documents.length, messageApi]);
+
+  // ── Submit post ──
+  async function handlePostSubmit() {
+    const stripped = postHtml.replace(/<[^>]*>/g, '').trim();
+    if (!stripped && postFiles.length === 0) return;
+
+    setPosting(true);
+    try {
+      const created = await postService.create(id, { content: postHtml });
+
+      // Upload attachments if any
+      if (postFiles.length > 0) {
+        const rawFiles = postFiles.map((f) => f.originFileObj as File).filter(Boolean);
+        if (rawFiles.length > 0) {
+          const uploaded = await postService.addAttachments(id, created.id, rawFiles);
+          created.attachments = uploaded;
+        }
+      }
+
+      setPosts((prev) => [created, ...prev]);
+      setPostHtml('');
+      setPostFiles([]);
+      setComposing(false);
+      messageApi.success('Đã đăng bài!');
+    } catch {
+      messageApi.error('Đăng bài thất bại');
+    } finally {
+      setPosting(false);
+    }
+  }
+
+  // ── Submit schedule ──
+  async function handleScheduleSubmit() {
+    try {
+      const values = await scheduleForm.validateFields();
+      setScheduleSaving(true);
+      const created = await scheduleService.create(id, {
         title: values.title,
-        date: values.date.format('YYYY-MM-DD'),
-        startTime: values.startTime.format('HH:mm'),
-        endTime: values.endTime.format('HH:mm'),
+        scheduledDate: values.date.format('YYYY-MM-DD'),
+        startTime: values.startTime.format('HH:mm:ss'),
+        endTime: values.endTime.format('HH:mm:ss'),
         description: values.description,
-      };
-      setSchedules((prev) => [...prev, newSchedule].sort((a, b) => a.date.localeCompare(b.date)));
+      });
+      setSchedules((prev) => [...prev, created].sort((a, b) => a.scheduledDate.localeCompare(b.scheduledDate)));
       scheduleForm.resetFields();
       setScheduleOpen(false);
-    });
+      messageApi.success('Đã thêm lịch học!');
+    } catch (err) {
+      if ((err as { errorFields?: unknown }).errorFields) return; // validation error
+      messageApi.error('Thêm lịch học thất bại');
+    } finally {
+      setScheduleSaving(false);
+    }
   }
 
+  // ── Upload document ──
   async function handleDocFileChange(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    const ext = file.name.split('.').pop()?.toLowerCase() ?? '';
-    const size = file.size < 1024 * 1024
-      ? `${(file.size / 1024).toFixed(1)} KB`
-      : `${(file.size / 1024 / 1024).toFixed(1)} MB`;
-    const url = URL.createObjectURL(file);
-    const now = new Date().toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit', year: 'numeric' });
-    setClassDocuments((prev) => [{
-      id: `doc_direct_${Date.now()}`,
-      name: file.name,
-      url,
-      size,
-      ext,
-      uploadedAt: now,
-      source: 'Tải lên trực tiếp',
-    }, ...prev]);
-    e.target.value = '';
+    const files = Array.from(e.target.files ?? []);
+    if (!files.length) return;
+    setDocUploading(true);
+    try {
+      const uploaded = await documentService.upload(id, files);
+      setDocuments((prev) => [...uploaded, ...prev]);
+      messageApi.success(`Đã tải lên ${uploaded.length} tài liệu!`);
+    } catch {
+      messageApi.error('Tải lên tài liệu thất bại');
+    } finally {
+      setDocUploading(false);
+      e.target.value = '';
+    }
   }
 
+  // ── Delete document ──
+  async function handleDeleteDoc(docId: string) {
+    try {
+      await documentService.remove(id, docId);
+      setDocuments((prev) => prev.filter((d) => d.id !== docId));
+      messageApi.success('Đã xóa tài liệu');
+    } catch {
+      messageApi.error('Xóa tài liệu thất bại');
+    }
+  }
+
+  // ── Kick member ──
+  async function handleKickMember(studentId: string) {
+    try {
+      await classroomService.kickMember(id, studentId);
+      setMembers((prev) => prev.filter((m) => m.id !== studentId));
+      messageApi.success('Đã xóa thành viên');
+    } catch {
+      messageApi.error('Xóa thành viên thất bại');
+    }
+  }
+
+  const style = SUBJECT_STYLE[cls?.subject ?? ''] ?? DEFAULT_STYLE;
   const today = new Date().toISOString().slice(0, 10);
 
   const tabItems = [
     {
       key: 'feed',
-      label: (
-        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-          <MessageOutlined />
-          <span>Bảng tin</span>
-        </div>
-      ),
+      label: <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}><MessageOutlined /><span>Bảng tin</span></div>,
       children: (
         <div style={{ maxWidth: 640, paddingTop: 4 }}>
           {/* Compose box */}
-          <div
-            style={{
-              background: '#fff',
-              borderRadius: 14,
-              border: '1px solid #e2e8f0',
-              padding: '14px 16px',
-              marginBottom: 16,
-            }}
-          >
+          <div style={{ background: '#fff', borderRadius: 14, border: '1px solid #e2e8f0', padding: '14px 16px', marginBottom: 16 }}>
             {!composing ? (
-              <div
-                onClick={() => setComposing(true)}
-                style={{ display: 'flex', alignItems: 'center', gap: 10, cursor: 'text' }}
-              >
-                <Avatar
-                  size={36}
-                  style={{ background: 'linear-gradient(135deg, #6366f1, #8b5cf6)', flexShrink: 0, fontSize: 14, fontWeight: 600 }}
-                >
-                  L
+              <div onClick={() => setComposing(true)} style={{ display: 'flex', alignItems: 'center', gap: 10, cursor: 'text' }}>
+                <Avatar size={36} src={user?.avatarUrl ?? undefined} style={{ background: user?.avatarColor ?? 'linear-gradient(135deg, #6366f1, #8b5cf6)', flexShrink: 0, fontSize: 14, fontWeight: 600 }}>
+                  {user?.name?.charAt(0).toUpperCase()}
                 </Avatar>
-                <div
-                  style={{
-                    flex: 1, padding: '8px 14px', borderRadius: 10,
-                    background: '#f8fafc', border: '1px solid #e2e8f0',
-                    color: '#94a3b8', fontSize: 14, userSelect: 'none',
-                  }}
-                >
+                <div style={{ flex: 1, padding: '8px 14px', borderRadius: 10, background: '#f8fafc', border: '1px solid #e2e8f0', color: '#94a3b8', fontSize: 14, userSelect: 'none' }}>
                   Thông báo gì đó cho lớp...
                 </div>
               </div>
@@ -220,20 +257,30 @@ export default function ClassDetailPage() {
               <div>
                 <RichTextEditor
                   onChange={setPostHtml}
-                  onAttachmentsChange={setPostAttachments}
                   placeholder="Thông báo gì đó cho lớp..."
                   minHeight={120}
                 />
-                <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 10 }}>
-                  <Button
-                    onClick={() => { setComposing(false); setPostHtml(''); setPostAttachments([]); }}
-                    style={{ borderRadius: 8 }}
+                {/* Attachment picker */}
+                <div style={{ marginTop: 8 }}>
+                  <Upload
+                    fileList={postFiles}
+                    onChange={({ fileList }) => setPostFiles(fileList)}
+                    beforeUpload={() => false}
+                    multiple
+                    accept=".pdf,.docx,.doc,.xlsx,.xls,.pptx,.ppt,.txt,.zip"
+                    showUploadList={{ showPreviewIcon: false, showDownloadIcon: false, showRemoveIcon: true }}
                   >
-                    Hủy
-                  </Button>
+                    <Button icon={<PaperClipOutlined />} size="small" style={{ borderRadius: 6, color: '#6366f1', borderColor: '#c7d2fe' }}>
+                      Đính kèm file
+                    </Button>
+                  </Upload>
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 10 }}>
+                  <Button onClick={() => { setComposing(false); setPostHtml(''); setPostFiles([]); }} style={{ borderRadius: 8 }}>Hủy</Button>
                   <Button
                     type="primary"
                     icon={<SendOutlined />}
+                    loading={posting}
                     onClick={handlePostSubmit}
                     style={{ background: 'linear-gradient(135deg, #6366f1, #8b5cf6)', border: 'none', fontWeight: 600, borderRadius: 8 }}
                   >
@@ -245,60 +292,49 @@ export default function ClassDetailPage() {
           </div>
 
           {/* Post list */}
-          {posts.length === 0 ? (
+          {postsLoading ? (
+            <div style={{ textAlign: 'center', padding: '40px 0' }}><Spin /></div>
+          ) : posts.length === 0 ? (
             <Empty description="Chưa có bài đăng nào" style={{ padding: '32px 0' }} />
           ) : (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
               {posts.map((post) => (
-                <div
-                  key={post.id}
-                  style={{ background: '#fff', borderRadius: 14, border: '1px solid #e2e8f0', padding: '16px 20px' }}
-                >
+                <div key={post.id} style={{ background: '#fff', borderRadius: 14, border: '1px solid #e2e8f0', padding: '16px 20px' }}>
                   <div style={{ display: 'flex', gap: 12 }}>
                     <Avatar
                       size={36}
+                      src={(post.author as { avatarUrl?: string }).avatarUrl ?? undefined}
                       style={{
-                        background: post.authorRole === 'teacher'
-                          ? 'linear-gradient(135deg, #6366f1, #8b5cf6)'
-                          : 'linear-gradient(135deg, #10b981, #059669)',
+                        background: post.author.role === 'teacher' ? 'linear-gradient(135deg, #6366f1, #8b5cf6)' : 'linear-gradient(135deg, #10b981, #059669)',
                         flexShrink: 0, fontSize: 14, fontWeight: 600,
                       }}
                     >
-                      {post.authorName.charAt(0)}
+                      {post.author.name.charAt(0)}
                     </Avatar>
                     <div style={{ flex: 1 }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
-                        <Text style={{ fontSize: 14, fontWeight: 600, color: '#0f172a' }}>{post.authorName}</Text>
-                        {post.authorRole === 'teacher' && (
-                          <Tag color="blue" style={{ fontSize: 11, borderRadius: 20, padding: '0 8px', margin: 0 }}>
-                            Giáo viên
-                          </Tag>
+                        <Text style={{ fontSize: 14, fontWeight: 600, color: '#0f172a' }}>{post.author.name}</Text>
+                        {post.author.role === 'teacher' && (
+                          <Tag color="blue" style={{ fontSize: 11, borderRadius: 20, padding: '0 8px', margin: 0 }}>Giáo viên</Tag>
                         )}
-                        <Text type="secondary" style={{ fontSize: 12, marginLeft: 'auto' }}>{post.createdAt}</Text>
+                        <Text type="secondary" style={{ fontSize: 12, marginLeft: 'auto' }}>
+                          {new Date(post.createdAt).toLocaleString('vi-VN')}
+                        </Text>
                       </div>
-                      <div
-                        className="ck-content"
-                        style={{ fontSize: 14, color: '#374151', lineHeight: 1.6 }}
-                        dangerouslySetInnerHTML={{ __html: post.content }}
-                      />
-                      {post.attachments && post.attachments.length > 0 && (
+                      <div className="ck-content" style={{ fontSize: 14, color: '#374151', lineHeight: 1.6 }} dangerouslySetInnerHTML={{ __html: post.content }} />
+                      {post.attachments.length > 0 && (
                         <div style={{ marginTop: 10, display: 'flex', flexWrap: 'wrap', gap: 6 }}>
-                          {post.attachments.map((att, i) => (
+                          {post.attachments.map((att) => (
                             <a
-                              key={i}
+                              key={att.id}
                               href={att.url}
                               target="_blank"
                               rel="noopener noreferrer"
-                              style={{
-                                display: 'inline-flex', alignItems: 'center', gap: 5,
-                                padding: '4px 10px 4px 8px', border: '1px solid #c7d2fe',
-                                borderRadius: 6, background: '#eef2ff', fontSize: 12,
-                                color: '#6366f1', textDecoration: 'none', fontWeight: 500,
-                              }}
+                              style={{ display: 'inline-flex', alignItems: 'center', gap: 5, padding: '4px 10px 4px 8px', border: '1px solid #c7d2fe', borderRadius: 6, background: '#eef2ff', fontSize: 12, color: '#6366f1', textDecoration: 'none', fontWeight: 500 }}
                             >
-                              <span style={{ fontSize: 14 }}>{FILE_ICON[att.ext] ?? '📎'}</span>
-                              <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 160 }}>{att.name}</span>
-                              <span style={{ color: '#94a3b8', fontSize: 11, marginLeft: 2 }}>{att.size}</span>
+                              <span style={{ fontSize: 14 }}>{FILE_ICON[att.fileExt] ?? '📎'}</span>
+                              <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 160 }}>{att.fileName}</span>
+                              <span style={{ color: '#94a3b8', fontSize: 11, marginLeft: 2 }}>{formatBytes(att.fileSizeBytes)}</span>
                             </a>
                           ))}
                         </div>
@@ -314,52 +350,35 @@ export default function ClassDetailPage() {
     },
     {
       key: 'schedule',
-      label: (
-        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-          <CalendarOutlined />
-          <span>Lịch học</span>
-        </div>
-      ),
+      label: <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}><CalendarOutlined /><span>Lịch học</span></div>,
       children: (
         <div style={{ maxWidth: 640, paddingTop: 4 }}>
-          <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 14 }}>
-            <Button
-              type="primary"
-              icon={<PlusOutlined />}
-              onClick={() => setScheduleOpen(true)}
-              style={{ background: 'linear-gradient(135deg, #6366f1, #8b5cf6)', border: 'none', fontWeight: 600, borderRadius: 8 }}
-            >
-              Thêm buổi học
-            </Button>
-          </div>
+          {isTeacher && (
+            <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 14 }}>
+              <Button
+                type="primary"
+                icon={<PlusOutlined />}
+                onClick={() => setScheduleOpen(true)}
+                style={{ background: 'linear-gradient(135deg, #6366f1, #8b5cf6)', border: 'none', fontWeight: 600, borderRadius: 8 }}
+              >
+                Thêm buổi học
+              </Button>
+            </div>
+          )}
 
-          {schedules.length === 0 ? (
+          {schedulesLoading ? (
+            <div style={{ textAlign: 'center', padding: '40px 0' }}><Spin /></div>
+          ) : schedules.length === 0 ? (
             <Empty description="Chưa có lịch học nào" style={{ padding: '32px 0' }} />
           ) : (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
               {schedules.map((s) => {
-                const isPast = s.date < today;
+                const isPast = s.scheduledDate < today;
                 return (
-                  <div
-                    key={s.id}
-                    style={{
-                      background: '#fff', borderRadius: 14, border: '1px solid #e2e8f0',
-                      padding: '14px 20px', display: 'flex', alignItems: 'center',
-                      justifyContent: 'space-between', gap: 12, opacity: isPast ? 0.65 : 1,
-                      borderLeft: `4px solid ${isPast ? '#e2e8f0' : '#6366f1'}`,
-                    }}
-                  >
+                  <div key={s.id} style={{ background: '#fff', borderRadius: 14, border: '1px solid #e2e8f0', padding: '14px 20px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, opacity: isPast ? 0.65 : 1, borderLeft: `4px solid ${isPast ? '#e2e8f0' : '#6366f1'}` }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
-                      <div
-                        style={{
-                          width: 44, height: 44, borderRadius: 10,
-                          background: isPast ? '#f8fafc' : '#eef2ff',
-                          display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
-                        }}
-                      >
-                        {isPast
-                          ? <CheckCircleOutlined style={{ color: '#94a3b8', fontSize: 18 }} />
-                          : <CalendarOutlined style={{ color: '#6366f1', fontSize: 18 }} />}
+                      <div style={{ width: 44, height: 44, borderRadius: 10, background: isPast ? '#f8fafc' : '#eef2ff', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                        {isPast ? <CheckCircleOutlined style={{ color: '#94a3b8', fontSize: 18 }} /> : <CalendarOutlined style={{ color: '#6366f1', fontSize: 18 }} />}
                       </div>
                       <div>
                         <div style={{ fontSize: 14, fontWeight: 600, color: '#0f172a', marginBottom: 3 }}>{s.title}</div>
@@ -367,7 +386,7 @@ export default function ClassDetailPage() {
                           <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
                             <CalendarOutlined style={{ fontSize: 12, color: '#94a3b8' }} />
                             <Text type="secondary" style={{ fontSize: 12 }}>
-                              {new Date(s.date).toLocaleDateString('vi-VN', { weekday: 'long', day: 'numeric', month: 'long' })}
+                              {new Date(s.scheduledDate).toLocaleDateString('vi-VN', { weekday: 'long', day: 'numeric', month: 'long' })}
                             </Text>
                           </div>
                           <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
@@ -375,9 +394,7 @@ export default function ClassDetailPage() {
                             <Text type="secondary" style={{ fontSize: 12 }}>{s.startTime} – {s.endTime}</Text>
                           </div>
                         </div>
-                        {s.description && (
-                          <Text type="secondary" style={{ fontSize: 12, marginTop: 2, display: 'block' }}>{s.description}</Text>
-                        )}
+                        {s.description && <Text type="secondary" style={{ fontSize: 12, marginTop: 2, display: 'block' }}>{s.description}</Text>}
                       </div>
                     </div>
                     <div style={{ flexShrink: 0, display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -386,7 +403,7 @@ export default function ClassDetailPage() {
                           type="primary"
                           size="small"
                           icon={<PlayCircleOutlined />}
-                          onClick={() => navigate(`/session/teacher/${cls.id}`)}
+                          onClick={() => navigate(`/session/teacher/${id}`)}
                           style={{ background: 'linear-gradient(135deg, #6366f1, #8b5cf6)', border: 'none', fontWeight: 600, borderRadius: 8 }}
                         >
                           Vào học
@@ -394,13 +411,11 @@ export default function ClassDetailPage() {
                       ) : (
                         <>
                           <Tag color="default" style={{ borderRadius: 6, margin: 0 }}>Đã xong</Tag>
-                          <Button
-                            size="small"
-                            onClick={() => navigate('/dashboard/sess1')}
-                            style={{ borderRadius: 6, fontSize: 12, color: '#6366f1', borderColor: '#c7d2fe' }}
-                          >
-                            Xem kết quả →
-                          </Button>
+                          {s.sessionId && (
+                            <Button size="small" onClick={() => navigate(`/dashboard/${s.sessionId}`)} style={{ borderRadius: 6, fontSize: 12, color: '#6366f1', borderColor: '#c7d2fe' }}>
+                              Xem kết quả →
+                            </Button>
+                          )}
                         </>
                       )}
                     </div>
@@ -414,137 +429,133 @@ export default function ClassDetailPage() {
     },
     {
       key: 'members',
-      label: (
-        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-          <TeamOutlined />
-          <span>Thành viên ({STUDENTS.length})</span>
-        </div>
-      ),
+      label: <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}><TeamOutlined /><span>Thành viên{members.length > 0 ? ` (${members.length})` : ''}</span></div>,
       children: (
         <div style={{ maxWidth: 640, paddingTop: 4 }}>
-          <Table
-            dataSource={STUDENTS}
-            rowKey="id"
-            pagination={false}
-            size="middle"
-            style={{ borderRadius: 12, overflow: 'hidden', border: '1px solid #e2e8f0' }}
-            columns={[
-              {
-                title: 'Học sinh',
-                key: 'name',
-                render: (_, s) => (
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                    <Avatar size={34} style={{ background: s.avatarColor, fontWeight: 600, fontSize: 13 }}>
-                      {s.name.charAt(0)}
-                    </Avatar>
-                    <Text style={{ fontSize: 14, fontWeight: 500, color: '#0f172a' }}>{s.name}</Text>
-                  </div>
-                ),
-              },
-              {
-                title: 'Vai trò',
-                key: 'role',
-                width: 120,
-                render: (_, s) => (
-                  <Tag
-                    color={s.role === 'teacher' ? 'blue' : 'default'}
-                    style={{ borderRadius: 20, padding: '0 10px', fontSize: 12 }}
-                  >
-                    {s.role === 'teacher' ? 'Giáo viên' : 'Học sinh'}
-                  </Tag>
-                ),
-              },
-              {
-                title: 'Trạng thái',
-                key: 'status',
-                width: 120,
-                render: () => (
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                    <Badge status="processing" color="#10b981" />
-                    <Text style={{ fontSize: 13, color: '#10b981' }}>Online</Text>
-                  </div>
-                ),
-              },
-            ]}
-          />
+          {membersLoading ? (
+            <div style={{ textAlign: 'center', padding: '40px 0' }}><Spin /></div>
+          ) : (
+            <Table
+              dataSource={members}
+              rowKey="id"
+              pagination={false}
+              size="middle"
+              style={{ borderRadius: 12, overflow: 'hidden', border: '1px solid #e2e8f0' }}
+              locale={{ emptyText: <Empty description="Chưa có thành viên" /> }}
+              columns={[
+                {
+                  title: 'Thành viên',
+                  key: 'name',
+                  render: (_, m) => (
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                      <Avatar size={34} style={{ background: m.avatarColor ?? '#6366f1', fontWeight: 600, fontSize: 13 }}>
+                        {m.name.charAt(0)}
+                      </Avatar>
+                      <Text style={{ fontSize: 14, fontWeight: 500, color: '#0f172a' }}>{m.name}</Text>
+                    </div>
+                  ),
+                },
+                {
+                  title: 'Vai trò',
+                  key: 'role',
+                  width: 120,
+                  render: (_, m) => (
+                    <Tag color={m.role === 'teacher' ? 'blue' : 'default'} style={{ borderRadius: 20, padding: '0 10px', fontSize: 12 }}>
+                      {m.role === 'teacher' ? 'Giáo viên' : 'Học sinh'}
+                    </Tag>
+                  ),
+                },
+                {
+                  title: 'Ngày tham gia',
+                  key: 'joinedAt',
+                  width: 140,
+                  render: (_, m) => (
+                    <Text type="secondary" style={{ fontSize: 13 }}>
+                      {new Date(m.joinedAt).toLocaleDateString('vi-VN')}
+                    </Text>
+                  ),
+                },
+                ...(isTeacher ? [{
+                  title: '',
+                  key: 'action',
+                  width: 48,
+                  render: (_: unknown, m: MemberDto) => m.role === 'student' ? (
+                    <Tooltip title="Xóa thành viên">
+                      <Button
+                        size="small"
+                        type="text"
+                        danger
+                        icon={<DeleteOutlined />}
+                        onClick={() => handleKickMember(m.id)}
+                      />
+                    </Tooltip>
+                  ) : null,
+                }] : []),
+              ]}
+            />
+          )}
         </div>
       ),
     },
     {
       key: 'docs',
-      label: (
-        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-          <FolderOpenOutlined />
-          <span>Tài liệu</span>
-        </div>
-      ),
+      label: <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}><FolderOpenOutlined /><span>Tài liệu</span></div>,
       children: (
         <div style={{ maxWidth: 640, paddingTop: 4 }}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
             <div>
               <Text style={{ fontSize: 14, fontWeight: 600, color: '#0f172a' }}>Tài liệu lớp học</Text>
-              <div>
-                <Text type="secondary" style={{ fontSize: 12 }}>
-                  Tài liệu từ bài đăng và tải lên trực tiếp
-                </Text>
-              </div>
+              <div><Text type="secondary" style={{ fontSize: 12 }}>Tài liệu từ bài đăng và tải lên trực tiếp</Text></div>
             </div>
-            <Button
-              type="primary"
-              icon={<UploadOutlined />}
-              onClick={() => docFileRef.current?.click()}
-              style={{ background: 'linear-gradient(135deg, #6366f1, #8b5cf6)', border: 'none', fontWeight: 600, borderRadius: 8 }}
-            >
-              Tải lên
-            </Button>
+            {isTeacher && (
+              <Button
+                type="primary"
+                icon={<UploadOutlined />}
+                loading={docUploading}
+                onClick={() => docFileRef.current?.click()}
+                style={{ background: 'linear-gradient(135deg, #6366f1, #8b5cf6)', border: 'none', fontWeight: 600, borderRadius: 8 }}
+              >
+                Tải lên
+              </Button>
+            )}
           </div>
 
-          {classDocuments.length === 0 ? (
+          {docsLoading ? (
+            <div style={{ textAlign: 'center', padding: '40px 0' }}><Spin /></div>
+          ) : documents.length === 0 ? (
             <Empty description="Chưa có tài liệu nào" style={{ padding: '32px 0' }} />
           ) : (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-              {classDocuments.map((doc) => (
-                <div
-                  key={doc.id}
-                  style={{
-                    background: '#fff', borderRadius: 12, border: '1px solid #e2e8f0',
-                    padding: '12px 16px', display: 'flex', alignItems: 'center', gap: 12,
-                  }}
-                >
-                  <div
-                    style={{
-                      width: 40, height: 40, borderRadius: 10, background: '#eef2ff',
-                      display: 'flex', alignItems: 'center', justifyContent: 'center',
-                      fontSize: 20, flexShrink: 0,
-                    }}
-                  >
-                    {FILE_ICON[doc.ext] ?? '📎'}
+              {documents.map((doc) => (
+                <div key={doc.id} style={{ background: '#fff', borderRadius: 12, border: '1px solid #e2e8f0', padding: '12px 16px', display: 'flex', alignItems: 'center', gap: 12 }}>
+                  <div style={{ width: 40, height: 40, borderRadius: 10, background: '#eef2ff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 20, flexShrink: 0 }}>
+                    {FILE_ICON[doc.fileExt] ?? '📎'}
                   </div>
                   <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ fontSize: 14, fontWeight: 600, color: '#0f172a', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                      {doc.name}
-                    </div>
+                    <div style={{ fontSize: 14, fontWeight: 600, color: '#0f172a', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{doc.fileName}</div>
                     <div style={{ display: 'flex', gap: 8, marginTop: 3, alignItems: 'center', flexWrap: 'wrap' }}>
-                      <Text type="secondary" style={{ fontSize: 12 }}>{doc.size}</Text>
-                      <Text type="secondary" style={{ fontSize: 12 }}>{doc.uploadedAt}</Text>
+                      <Text type="secondary" style={{ fontSize: 12 }}>{formatBytes(doc.fileSizeBytes)}</Text>
+                      <Text type="secondary" style={{ fontSize: 12 }}>
+                        {new Date(doc.uploadedAt).toLocaleDateString('vi-VN')}
+                      </Text>
                       <Tag
-                        color={doc.source === 'Đăng bài' ? 'blue' : 'green'}
+                        color={doc.source === 'post' ? 'blue' : 'green'}
                         style={{ fontSize: 11, borderRadius: 4, margin: 0, padding: '0 6px' }}
                       >
-                        {doc.source}
+                        {doc.source === 'post' ? 'Đăng bài' : 'Tải lên trực tiếp'}
                       </Tag>
                     </div>
                   </div>
-                  <Tooltip title="Tải xuống">
-                    <Button
-                      size="small"
-                      type="text"
-                      icon={<DownloadOutlined />}
-                      href={doc.url}
-                      target="_blank"
-                      style={{ color: '#6366f1', flexShrink: 0 }}
-                    />
-                  </Tooltip>
+                  <div style={{ display: 'flex', gap: 4, flexShrink: 0 }}>
+                    <Tooltip title="Tải xuống">
+                      <Button size="small" type="text" icon={<DownloadOutlined />} href={doc.url} target="_blank" style={{ color: '#6366f1' }} />
+                    </Tooltip>
+                    {isTeacher && doc.source === 'direct' && (
+                      <Tooltip title="Xóa">
+                        <Button size="small" type="text" danger icon={<DeleteOutlined />} onClick={() => handleDeleteDoc(doc.id)} />
+                      </Tooltip>
+                    )}
+                  </div>
                 </div>
               ))}
             </div>
@@ -554,47 +565,48 @@ export default function ClassDetailPage() {
     },
   ];
 
+  if (clsLoading) {
+    return (
+      <div style={{ padding: '28px 32px', display: 'flex', justifyContent: 'center', paddingTop: 100 }}>
+        <Spin size="large" />
+      </div>
+    );
+  }
+
+  if (!cls) {
+    return (
+      <div style={{ padding: '28px 32px' }}>
+        <Empty description="Không tìm thấy lớp học" />
+        <Button onClick={() => navigate('/classes')} style={{ marginTop: 16 }}>Quay lại</Button>
+      </div>
+    );
+  }
+
   return (
     <div style={{ padding: '28px 32px' }}>
+      {contextHolder}
+
       {/* Hero banner */}
-      <div
-        style={{
-          background: style.gradient, borderRadius: 20,
-          padding: '24px 28px 28px', marginBottom: 24,
-          position: 'relative', overflow: 'hidden',
-        }}
-      >
+      <div style={{ background: style.gradient, borderRadius: 20, padding: '24px 28px 28px', marginBottom: 24, position: 'relative', overflow: 'hidden' }}>
         <div style={{ position: 'absolute', right: -30, top: -30, width: 160, height: 160, borderRadius: '50%', background: 'rgba(255,255,255,0.07)' }} />
         <div style={{ position: 'absolute', right: 80, bottom: -50, width: 120, height: 120, borderRadius: '50%', background: 'rgba(255,255,255,0.05)' }} />
 
         <Button
           icon={<ArrowLeftOutlined />}
           onClick={() => navigate('/classes')}
-          style={{
-            marginBottom: 16, color: 'rgba(255,255,255,0.85)',
-            borderColor: 'rgba(255,255,255,0.3)', background: 'rgba(255,255,255,0.12)',
-            borderRadius: 8, fontWeight: 500,
-          }}
+          style={{ marginBottom: 16, color: 'rgba(255,255,255,0.85)', borderColor: 'rgba(255,255,255,0.3)', background: 'rgba(255,255,255,0.12)', borderRadius: 8, fontWeight: 500 }}
         >
           Quay lại
         </Button>
 
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 16, position: 'relative' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
-            <div
-              style={{
-                width: 56, height: 56, background: 'rgba(255,255,255,0.18)',
-                borderRadius: 14, display: 'flex', alignItems: 'center', justifyContent: 'center',
-                backdropFilter: 'blur(4px)',
-              }}
-            >
+            <div style={{ width: 56, height: 56, background: 'rgba(255,255,255,0.18)', borderRadius: 14, display: 'flex', alignItems: 'center', justifyContent: 'center', backdropFilter: 'blur(4px)' }}>
               {style.icon}
             </div>
             <div>
-              <div style={{ fontSize: 13, color: 'rgba(255,255,255,0.7)', marginBottom: 2, fontWeight: 500 }}>{cls.subject}</div>
-              <Title level={3} style={{ color: '#fff', margin: '0 0 4px', fontSize: 22, fontWeight: 700, lineHeight: 1.3 }}>
-                {cls.name}
-              </Title>
+              {cls.subject && <div style={{ fontSize: 13, color: 'rgba(255,255,255,0.7)', marginBottom: 2, fontWeight: 500 }}>{cls.subject}</div>}
+              <Title level={3} style={{ color: '#fff', margin: '0 0 4px', fontSize: 22, fontWeight: 700, lineHeight: 1.3 }}>{cls.name}</Title>
               <div style={{ display: 'flex', gap: 16, alignItems: 'center' }}>
                 <div style={{ display: 'flex', gap: 5, alignItems: 'center' }}>
                   <TeamOutlined style={{ color: 'rgba(255,255,255,0.7)', fontSize: 13 }} />
@@ -602,8 +614,14 @@ export default function ClassDetailPage() {
                 </div>
                 <div style={{ display: 'flex', gap: 5, alignItems: 'center' }}>
                   <BookOutlined style={{ color: 'rgba(255,255,255,0.7)', fontSize: 13 }} />
-                  <span style={{ color: 'rgba(255,255,255,0.85)', fontSize: 13 }}>{cls.teacherName}</span>
+                  <span style={{ color: 'rgba(255,255,255,0.85)', fontSize: 13 }}>{cls.teacher.name}</span>
                 </div>
+                {isTeacher && (
+                  <Badge
+                    count={<span style={{ background: 'rgba(255,255,255,0.25)', color: '#fff', borderRadius: 20, padding: '2px 8px', fontSize: 11, fontWeight: 600 }}>Mã: {cls.joinCode}</span>}
+                    style={{ boxShadow: 'none' }}
+                  />
+                )}
               </div>
             </div>
           </div>
@@ -612,11 +630,7 @@ export default function ClassDetailPage() {
             size="large"
             icon={<PlayCircleOutlined />}
             onClick={() => navigate(`/session/teacher/${cls.id}`)}
-            style={{
-              background: '#fff', color: '#6366f1', border: 'none',
-              fontWeight: 700, borderRadius: 12, height: 44, paddingInline: 24,
-              boxShadow: '0 4px 12px rgba(0,0,0,0.12)',
-            }}
+            style={{ background: '#fff', color: '#6366f1', border: 'none', fontWeight: 700, borderRadius: 12, height: 44, paddingInline: 24, boxShadow: '0 4px 12px rgba(0,0,0,0.12)' }}
           >
             Bắt đầu buổi học
           </Button>
@@ -624,11 +638,21 @@ export default function ClassDetailPage() {
       </div>
 
       {/* Tabs card */}
-      <Card style={{ borderRadius: 16, border: '1px solid #e2e8f0' }} styles={{ body: { padding: '0 24px 24px' } }}>
-        <Tabs items={tabItems} defaultActiveKey="feed" />
+      <Card
+        style={{ borderRadius: 16, border: '1px solid #e2e8f0' }}
+        styles={{ body: { padding: '0 24px 24px' } }}
+      >
+        <Tabs
+          items={tabItems}
+          defaultActiveKey="feed"
+          onChange={(key) => {
+            if (key === 'members') loadMembers();
+            if (key === 'docs') loadDocuments();
+          }}
+        />
       </Card>
 
-      {/* Schedule creation modal */}
+      {/* Schedule modal */}
       <Modal
         title={<div style={{ fontSize: 16, fontWeight: 700, color: '#0f172a' }}>Thêm buổi học mới</div>}
         open={scheduleOpen}
@@ -636,9 +660,8 @@ export default function ClassDetailPage() {
         onOk={handleScheduleSubmit}
         okText="Lưu lịch"
         cancelText="Hủy"
-        okButtonProps={{
-          style: { background: 'linear-gradient(135deg, #6366f1, #8b5cf6)', border: 'none', fontWeight: 600 },
-        }}
+        confirmLoading={scheduleSaving}
+        okButtonProps={{ style: { background: 'linear-gradient(135deg, #6366f1, #8b5cf6)', border: 'none', fontWeight: 600 } }}
         width={480}
       >
         <Form form={scheduleForm} layout="vertical" style={{ marginTop: 8 }}>
@@ -649,10 +672,10 @@ export default function ClassDetailPage() {
             <DatePicker style={{ width: '100%', borderRadius: 8 }} format="DD/MM/YYYY" placeholder="Chọn ngày" />
           </Form.Item>
           <div style={{ display: 'flex', gap: 12 }}>
-            <Form.Item label="Giờ bắt đầu" name="startTime" rules={[{ required: true, message: 'Vui lòng chọn giờ' }]} style={{ flex: 1 }}>
+            <Form.Item label="Giờ bắt đầu" name="startTime" rules={[{ required: true, message: 'Bắt buộc' }]} style={{ flex: 1 }}>
               <TimePicker style={{ width: '100%', borderRadius: 8 }} format="HH:mm" minuteStep={5} placeholder="08:00" />
             </Form.Item>
-            <Form.Item label="Giờ kết thúc" name="endTime" rules={[{ required: true, message: 'Vui lòng chọn giờ' }]} style={{ flex: 1 }}>
+            <Form.Item label="Giờ kết thúc" name="endTime" rules={[{ required: true, message: 'Bắt buộc' }]} style={{ flex: 1 }}>
               <TimePicker style={{ width: '100%', borderRadius: 8 }} format="HH:mm" minuteStep={5} placeholder="10:00" />
             </Form.Item>
           </div>
@@ -662,11 +685,12 @@ export default function ClassDetailPage() {
         </Form>
       </Modal>
 
-      {/* Hidden file input for direct doc upload */}
+      {/* Hidden file input for direct document upload */}
       <input
         ref={docFileRef}
         type="file"
         accept=".pdf,.docx,.doc,.xlsx,.xls,.pptx,.ppt,.txt,.zip"
+        multiple
         style={{ display: 'none' }}
         onChange={handleDocFileChange}
       />

@@ -11,6 +11,8 @@ import {
   SettingOutlined,
 } from '@ant-design/icons';
 import { useNavigate, useLocation, Outlet } from 'react-router-dom';
+import { useAuthStore } from '../../store/authStore';
+import { authService } from '../../services/auth.service';
 
 const { Sider, Header, Content } = Layout;
 const { Text } = Typography;
@@ -75,8 +77,19 @@ export default function AppLayout() {
   const [collapsed, setCollapsed] = useState(false);
   const navigate = useNavigate();
   const location = useLocation();
+  const { user, clearAuth } = useAuthStore();
 
   const selectedKey = location.pathname.startsWith('/dashboard') ? 'dashboard' : 'classes';
+
+  const displayName = user?.name ?? 'Người dùng';
+  const avatarLetter = displayName.charAt(0).toUpperCase();
+  const roleLabel = user?.role === 'teacher' ? 'Giáo viên' : user?.role === 'admin' ? 'Admin' : 'Học sinh';
+
+  async function handleLogout() {
+    try { await authService.logout(); } catch { /* ignore */ }
+    clearAuth();
+    navigate('/login');
+  }
 
   return (
     <Layout style={{ minHeight: '100vh' }}>
@@ -205,20 +218,21 @@ export default function AppLayout() {
           >
             <Avatar
               size={32}
+              src={user?.avatarUrl ?? undefined}
               style={{
-                background: 'linear-gradient(135deg, #6366f1, #8b5cf6)',
+                background: user?.avatarColor ?? 'linear-gradient(135deg, #6366f1, #8b5cf6)',
                 flexShrink: 0,
                 fontSize: 13,
                 fontWeight: 600,
               }}
             >
-              L
+              {avatarLetter}
             </Avatar>
             <div style={{ flex: 1, minWidth: 0 }}>
               <div style={{ fontSize: 13, fontWeight: 600, color: '#0f172a', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                Nguyễn Thị Lan
+                {displayName}
               </div>
-              <div style={{ fontSize: 11, color: '#64748b' }}>Giáo viên</div>
+              <div style={{ fontSize: 11, color: '#64748b' }}>{roleLabel}</div>
             </div>
           </div>
         )}
@@ -227,14 +241,15 @@ export default function AppLayout() {
           <div style={{ position: 'absolute', bottom: 16, left: 0, right: 0, display: 'flex', justifyContent: 'center' }}>
             <Avatar
               size={32}
+              src={user?.avatarUrl ?? undefined}
               style={{
-                background: 'linear-gradient(135deg, #6366f1, #8b5cf6)',
+                background: user?.avatarColor ?? 'linear-gradient(135deg, #6366f1, #8b5cf6)',
                 fontSize: 13,
                 fontWeight: 600,
                 cursor: 'pointer',
               }}
             >
-              L
+              {avatarLetter}
             </Avatar>
           </div>
         )}
@@ -304,7 +319,7 @@ export default function AppLayout() {
                 ],
                 onClick: ({ key }) => {
                   if (key === 'profile') navigate('/profile');
-                  else if (key === 'logout') navigate('/login');
+                  else if (key === 'logout') handleLogout();
                 },
               }}
               placement="bottomRight"
@@ -323,15 +338,16 @@ export default function AppLayout() {
               >
                 <Avatar
                   size={28}
+                  src={user?.avatarUrl ?? undefined}
                   style={{
-                    background: 'linear-gradient(135deg, #6366f1, #8b5cf6)',
+                    background: user?.avatarColor ?? 'linear-gradient(135deg, #6366f1, #8b5cf6)',
                     fontSize: 12,
                     fontWeight: 600,
                   }}
                 >
-                  L
+                  {avatarLetter}
                 </Avatar>
-                <Text style={{ fontSize: 13, fontWeight: 500, color: '#0f172a' }}>Nguyễn Thị Lan</Text>
+                <Text style={{ fontSize: 13, fontWeight: 500, color: '#0f172a' }}>{displayName}</Text>
               </div>
             </Dropdown>
           </div>

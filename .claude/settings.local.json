@@ -4,7 +4,10 @@
       "Bash(npm install:*)",
       "Bash(npm run:*)",
       "Bash(npx tsc:*)",
-      "Skill(update-config)"
+      "Skill(update-config)",
+      "Bash(Get-ChildItem -Path . -Force)",
+      "Bash(Select-Object Name, Mode)",
+      "Bash(node *)"
     ]
   }
 }
