@@ -9,5 +9,18 @@
       "Bash(Select-Object Name, Mode)",
       "Bash(node *)"
     ]
+  },
+  "hooks": {
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "Write-Output '{\"hookSpecificOutput\": {\"hookEventName\": \"Stop\", \"additionalContext\": \"Nếu lượt vừa rồi bạn thay đổi cấu trúc project, routing, component, services, hay kiến trúc hệ thống — hãy cập nhật CLAUDE.md để phản ánh thay đổi đó.\"}}'",
+            "shell": "powershell"
+          }
+        ]
+      }
+    ]
   }
 }

@@ -145,34 +145,49 @@ Session pages (`/session/*`) và `LoginPage` **không dùng `AppLayout`** — ch
 
 ```
 src/
-  types/index.ts              # tất cả TypeScript interfaces
+  types/
+    index.ts                  # TypeScript interfaces cho mock data (session pages)
+    api.ts                    # DTO types cho API: ApiResponse, AuthResponse, ClassroomDto, PostDto, ScheduleDto, DocumentDto, ...
   index.css                   # Outfit font import, CSS tokens (:root), utility classes (.sq-*)
-  App.tsx                     # Router + AntD ConfigProvider (theme toàn cục)
-  mock/                       # static mock data (dùng cho đến khi có backend)
-    classrooms.ts             # Classroom, Post, Schedule — có data cho cả 3 lớp c1/c2/c3
-    students.ts               # User[] (STUDENTS, TEACHER constants); avatarColor dùng #6366f1
-    questions.ts              # Question[] với answers[] của từng HS
-    sessions.ts               # LIVE_SESSION (dùng trong cả session + dashboard)
+  App.tsx                     # Router + AntD ConfigProvider + AuthBootstrap + ProtectedRoute
+  main.tsx                    # bootstrap authStore (wire axios interceptors trước khi render)
+  lib/
+    api.ts                    # Axios instance; Bearer token interceptor; silent refresh on 401 (queue pattern); injectAuthHooks(getToken, setToken, clearAuth, setUser)
+  store/
+    authStore.ts              # Zustand store: { user, accessToken, setAuth, setToken, clearAuth }; gọi injectAuthHooks khi khởi tạo
+  services/
+    auth.service.ts           # login, register, refresh, logout, getWsTicket
+    user.service.ts           # getMe, updateMe, uploadAvatar
+    classroom.service.ts      # list, get, create, update, remove, join, getMembers, kickMember, regenerateJoinCode
+    post.service.ts           # list, create, update, remove, addAttachments, removeAttachment
+    schedule.service.ts       # list, create, update, remove
+    document.service.ts       # list, upload, remove
+    upload.service.ts         # presign + putToMinIO + uploadFile
+  mock/                       # static mock data — chỉ dùng cho session pages (WebRTC/WS chưa có)
+    classrooms.ts
+    students.ts
+    questions.ts
+    sessions.ts
   components/
-    layout/AppLayout.tsx      # Sidebar (232px, fixed) + Header (sticky) + <Outlet />
+    layout/AppLayout.tsx      # Sidebar (232px, fixed) + Header (sticky) + <Outlet />; đọc user từ authStore
     session/
-      StudentStatusList.tsx   # danh sách thành viên + badge đã/chưa trả lời; hỗ trợ GV (tag "(GV)", không hiện badge trả lời); header đổi thành "Thành viên" khi có GV
-      LiveQuestionStats.tsx   # thống kê realtime: progress, đúng/sai, confidence
-      ConfidenceSelector.tsx  # 3 nút Thấp/Trung bình/Cao
-      CreateQuestionModal.tsx # modal 2 bước: chọn template → soạn thảo + cài đặt thời gian (Switch + preset 30s/1p/1.5p/2p/3p + custom); onSubmit(timerSeconds: number | null); đáp án MCQ hỗ trợ LaTeX inline ($...$, $$...$$) với nút chèn Σ và preview KaTeX bên dưới mỗi ô
-      BreakoutPanel.tsx       # panel breakout 2 mode: setup (tạo phòng, gán HS) → active (GV vào/rời phòng, broadcast); không có "loại phòng riêng" — private exchange = GV join phòng có ít HS
-      ChatPanel.tsx           # panel chat realtime; export MOCK_CHAT_MESSAGES, ChatMessage type, getNow()
-      RichTextEditor.tsx      # rich text editor (CKEditor5): bold/italic/underline/strike/list/align/font-size; custom MathPlugin (KaTeX inline+block); file attachment list (ngoài editor, không chỉnh sửa được); font size 3 mức (Nhỏ/Vừa/Lớn) qua nút tự quản lý
-      CtrlBtn.tsx             # nút điều khiển dùng chung cho 2 session page: dark bg, circle/round, danger
+      StudentStatusList.tsx
+      LiveQuestionStats.tsx
+      ConfidenceSelector.tsx
+      CreateQuestionModal.tsx # modal 2 bước; đáp án MCQ hỗ trợ LaTeX; KaTeX preview
+      BreakoutPanel.tsx
+      ChatPanel.tsx
+      RichTextEditor.tsx      # CKEditor5; prop initialValue để pre-fill khi edit post
+      CtrlBtn.tsx
   pages/
-    LoginPage.tsx             # trang đăng nhập: 2 cột brand/form, role switcher GV/HS, cả 2 navigate /classes
-    ProfilePage.tsx           # trang hồ sơ: avatar, stats (lớp/buổi học/câu hỏi/học sinh)
-    classroom/ClassListPage.tsx
-    classroom/ClassDetailPage.tsx   # tabs: Bảng tin | Lịch học | Thành viên | Tài liệu; bài đăng hỗ trợ đính kèm file
-    session/TeacherSessionPage.tsx  # layout 3 cột, có Segmented demo-state switcher; thêm focus feature: focusedStudentId state, hover icon AimOutlined trên thumbnail, layout 2-pane (GV + HS) khi focus bật, badge focus trong top bar
-    session/StudentSessionPage.tsx  # countdown timer (90s), phóng to panel, demo 3 loại câu hỏi, tự luận dùng RichTextEditor
-    dashboard/TeacherDashboardPage.tsx
-    dashboard/StudentReviewPage.tsx
+    LoginPage.tsx             # gọi authService.login; navigate /classes sau login
+    ProfilePage.tsx           # gọi userService.getMe/updateMe/uploadAvatar
+    classroom/ClassListPage.tsx     # classroomService.list/create/join
+    classroom/ClassDetailPage.tsx   # xem chi tiết bên dưới
+    session/TeacherSessionPage.tsx  # vẫn dùng mock data (M09–M10 chưa sẵn sàng)
+    session/StudentSessionPage.tsx  # vẫn dùng mock data
+    dashboard/TeacherDashboardPage.tsx  # vẫn dùng mock data
+    dashboard/StudentReviewPage.tsx     # vẫn dùng mock data
 ```
 
 ## AppLayout
@@ -206,9 +221,10 @@ Layout 2 cột (không dùng AppLayout):
 
 - **Hero banner**: gradient theo subject (dùng `SUBJECT_STYLE` record trong file)
 - **Tabs** (Bảng tin / Lịch học / Thành viên / Tài liệu): render trong `Card` borderRadius 16
-- **Schedule card**: border-left accent (`#6366f1` nếu upcoming, `#e2e8f0` nếu đã qua); icon CheckCircle cho buổi đã xong; buổi đã qua có thêm nút nhỏ "Xem kết quả →" → navigate `/dashboard/sess1`
-- **Bảng tin — đính kèm file**: compose box dùng `RichTextEditor` với prop `onAttachmentsChange`; khi đăng bài, `Post.attachments[]` lưu danh sách file; mỗi file hiển thị chip màu indigo (icon + tên + dung lượng) ngay dưới nội dung bài
-- **Tab Tài liệu**: tổng hợp tài liệu từ 2 nguồn — file đính kèm bài đăng (badge "Đăng bài") và upload trực tiếp của GV (badge "Tải lên trực tiếp"); nút "Tải lên" trigger hidden `<input type="file">`; mỗi lớp có mock initial documents; interface `ClassDocument { id, name, url, size, ext, uploadedAt, source }`; constant `FILE_ICON` map ext → emoji icon
+- **Quản lý lớp (teacher only)**: nút `⋯` kebab menu trong hero banner — "Chỉnh sửa lớp" (modal pre-fill, `classroomService.update`), "Tạo mã mới" (`classroomService.regenerateJoinCode`, cập nhật `cls.joinCode` inline), "Xóa lớp" (Popconfirm → `classroomService.remove` → navigate `/classes`); nút `⟳` nhỏ cạnh badge mã lớp cũng trigger regen
+- **Bảng tin — tạo/sửa/xóa post**: compose box dùng `RichTextEditor`; bài đăng có nút `⋯` (hiện với teacher hoặc tác giả) — "Chỉnh sửa" (inline `RichTextEditor` với `initialValue={post.content}`, `postService.update`), "Xóa bài" (Popconfirm → `postService.remove`); đính kèm file hiển thị chip indigo
+- **Lịch học — tạo/sửa/xóa**: nút "Thêm buổi học" mở modal; mỗi buổi học có icon `EditOutlined` (mở modal pre-fill bằng `dayjs('2000-01-01 ' + s.startTime)` để tránh lỗi parse HH:mm) và `DeleteOutlined` với Popconfirm; modal dual-mode (create/edit) dùng `editingSchedule` state; `scheduleService.update/remove`
+- **Tab Tài liệu**: tổng hợp tài liệu từ 2 nguồn — file đính kèm bài đăng (badge "Đăng bài") và upload trực tiếp của GV (badge "Tải lên trực tiếp"); nút "Tải lên" trigger hidden `<input type="file">`; constant `FILE_ICON` map ext → emoji icon
 
 ## TeacherDashboardPage
 
@@ -276,17 +292,43 @@ Các tính năng khác trong trang:
 
 `React.ReactNode` có thể dùng không cần `import React` (global namespace trong react-jsx transform) — đây là pattern nhất quán trong toàn bộ codebase.
 
+## Auth & API layer
+
+### Token management
+- `accessToken` lưu trong Zustand memory (KHÔNG localStorage); `refreshToken` là httpOnly cookie do server set
+- `src/lib/api.ts`: Axios instance; request interceptor đính Bearer token; response interceptor silent refresh on 401 (queue pattern — nhiều request cùng lúc chỉ trigger 1 lần refresh); guard `!original.url?.includes('/auth/refresh')` tránh retry loop
+- `src/store/authStore.ts`: `injectAuthHooks(getToken, setToken, clearAuth, setUser)` — sau khi refresh interceptor thành công, set cả `user` lẫn `accessToken` vào store
+
+### Bootstrap (reload persistence)
+`AuthBootstrap` component trong `App.tsx` gọi `authService.refresh()` khi mount → nếu cookie còn hạn thì `setAuth(user, token)` khôi phục session; nếu không thì `clearAuth()`; hiển thị `<Spin>` toàn trang trong lúc chờ.
+
+### Protected routes
+`ProtectedRoute` trong `App.tsx` kiểm tra `user` từ store — nếu null sau khi bootstrap xong thì redirect về `/login`. Bọc toàn bộ routes cần auth (AppLayout routes + session routes).
+
+### ScheduleDto time format
+API trả `startTime`/`endTime` dạng `"HH:mm"` (string không có date). Khi pre-fill `TimePicker` dùng `dayjs('2000-01-01 ' + s.startTime)` — thêm date giả để tạo dayjs object hợp lệ (không cần plugin `customParseFormat`).
+
 ## Mock data conventions
 
-- `src/mock/questions.ts` — mỗi `Question` có `answers[]` chứa kết quả mock của từng HS (dùng cho cả `LiveQuestionStats` trong session lẫn `TeacherDashboardPage`)
+- `src/mock/` chỉ còn dùng cho **session pages** (TeacherSessionPage, StudentSessionPage, TeacherDashboardPage, StudentReviewPage) — WebRTC/WebSocket M09–M10 chưa sẵn sàng
+- `src/mock/questions.ts` — mỗi `Question` có `answers[]` chứa kết quả mock của từng HS
 - `LIVE_SESSION` trong `sessions.ts` import trực tiếp `QUESTIONS` từ `questions.ts`
-- `Post` interface có thêm trường `attachments?: { name, url, size, ext }[]` — optional, chỉ có khi bài đăng kèm file
-- `POSTS` và `SCHEDULES` trong `classrooms.ts` có data cho cả 3 lớp (c1/c2/c3)
 - `TEACHER.avatarColor` và `STUDENTS[0].avatarColor` dùng `#6366f1` (không phải `#1677ff`)
-- Khi tích hợp backend: thay thế các import từ `mock/` bằng API calls, giữ nguyên cấu trúc types
 
 ## Project status
 
-Giao diện demo tĩnh đã hoàn chỉnh với mock data, thân thiện với mọi thiết bị. Chưa có backend integration, authentication, hay WebSocket/WebRTC thật.
+**Phase 1–2 (M01–M08) đã tích hợp hoàn chỉnh.** Session pages vẫn dùng mock data chờ M09–M10.
 
-UI đã được redesign theo phong cách EdTech hiện đại (Coursera/Udemy style): font Outfit, design token indigo, subject-coded gradient card, bento dashboard stats, gamified student review.
+| Trang | Trạng thái | API sử dụng |
+|-------|-----------|-------------|
+| LoginPage | ✅ Real API | `authService.login` |
+| AppLayout | ✅ Real API | `authStore.user`; `authService.logout` |
+| ClassListPage | ✅ Real API | `classroomService.list/create/join` |
+| ClassDetailPage | ✅ Real API | classroom/post/schedule/member/document services; đầy đủ CRUD |
+| ProfilePage | ✅ Real API | `userService.getMe/updateMe/uploadAvatar` |
+| TeacherSessionPage | 🔶 Mock | Chờ M09–M10 (WebRTC + WebSocket) |
+| StudentSessionPage | 🔶 Mock | Chờ M09–M10 |
+| TeacherDashboardPage | 🔶 Mock | Chờ M09–M10 |
+| StudentReviewPage | 🔶 Mock | Chờ M09–M10 |
+
+UI theo phong cách EdTech hiện đại (Coursera/Udemy style): font Outfit, design token indigo, subject-coded gradient card, bento dashboard stats, gamified student review.
