@@ -27,6 +27,7 @@ export const useAuthStore = create<AuthState>((set, get) => {
     () => get().accessToken,
     (t) => set({ accessToken: t }),
     () => set({ user: null, accessToken: null }),
+    (u) => set({ user: u as UserSummary }),
   );
 
   return store;

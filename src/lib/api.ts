@@ -12,16 +12,19 @@ const api: AxiosInstance = axios.create({
 // Injected by authStore after creation to avoid circular dep
 let _getToken: (() => string | null) | null = null;
 let _setToken: ((t: string) => void) | null = null;
+let _setUser: ((u: unknown) => void) | null = null;
 let _clearAuth: (() => void) | null = null;
 
 export function injectAuthHooks(
   getToken: () => string | null,
   setToken: (t: string) => void,
   clearAuth: () => void,
+  setUser?: (u: unknown) => void,
 ) {
   _getToken = getToken;
   _setToken = setToken;
   _clearAuth = clearAuth;
+  _setUser = setUser ?? null;
 }
 
 // ── Request interceptor: attach Bearer token ───────────────────────
@@ -39,7 +42,7 @@ api.interceptors.response.use(
   (res) => res,
   async (err) => {
     const original = err.config;
-    if (err.response?.status === 401 && !original._retry) {
+    if (err.response?.status === 401 && !original._retry && !original.url?.includes('/auth/refresh')) {
       original._retry = true;
 
       if (isRefreshing) {
@@ -60,6 +63,7 @@ api.interceptors.response.use(
         );
         const newToken: string = data.data.accessToken;
         _setToken?.(newToken);
+        _setUser?.(data.data.user);
         queue.forEach((cb) => cb(newToken));
         queue = [];
         original.headers.Authorization = `Bearer ${newToken}`;

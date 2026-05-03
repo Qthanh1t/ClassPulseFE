@@ -1,5 +1,6 @@
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
-import { ConfigProvider } from 'antd';
+import { useState, useEffect } from 'react';
+import { BrowserRouter, Routes, Route, Navigate, Outlet } from 'react-router-dom';
+import { ConfigProvider, Spin } from 'antd';
 import AppLayout from './components/layout/AppLayout';
 import LoginPage from './pages/LoginPage';
 import ClassListPage from './pages/classroom/ClassListPage';
@@ -9,6 +10,37 @@ import StudentSessionPage from './pages/session/StudentSessionPage';
 import TeacherDashboardPage from './pages/dashboard/TeacherDashboardPage';
 import StudentReviewPage from './pages/dashboard/StudentReviewPage';
 import ProfilePage from './pages/ProfilePage';
+import { useAuthStore } from './store/authStore';
+import { authService } from './services/auth.service';
+
+function ProtectedRoute() {
+  const user = useAuthStore((s) => s.user);
+  return user ? <Outlet /> : <Navigate to="/login" replace />;
+}
+
+function AuthBootstrap({ children }: { children: React.ReactNode }) {
+  const [ready, setReady] = useState(false);
+  const setAuth = useAuthStore((s) => s.setAuth);
+  const clearAuth = useAuthStore((s) => s.clearAuth);
+
+  useEffect(() => {
+    authService.refresh()
+      .then((res) => setAuth(res.user, res.accessToken))
+      .catch(() => clearAuth())
+      .finally(() => setReady(true));
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  if (!ready) {
+    return (
+      <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh' }}>
+        <Spin size="large" />
+      </div>
+    );
+  }
+
+  return <>{children}</>;
+}
 
 export default function App() {
   return (
@@ -41,22 +73,26 @@ export default function App() {
         },
       }}
     >
-      <BrowserRouter>
-        <Routes>
-          <Route path="/" element={<Navigate to="/login" replace />} />
-          <Route path="/login" element={<LoginPage />} />
-          <Route element={<AppLayout />}>
-            <Route path="/classes" element={<ClassListPage />} />
-            <Route path="/classes/:id" element={<ClassDetailPage />} />
-            <Route path="/dashboard/:sessionId" element={<TeacherDashboardPage />} />
-            <Route path="/review/:sessionId" element={<StudentReviewPage />} />
-            <Route path="/profile" element={<ProfilePage />} />
-          </Route>
-          {/* Session pages dùng layout riêng (fullscreen) */}
-          <Route path="/session/teacher/:id" element={<TeacherSessionPage />} />
-          <Route path="/session/student/:id" element={<StudentSessionPage />} />
-        </Routes>
-      </BrowserRouter>
+      <AuthBootstrap>
+        <BrowserRouter>
+          <Routes>
+            <Route path="/" element={<Navigate to="/login" replace />} />
+            <Route path="/login" element={<LoginPage />} />
+            <Route element={<ProtectedRoute />}>
+              <Route element={<AppLayout />}>
+                <Route path="/classes" element={<ClassListPage />} />
+                <Route path="/classes/:id" element={<ClassDetailPage />} />
+                <Route path="/dashboard/:sessionId" element={<TeacherDashboardPage />} />
+                <Route path="/review/:sessionId" element={<StudentReviewPage />} />
+                <Route path="/profile" element={<ProfilePage />} />
+              </Route>
+              {/* Session pages dùng layout riêng (fullscreen) */}
+              <Route path="/session/teacher/:id" element={<TeacherSessionPage />} />
+              <Route path="/session/student/:id" element={<StudentSessionPage />} />
+            </Route>
+          </Routes>
+        </BrowserRouter>
+      </AuthBootstrap>
     </ConfigProvider>
   );
 }
