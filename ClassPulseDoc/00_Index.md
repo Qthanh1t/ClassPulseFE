@@ -18,6 +18,9 @@
 | 05 | [05_Auth_Authorization.md](05_Auth_Authorization.md) | JWT flow, Spring Security, RBAC, WS Ticket, refresh token |
 | 06 | [06_System_Architecture.md](06_System_Architecture.md) | Monolith vs Microservices, tech stack đầy đủ, folder structure, Docker |
 | 07 | [07_Best_Practices.md](07_Best_Practices.md) | Naming, error handling, API versioning, logging, transaction, security |
+| 08a | [08_Frontend_Integration_Guide.md](08_Frontend_Integration_Guide.md) | Frontend Integration Phase 1–2: Auth, User, Classroom, Post, Schedule, Document, Upload |
+| 08b | [08_Frontend_Integration_Phase3.md](08_Frontend_Integration_Phase3.md) | Frontend Integration Phase 3: Session, Question, Student Answer |
+| 08c | [08_Frontend_Integration_Phase4.md](08_Frontend_Integration_Phase4.md) | Frontend Integration Phase 4: Breakout, WebSocket (đầy đủ), Dashboard, Review, Admin |
 
 ---
 

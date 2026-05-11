@@ -11,7 +11,7 @@
 2. [Session APIs](#2-session-apis)
 3. [Question APIs](#3-question-apis)
 4. [Student Answer APIs](#4-student-answer-apis)
-5. [WebSocket — Trạng thái hiện tại](#5-websocket--trạng-thái-hiện-tại)
+5. [WebSocket — Tổng quan](#5-websocket--tổng-quan)
 6. [Luồng hoạt động chính](#6-luồng-hoạt-động-chính)
 7. [Error Codes](#7-error-codes)
 
@@ -625,9 +625,9 @@ GET /api/v1/sessions/{sessionId}/questions/{questionId}/answers
 
 ---
 
-## 5. WebSocket — Trạng thái hiện tại
+## 5. WebSocket — Tổng quan
 
-> **Lưu ý:** WebSocket broadcast (M13, T083–T087) **chưa được triển khai**. Kết nối WebSocket đã hoạt động nhưng server chưa push events cho các module Session/Question/Answer. Frontend cần **polling tạm thời** cho đến khi M13 hoàn thành.
+> **M13 đã hoàn thành.** Xem hướng dẫn WebSocket đầy đủ tại `08_Frontend_Integration_Phase4.md`. Phần này chỉ mô tả cách kết nối cơ bản.
 
 ### 5.1 Kết nối WebSocket
 
