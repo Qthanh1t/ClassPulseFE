@@ -147,7 +147,7 @@ Session pages (`/session/*`) và `LoginPage` **không dùng `AppLayout`** — ch
 ```
 src/
   types/
-    index.ts                  # TypeScript interfaces cho mock data (không dùng nữa — giữ lại cho BreakoutPanel)
+    index.ts                  # TypeScript interfaces cho mock data (dead code — không còn import ở đâu)
     api.ts                    # DTO types cho API: ApiResponse, AuthResponse, ClassroomDto, PostDto, ScheduleDto, DocumentDto, ...
   index.css                   # Outfit font import, CSS tokens (:root), utility classes (.sq-*)
   App.tsx                     # Router + AntD ConfigProvider + AuthBootstrap + ProtectedRoute
@@ -172,11 +172,6 @@ src/
     chat.service.ts           # getHistory cursor-based (M13)
     dashboard.service.ts      # getTeacherDashboard, getStudentReview (M14/M15)
     admin.service.ts          # getStats, listClassrooms, listUsers, updateUser (M16)
-  mock/                       # dead code — không còn import trong pages; có thể xóa khi Sprint 4 xong
-    classrooms.ts
-    students.ts               # vẫn dùng trong BreakoutPanel.tsx (Sprint 4 sẽ thay)
-    questions.ts
-    sessions.ts
   components/
     layout/AppLayout.tsx      # Sidebar (232px, fixed) + Header (sticky) + <Outlet />; đọc user từ authStore
     session/
@@ -184,7 +179,7 @@ src/
       LiveQuestionStats.tsx   # props: stats: QuestionStatsDto, questionType: QuestionType
       ConfidenceSelector.tsx
       CreateQuestionModal.tsx # modal 2 bước; onSubmit: (req: CreateQuestionRequest) => void; đáp án MCQ hỗ trợ LaTeX
-      BreakoutPanel.tsx       # Sprint 4: vẫn dùng mock STUDENTS nội bộ
+      BreakoutPanel.tsx       # props: sessionId, breakout: BreakoutSessionDto|null, presence, onClose; setup mode khi breakout=null; active mode khi breakout!=null
       ChatPanel.tsx
       RichTextEditor.tsx      # CKEditor5; prop initialValue để pre-fill khi edit post
       CtrlBtn.tsx
@@ -277,7 +272,7 @@ Route `:id` = `classroomId`. Init flow:
 - **Silent student alert**: `questionStats.silentStudents[]` — Alert warning với avatar + tên từng HS
 - **Focus mode**: `focusedStudentId: string | null`; `ws.sendFocus(studentId)`; main video area chia 2 grid; top bar Tag "Focus: [tên]" + nút X
 - **CreateQuestion**: `handleCreateQuestion(req)` → `questionService.create` → `questionService.start` → set initial `questionStats`
-- **BreakoutPanel**: Sprint 4 pending — vẫn dùng mock `STUDENTS` nội bộ; `showBreakoutPanel` state toggle UI
+- **BreakoutPanel**: props `{ sessionId, breakout, presence, onClose }`; `breakout === null` → setup (tạo phòng + gán HS từ `presence`); `breakout !== null` → active (join/leave/end/broadcast via `breakoutService`); WS event `breakout_started` tự flip sang active mode qua parent re-render
 - **`presenceRef`**: `useRef<PresenceDto[]>` giữ sync với `presence` state để WS handler truy cập latest value
 
 ## StudentSessionPage
@@ -326,7 +321,7 @@ API trả `startTime`/`endTime` dạng `"HH:mm"` (string không có date). Khi p
 
 ## Mock data conventions
 
-`src/mock/` không còn được import bởi bất kỳ page nào (Sprint 2–3 hoàn thành). File duy nhất còn dùng mock là `BreakoutPanel.tsx` (import `STUDENTS` nội bộ — Sprint 4 sẽ thay). Có thể xóa toàn bộ `src/mock/` sau khi Sprint 4 xong.
+`src/mock/` đã bị xóa hoàn toàn (Sprint 4). Không còn mock data nào trong codebase.
 
 ## WebSocket layer (`src/lib/websocket.ts`)
 
@@ -338,9 +333,18 @@ API trả `startTime`/`endTime` dạng `"HH:mm"` (string không có date). Khi p
 - Subscribe phòng nhỏ: `subscribeRoom(roomId, handler)` / `unsubscribeRoom(roomId)`
 - Send methods: `sendChat`, `sendRaiseHand`, `sendFocus`, `sendWebRtcOffer/Answer/IceCandidate`
 
+## AdminPage
+
+Route `/admin` — chỉ hiển thị nav "Quản trị" trong sidebar khi `user.role === 'admin'`.
+
+- **Stats section**: 6 card — Tổng user, Giáo viên, Học sinh, Lớp đang hoạt động, Lớp lưu trữ, Phiên đang diễn ra
+- **Tab Lớp học**: `Table<AdminClassroomDto>` với search theo tên/GV; hiển thị archived status, studentCount, joinCode, createdAt
+- **Tab Người dùng**: `Table<UserDto>` với search theo tên/email + filter theo role; `Select` inline đổi role; Popconfirm toggle `isActive`
+- Tải song song: `Promise.all([getStats, listClassrooms({ limit: 100 }), listUsers({ limit: 100 })])`
+
 ## Project status
 
-**Phase 1–4 (M01–M15) đã tích hợp hoàn chỉnh. Sprint 4 (BreakoutPanel + ChatPanel + AdminPage) còn lại.**
+**Phase 1–4 (M01–M16) đã tích hợp hoàn chỉnh.**
 Kế hoạch tích hợp đầy đủ: `ClassPulseDoc/plan/integration_plan_phase3_phase4.md`
 
 | Trang | Trạng thái | API sử dụng |
@@ -350,16 +354,10 @@ Kế hoạch tích hợp đầy đủ: `ClassPulseDoc/plan/integration_plan_phas
 | ClassListPage | ✅ Real API | `classroomService.list/create/join` |
 | ClassDetailPage | ✅ Real API | classroom/post/schedule/member/document services; đầy đủ CRUD |
 | ProfilePage | ✅ Real API | `userService.getMe/updateMe/uploadAvatar` |
-| TeacherSessionPage | ✅ Real API | `sessionService.start`; `questionService.create/start/end`; `questionStats` via WS; `breakoutService` (Sprint 4 BreakoutPanel) |
+| TeacherSessionPage | ✅ Real API | `sessionService.start`; `questionService.create/start/end`; `breakoutService.create/end/joinRoom/leaveRoom/broadcast`; WS events |
 | StudentSessionPage | ✅ Real API | `sessionService.join/leave`; `answerService.submit`; WS events; `chatService.getHistory` |
 | TeacherDashboardPage | ✅ Real API | `dashboardService.getTeacherDashboard` → `DashboardResponse` |
 | StudentReviewPage | ✅ Real API | `dashboardService.getStudentReview` → `ReviewResponse` |
-| AdminPage | 🔲 Chưa có | Sprint 4 — `adminService.getStats/listClassrooms/listUsers/updateUser` |
-
-**Sprint 4 còn lại:**
-- `BreakoutPanel.tsx` — thay mock `STUDENTS` bằng `breakoutService.create/getActive/end/broadcast/joinRoom/leaveRoom` + WS
-- `ChatPanel.tsx` trong TeacherSessionPage — đã dùng WS `sendChat`; cần kiểm tra chat history load
-- Tạo `AdminPage` với `adminService`
-- Xóa `src/mock/` sau khi BreakoutPanel xong
+| AdminPage | ✅ Real API | `adminService.getStats/listClassrooms/listUsers/updateUser`; route `/admin` |
 
 UI theo phong cách EdTech hiện đại (Coursera/Udemy style): font Outfit, design token indigo, subject-coded gradient card, bento dashboard stats, gamified student review.

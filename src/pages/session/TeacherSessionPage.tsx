@@ -688,9 +688,14 @@ export default function TeacherSessionPage() {
           )}
 
           {/* ── BREAKOUT: Teacher management view ── */}
-          {viewMode === 'breakout' && (
+          {viewMode === 'breakout' && session && (
             <Card style={{ borderRadius: 12 }}>
-              <BreakoutPanel onClose={() => { setShowBreakoutPanel(false); setBreakout(null); }} />
+              <BreakoutPanel
+                sessionId={session.id}
+                breakout={breakout}
+                presence={presence}
+                onClose={() => { setShowBreakoutPanel(false); setBreakout(null); }}
+              />
             </Card>
           )}
         </div>

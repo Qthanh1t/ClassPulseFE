@@ -9,6 +9,7 @@ import {
   BellOutlined,
   LogoutOutlined,
   SettingOutlined,
+  SafetyCertificateOutlined,
 } from '@ant-design/icons';
 import { useNavigate, useLocation, Outlet } from 'react-router-dom';
 import { useAuthStore } from '../../store/authStore';
@@ -27,6 +28,10 @@ interface NavItem {
 const NAV_ITEMS: NavItem[] = [
   { key: 'classes', icon: <BookOutlined />, label: 'Lớp học', path: '/classes' },
   { key: 'dashboard', icon: <DashboardOutlined />, label: 'Dashboard', path: '/dashboard/sess1' },
+];
+
+const NAV_ADMIN: NavItem[] = [
+  { key: 'admin', icon: <SafetyCertificateOutlined />, label: 'Quản trị', path: '/admin' },
 ];
 
 const NAV_SECONDARY: NavItem[] = [
@@ -79,7 +84,11 @@ export default function AppLayout() {
   const location = useLocation();
   const { user, clearAuth } = useAuthStore();
 
-  const selectedKey = location.pathname.startsWith('/dashboard') ? 'dashboard' : 'classes';
+  const selectedKey = location.pathname.startsWith('/dashboard')
+    ? 'dashboard'
+    : location.pathname.startsWith('/admin')
+    ? 'admin'
+    : 'classes';
 
   const displayName = user?.name ?? 'Người dùng';
   const avatarLetter = displayName.charAt(0).toUpperCase();
@@ -168,6 +177,15 @@ export default function AppLayout() {
             </div>
           )}
           {NAV_ITEMS.map((item) => (
+            <NavButton
+              key={item.key}
+              item={item}
+              isActive={selectedKey === item.key}
+              collapsed={collapsed}
+              onClick={() => navigate(item.path)}
+            />
+          ))}
+          {user?.role === 'admin' && NAV_ADMIN.map((item) => (
             <NavButton
               key={item.key}
               item={item}

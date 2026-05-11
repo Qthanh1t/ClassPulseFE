@@ -10,6 +10,7 @@ import StudentSessionPage from './pages/session/StudentSessionPage';
 import TeacherDashboardPage from './pages/dashboard/TeacherDashboardPage';
 import StudentReviewPage from './pages/dashboard/StudentReviewPage';
 import ProfilePage from './pages/ProfilePage';
+import AdminPage from './pages/admin/AdminPage';
 import { useAuthStore } from './store/authStore';
 import { authService } from './services/auth.service';
 
@@ -85,6 +86,7 @@ export default function App() {
                 <Route path="/dashboard/:sessionId" element={<TeacherDashboardPage />} />
                 <Route path="/review/:sessionId" element={<StudentReviewPage />} />
                 <Route path="/profile" element={<ProfilePage />} />
+                <Route path="/admin" element={<AdminPage />} />
               </Route>
               {/* Session pages dùng layout riêng (fullscreen) */}
               <Route path="/session/teacher/:id" element={<TeacherSessionPage />} />

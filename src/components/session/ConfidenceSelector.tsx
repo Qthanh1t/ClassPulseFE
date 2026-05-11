@@ -1,5 +1,5 @@
 import { Button, Typography } from 'antd';
-import type { ConfidenceLevel } from '../../types';
+import type { ConfidenceLevel } from '../../types/api';
 
 const { Text } = Typography;
 
