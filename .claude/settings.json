@@ -1,0 +1,17 @@
+{
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "Write|Edit",
+        "hooks": [
+          {
+            "type": "command",
+            "shell": "powershell",
+            "command": "$raw = [Console]::In.ReadToEnd(); $json = $raw | ConvertFrom-Json; $fp = $json.tool_input.file_path; if ($fp -match 'CLAUDE\\.md$') { $msg = @{systemMessage='CLAUDE.md updated'} | ConvertTo-Json -Compress; Write-Output $msg }",
+            "statusMessage": "Checking CLAUDE.md..."
+          }
+        ]
+      }
+    ]
+  }
+}

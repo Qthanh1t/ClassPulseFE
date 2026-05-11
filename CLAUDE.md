@@ -49,6 +49,7 @@ Triết lý cốt lõi: **tối đa hóa tương tác hai chiều** trong mỗi 
 - **react-router-dom v7** — routing
 - **CKEditor5 v48** (`ckeditor5`, `@ckeditor/ckeditor5-react`) — rich text editor dùng trong `CreateQuestionModal`; tích hợp KaTeX (`katex`) cho công thức toán
 - **Recharts v3** — biểu đồ (BarChart, PieChart, RadarChart) dùng trong `TeacherDashboardPage` và `StudentReviewPage`
+- **@stomp/stompjs v7** + **sockjs-client v1** — WebSocket layer cho realtime session (M13)
 
 ## Design system
 
@@ -153,6 +154,7 @@ src/
   main.tsx                    # bootstrap authStore (wire axios interceptors trước khi render)
   lib/
     api.ts                    # Axios instance; Bearer token interceptor; silent refresh on 401 (queue pattern); injectAuthHooks(getToken, setToken, clearAuth, setUser)
+    websocket.ts              # STOMP/SockJS factory; createSessionWsClient(ticket, sessionId, onReconnect); xử lý 14 event types, heartbeat 25s, auto-reconnect
   store/
     authStore.ts              # Zustand store: { user, accessToken, setAuth, setToken, clearAuth }; gọi injectAuthHooks khi khởi tạo
   services/
@@ -163,6 +165,13 @@ src/
     schedule.service.ts       # list, create, update, remove
     document.service.ts       # list, upload, remove
     upload.service.ts         # presign + putToMinIO + uploadFile
+    session.service.ts        # start, listByClassroom, get, end, join, leave, getPresence (M09)
+    question.service.ts       # list, create, start, end, getStats (M10)
+    answer.service.ts         # submit, list (M11)
+    breakout.service.ts       # create, getActive, end, broadcast, joinRoom, leaveRoom (M12)
+    chat.service.ts           # getHistory cursor-based (M13)
+    dashboard.service.ts      # getTeacherDashboard, getStudentReview (M14/M15)
+    admin.service.ts          # getStats, listClassrooms, listUsers, updateUser (M16)
   mock/                       # static mock data — chỉ dùng cho session pages (WebRTC/WS chưa có)
     classrooms.ts
     students.ts
@@ -310,14 +319,25 @@ API trả `startTime`/`endTime` dạng `"HH:mm"` (string không có date). Khi p
 
 ## Mock data conventions
 
-- `src/mock/` chỉ còn dùng cho **session pages** (TeacherSessionPage, StudentSessionPage, TeacherDashboardPage, StudentReviewPage) — WebRTC/WebSocket M09–M10 chưa sẵn sàng
+- `src/mock/` vẫn còn trong codebase nhưng **sẽ bị xóa dần** khi tích hợp session pages (Sprint 2–3)
 - `src/mock/questions.ts` — mỗi `Question` có `answers[]` chứa kết quả mock của từng HS
 - `LIVE_SESSION` trong `sessions.ts` import trực tiếp `QUESTIONS` từ `questions.ts`
 - `TEACHER.avatarColor` và `STUDENTS[0].avatarColor` dùng `#6366f1` (không phải `#1677ff`)
 
+## WebSocket layer (`src/lib/websocket.ts`)
+
+- `createSessionWsClient(ticket, sessionId, onReconnect)` — trả về `SessionWsClient` interface
+- Ticket **dùng 1 lần**, TTL 60s — kết nối ngay sau khi nhận, không lưu localStorage
+- Heartbeat publish tới `/app/session/{id}/heartbeat` mỗi 25s
+- Khi disconnect: gọi `onReconnect()` để lấy ticket mới (teacher dùng `getWsTicket`, student dùng `sessionService.join`)
+- Subscribe session chính: `/topic/session/{sessionId}` + unicast `/user/queue/private`
+- Subscribe phòng nhỏ: `subscribeRoom(roomId, handler)` / `unsubscribeRoom(roomId)`
+- Send methods: `sendChat`, `sendRaiseHand`, `sendFocus`, `sendWebRtcOffer/Answer/IceCandidate`
+
 ## Project status
 
-**Phase 1–2 (M01–M08) đã tích hợp hoàn chỉnh.** Session pages vẫn dùng mock data chờ M09–M10.
+**Phase 1–2 (M01–M08) đã tích hợp hoàn chỉnh. Sprint 1 (types + services + WS layer) hoàn thành.**
+Kế hoạch tích hợp đầy đủ: `ClassPulseDoc/plan/integration_plan_phase3_phase4.md`
 
 | Trang | Trạng thái | API sử dụng |
 |-------|-----------|-------------|
@@ -326,9 +346,9 @@ API trả `startTime`/`endTime` dạng `"HH:mm"` (string không có date). Khi p
 | ClassListPage | ✅ Real API | `classroomService.list/create/join` |
 | ClassDetailPage | ✅ Real API | classroom/post/schedule/member/document services; đầy đủ CRUD |
 | ProfilePage | ✅ Real API | `userService.getMe/updateMe/uploadAvatar` |
-| TeacherSessionPage | 🔶 Mock | Chờ M09–M10 (WebRTC + WebSocket) |
-| StudentSessionPage | 🔶 Mock | Chờ M09–M10 |
-| TeacherDashboardPage | 🔶 Mock | Chờ M09–M10 |
-| StudentReviewPage | 🔶 Mock | Chờ M09–M10 |
+| TeacherSessionPage | 🔶 Mock | Sprint 2 — services + WS layer sẵn sàng |
+| StudentSessionPage | 🔶 Mock | Sprint 3 — services + WS layer sẵn sàng |
+| TeacherDashboardPage | 🔶 Mock | Sprint 2 — `dashboardService.getTeacherDashboard` sẵn sàng |
+| StudentReviewPage | 🔶 Mock | Sprint 3 — `dashboardService.getStudentReview` sẵn sàng |
 
 UI theo phong cách EdTech hiện đại (Coursera/Udemy style): font Outfit, design token indigo, subject-coded gradient card, bento dashboard stats, gamified student review.
