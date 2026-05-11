@@ -1,55 +1,33 @@
-import { Progress, Tag, Typography, Tooltip } from 'antd';
+import { Progress, Typography, Tooltip } from 'antd';
 import { CheckCircleOutlined, CloseCircleOutlined } from '@ant-design/icons';
 import {
   BarChart, Bar, XAxis, YAxis, Tooltip as RechartTooltip,
   ResponsiveContainer, Cell,
 } from 'recharts';
-import type { Question, StudentAnswer } from '../../types';
-import { STUDENTS } from '../../mock/students';
+import type { QuestionStatsDto, QuestionType } from '../../types/api';
 
 const { Text } = Typography;
 
 interface Props {
-  question: Question;
+  stats: QuestionStatsDto;
+  questionType: QuestionType;
 }
 
-function isAnswerCorrect(answer: StudentAnswer, question: Question): boolean {
-  if (question.type === 'essay') return false;
-  const correctIds = (question.options ?? []).filter((o) => o.isCorrect).map((o) => o.id);
-  return (
-    answer.selectedOptions.length === correctIds.length &&
-    correctIds.every((id) => answer.selectedOptions.includes(id))
-  );
-}
+export default function LiveQuestionStats({ stats, questionType }: Props) {
+  const { totalStudents, answeredCount, correctCount } = stats;
+  const wrongCount = answeredCount - correctCount;
 
-export default function LiveQuestionStats({ question }: Props) {
-  const totalStudents = STUDENTS.length;
-  const answeredAnswers = question.answers.filter(
-    (a) => a.selectedOptions.length > 0 || (a.essayText && a.essayText.length > 0),
-  );
-  const answeredCount = answeredAnswers.length;
-
-  const correctCount = question.type !== 'essay'
-    ? answeredAnswers.filter((a) => isAnswerCorrect(a, question)).length
-    : 0;
-
-  const highCount = answeredAnswers.filter((a) => a.confidence === 'high').length;
-  const medCount = answeredAnswers.filter((a) => a.confidence === 'medium').length;
-  const lowCount = answeredAnswers.filter((a) => a.confidence === 'low').length;
-
-  // Chart data for option distribution
-  const optionChartData = (question.options ?? []).map((opt) => ({
-    name: opt.label,
-    count: question.answers.filter((a) => a.selectedOptions.includes(opt.id)).length,
-    isCorrect: opt.isCorrect,
-    fullText: opt.text,
+  const optionChartData = stats.optionDistribution.map((d) => ({
+    name: d.label,
+    count: d.count,
+    isCorrect: d.isCorrect,
+    fullText: d.text,
   }));
 
-  // Confidence chart data
   const confidenceData = [
-    { name: 'Cao', count: highCount, color: '#52c41a' },
-    { name: 'TB', count: medCount, color: '#fa8c16' },
-    { name: 'Thấp', count: lowCount, color: '#ff4d4f' },
+    { name: 'Cao', count: stats.confidenceBreakdown.high, color: '#52c41a' },
+    { name: 'TB', count: stats.confidenceBreakdown.medium, color: '#fa8c16' },
+    { name: 'Thấp', count: stats.confidenceBreakdown.low, color: '#ff4d4f' },
   ];
 
   return (
@@ -64,14 +42,14 @@ export default function LiveQuestionStats({ question }: Props) {
           </Text>
         </div>
         <Progress
-          percent={Math.round((answeredCount / totalStudents) * 100)}
+          percent={totalStudents > 0 ? Math.round((answeredCount / totalStudents) * 100) : 0}
           strokeColor="#6366f1"
           size="small"
         />
       </div>
 
       {/* Correct / Wrong (only for MCQ) */}
-      {question.type !== 'essay' && answeredCount > 0 && (
+      {questionType !== 'essay' && answeredCount > 0 && (
         <div style={{ display: 'flex', gap: 8, marginBottom: 16 }}>
           <div
             style={{
@@ -107,9 +85,9 @@ export default function LiveQuestionStats({ question }: Props) {
           >
             <CloseCircleOutlined style={{ color: '#ff4d4f', fontSize: 18 }} />
             <div>
-              <div style={{ fontWeight: 600, fontSize: 20, lineHeight: 1 }}>{answeredCount - correctCount}</div>
+              <div style={{ fontWeight: 600, fontSize: 20, lineHeight: 1 }}>{wrongCount}</div>
               <Text type="secondary" style={{ fontSize: 12 }}>
-                Sai ({answeredCount > 0 ? Math.round(((answeredCount - correctCount) / answeredCount) * 100) : 0}%)
+                Sai ({answeredCount > 0 ? Math.round((wrongCount / answeredCount) * 100) : 0}%)
               </Text>
             </div>
           </div>
@@ -117,7 +95,7 @@ export default function LiveQuestionStats({ question }: Props) {
       )}
 
       {/* Per-option breakdown with BarChart */}
-      {question.type !== 'essay' && question.options && (
+      {questionType !== 'essay' && optionChartData.length > 0 && (
         <div style={{ marginBottom: 16 }}>
           <Text strong style={{ fontSize: 13, display: 'block', marginBottom: 8 }}>
             Phân bố đáp án
@@ -146,19 +124,24 @@ export default function LiveQuestionStats({ question }: Props) {
 
           {/* Legend */}
           <div style={{ display: 'flex', gap: 12, marginTop: 4, flexWrap: 'wrap' }}>
-            {question.options.map((opt) => {
-              const count = question.answers.filter((a) => a.selectedOptions.includes(opt.id)).length;
-              const pct = totalStudents > 0 ? Math.round((count / totalStudents) * 100) : 0;
+            {optionChartData.map((opt) => {
+              const pct = totalStudents > 0 ? Math.round((opt.count / totalStudents) * 100) : 0;
               return (
-                <div key={opt.id} style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-                  <Tag
-                    color={opt.isCorrect ? 'success' : 'default'}
-                    style={{ margin: 0, fontSize: 11 }}
-                  >
-                    {opt.label}
-                  </Tag>
+                <div key={opt.name} style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                  <div
+                    style={{
+                      width: 12, height: 12, borderRadius: 2,
+                      background: opt.isCorrect ? '#52c41a' : '#d9d9d9',
+                      border: '1px solid',
+                      borderColor: opt.isCorrect ? '#b7eb8f' : '#d9d9d9',
+                      fontSize: 10,
+                      display: 'flex', alignItems: 'center', justifyContent: 'center',
+                      color: opt.isCorrect ? '#52c41a' : '#595959',
+                      fontWeight: 600,
+                    }}
+                  />
                   <Text style={{ fontSize: 11, color: '#8c8c8c' }}>
-                    {count} ({pct}%)
+                    {opt.name}: {opt.count} ({pct}%)
                   </Text>
                 </div>
               );
@@ -167,7 +150,7 @@ export default function LiveQuestionStats({ question }: Props) {
         </div>
       )}
 
-      {/* Confidence breakdown with bar chart */}
+      {/* Confidence breakdown */}
       {answeredCount > 0 && (
         <div>
           <Text strong style={{ fontSize: 13, display: 'block', marginBottom: 8 }}>
@@ -193,20 +176,18 @@ export default function LiveQuestionStats({ question }: Props) {
               </Tooltip>
             ))}
           </div>
-          {answeredCount > 0 && (
-            <div style={{ display: 'flex', height: 8, borderRadius: 4, overflow: 'hidden', gap: 1 }}>
-              {confidenceData.map(({ name, count, color }) => (
-                <div
-                  key={name}
-                  style={{
-                    flex: count,
-                    background: color,
-                    minWidth: count > 0 ? 4 : 0,
-                  }}
-                />
-              ))}
-            </div>
-          )}
+          <div style={{ display: 'flex', height: 8, borderRadius: 4, overflow: 'hidden', gap: 1 }}>
+            {confidenceData.map(({ name, count, color }) => (
+              <div
+                key={name}
+                style={{
+                  flex: count,
+                  background: color,
+                  minWidth: count > 0 ? 4 : 0,
+                }}
+              />
+            ))}
+          </div>
         </div>
       )}
     </div>

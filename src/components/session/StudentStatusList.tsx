@@ -1,46 +1,42 @@
 import { Avatar, Badge, Tag, Typography, Tooltip } from 'antd';
 import { WarningOutlined } from '@ant-design/icons';
-import type { User, StudentAnswer } from '../../types';
 
 const { Text } = Typography;
 
+interface Participant {
+  id: string;
+  name: string;
+  avatarColor?: string;
+  isTeacher?: boolean;
+}
+
 interface Props {
-  students: User[];
-  answers: StudentAnswer[];
-  silentStudentIds: string[];
+  participants: Participant[];
+  answeredIds?: string[];
+  silentStudentIds?: string[];
   raisedHandIds?: string[];
-  currentQuestionId?: string;
+  questionActive?: boolean;
 }
 
 export default function StudentStatusList({
-  students,
-  answers,
-  silentStudentIds,
+  participants,
+  answeredIds = [],
+  silentStudentIds = [],
   raisedHandIds = [],
-  currentQuestionId,
+  questionActive = false,
 }: Props) {
-  const hasTeacher = students.some((s) => s.role === 'teacher');
-  const studentOnly = students.filter((s) => s.role !== 'teacher');
-
-  const getStatus = (studentId: string) => {
-    if (!currentQuestionId) return 'idle';
-    const answer = answers.find((a) => a.studentId === studentId);
-    if (!answer) return 'idle';
-    if (answer.selectedOptions.length === 0 && !answer.essayText) return 'idle';
-    return 'answered';
-  };
-
-  const answeredCount = studentOnly.filter((s) => getStatus(s.id) === 'answered').length;
+  const studentOnly = participants.filter((p) => !p.isTeacher);
+  const answeredCount = studentOnly.filter((p) => answeredIds.includes(p.id)).length;
 
   return (
     <div style={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
       <div style={{ padding: '12px 16px', borderBottom: '1px solid #f0f0f0' }}>
-        <Text strong style={{ fontSize: 14 }}>{hasTeacher ? 'Thành viên' : 'Học sinh'}</Text>
+        <Text strong style={{ fontSize: 14 }}>Thành viên</Text>
         <div>
           <Text type="secondary" style={{ fontSize: 12 }}>
-            {currentQuestionId
+            {questionActive
               ? `${answeredCount}/${studentOnly.length} đã trả lời`
-              : `${students.length} thành viên`}
+              : `${participants.length} thành viên`}
           </Text>
         </div>
         {raisedHandIds.length > 0 && (
@@ -53,31 +49,26 @@ export default function StudentStatusList({
       </div>
 
       <div style={{ flex: 1, overflowY: 'auto', padding: '8px 0' }}>
-        {students.map((student) => {
-          const isTeacher = student.role === 'teacher';
-          const status = isTeacher ? 'idle' : getStatus(student.id);
-          const isSilent = !isTeacher && silentStudentIds.includes(student.id);
-          const hasRaisedHand = !isTeacher && raisedHandIds.includes(student.id);
+        {participants.map((p) => {
+          const isSilent = !p.isTeacher && silentStudentIds.includes(p.id);
+          const hasRaisedHand = !p.isTeacher && raisedHandIds.includes(p.id);
+          const answered = !p.isTeacher && answeredIds.includes(p.id);
 
           return (
             <div
-              key={student.id}
+              key={p.id}
               style={{
                 display: 'flex',
                 alignItems: 'center',
                 gap: 10,
                 padding: '7px 16px',
-                background: hasRaisedHand
-                  ? '#fff7e6'
-                  : isSilent
-                    ? '#fff2f0'
-                    : 'transparent',
+                background: hasRaisedHand ? '#fff7e6' : isSilent ? '#fff2f0' : 'transparent',
                 transition: 'background 0.2s',
               }}
             >
               <div style={{ position: 'relative' }}>
-                <Avatar size={32} style={{ background: student.avatarColor, fontSize: 13 }}>
-                  {student.name.charAt(0)}
+                <Avatar size={32} style={{ background: p.avatarColor ?? '#6366f1', fontSize: 13 }}>
+                  {p.name.charAt(0)}
                 </Avatar>
                 <div
                   style={{
@@ -95,16 +86,16 @@ export default function StudentStatusList({
 
               <div style={{ flex: 1, minWidth: 0 }}>
                 <Text style={{ fontSize: 13, display: 'block' }} ellipsis>
-                  {student.name}
+                  {p.name}
                 </Text>
-                {isTeacher && (
+                {p.isTeacher && (
                   <Tag color="blue" style={{ fontSize: 10, padding: '0 4px', lineHeight: '16px', marginTop: 1 }}>
                     GV
                   </Tag>
                 )}
               </div>
 
-              {!isTeacher && (
+              {!p.isTeacher && (
                 <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
                   {hasRaisedHand && (
                     <Tooltip title="Đang giơ tay">
@@ -116,12 +107,12 @@ export default function StudentStatusList({
                       <WarningOutlined style={{ color: '#ff4d4f', fontSize: 13 }} />
                     </Tooltip>
                   )}
-                  {currentQuestionId && (
+                  {questionActive && (
                     <Badge
-                      status={status === 'answered' ? 'success' : 'default'}
+                      status={answered ? 'success' : 'default'}
                       text={
-                        <Text style={{ fontSize: 11, color: status === 'answered' ? '#52c41a' : '#bfbfbf' }}>
-                          {status === 'answered' ? '✓' : '○'}
+                        <Text style={{ fontSize: 11, color: answered ? '#52c41a' : '#bfbfbf' }}>
+                          {answered ? '✓' : '○'}
                         </Text>
                       }
                     />

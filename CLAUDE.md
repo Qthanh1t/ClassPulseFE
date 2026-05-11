@@ -147,7 +147,7 @@ Session pages (`/session/*`) và `LoginPage` **không dùng `AppLayout`** — ch
 ```
 src/
   types/
-    index.ts                  # TypeScript interfaces cho mock data (session pages)
+    index.ts                  # TypeScript interfaces cho mock data (không dùng nữa — giữ lại cho BreakoutPanel)
     api.ts                    # DTO types cho API: ApiResponse, AuthResponse, ClassroomDto, PostDto, ScheduleDto, DocumentDto, ...
   index.css                   # Outfit font import, CSS tokens (:root), utility classes (.sq-*)
   App.tsx                     # Router + AntD ConfigProvider + AuthBootstrap + ProtectedRoute
@@ -172,19 +172,19 @@ src/
     chat.service.ts           # getHistory cursor-based (M13)
     dashboard.service.ts      # getTeacherDashboard, getStudentReview (M14/M15)
     admin.service.ts          # getStats, listClassrooms, listUsers, updateUser (M16)
-  mock/                       # static mock data — chỉ dùng cho session pages (WebRTC/WS chưa có)
+  mock/                       # dead code — không còn import trong pages; có thể xóa khi Sprint 4 xong
     classrooms.ts
-    students.ts
+    students.ts               # vẫn dùng trong BreakoutPanel.tsx (Sprint 4 sẽ thay)
     questions.ts
     sessions.ts
   components/
     layout/AppLayout.tsx      # Sidebar (232px, fixed) + Header (sticky) + <Outlet />; đọc user từ authStore
     session/
-      StudentStatusList.tsx
-      LiveQuestionStats.tsx
+      StudentStatusList.tsx   # props: participants: Participant[], answeredIds, silentStudentIds, raisedHandIds, questionActive
+      LiveQuestionStats.tsx   # props: stats: QuestionStatsDto, questionType: QuestionType
       ConfidenceSelector.tsx
-      CreateQuestionModal.tsx # modal 2 bước; đáp án MCQ hỗ trợ LaTeX; KaTeX preview
-      BreakoutPanel.tsx
+      CreateQuestionModal.tsx # modal 2 bước; onSubmit: (req: CreateQuestionRequest) => void; đáp án MCQ hỗ trợ LaTeX
+      BreakoutPanel.tsx       # Sprint 4: vẫn dùng mock STUDENTS nội bộ
       ChatPanel.tsx
       RichTextEditor.tsx      # CKEditor5; prop initialValue để pre-fill khi edit post
       CtrlBtn.tsx
@@ -193,10 +193,10 @@ src/
     ProfilePage.tsx           # gọi userService.getMe/updateMe/uploadAvatar
     classroom/ClassListPage.tsx     # classroomService.list/create/join
     classroom/ClassDetailPage.tsx   # xem chi tiết bên dưới
-    session/TeacherSessionPage.tsx  # vẫn dùng mock data (M09–M10 chưa sẵn sàng)
-    session/StudentSessionPage.tsx  # vẫn dùng mock data
-    dashboard/TeacherDashboardPage.tsx  # vẫn dùng mock data
-    dashboard/StudentReviewPage.tsx     # vẫn dùng mock data
+    session/TeacherSessionPage.tsx  # Real API: sessionService.start + questionService + WS events
+    session/StudentSessionPage.tsx  # Real API: sessionService.join + answerService + WS events
+    dashboard/TeacherDashboardPage.tsx  # Real API: dashboardService.getTeacherDashboard
+    dashboard/StudentReviewPage.tsx     # Real API: dashboardService.getStudentReview
 ```
 
 ## AppLayout
@@ -237,63 +237,70 @@ Layout 2 cột (không dùng AppLayout):
 
 ## TeacherDashboardPage
 
+Dữ liệu từ `dashboardService.getTeacherDashboard(sessionId)` → `DashboardResponse`. Load song song với `sessionService.get(sessionId)` để lấy `classroomId` (dùng cho nút "Buổi học mới"). Nếu nhận `SESSION_NOT_ENDED` error thì retry sau 1.5s.
+
 - **Header section**: dark indigo gradient (`#1e1b4b → #4338ca`)
-- **`StatCard`**: component nội bộ; icon trong hộp màu nhạt (lightBg) + số lớn + label uppercase; 4 card trong Row gutter 16
-- **Bar chart**: màu bar theo rate (emerald ≥70%, amber 40–70%, rose <40%); axisLine/tickLine ẩn
-- **Pie chart**: 3 màu emerald/rose/slate; có mini stat row bên dưới
-- **Detail tabs**: "Chi tiết từng câu hỏi" dùng `Collapse`; "Kết quả học sinh" dùng `Table` với summary row — mỗi ô câu hỏi hiển thị 2 thông tin xếp dọc: icon kết quả (✓/✗/–) + badge tự tin nhỏ (Cao/TB/Thấp màu emerald/amber/rose); có legend giải thích ký hiệu phía trên bảng; cột câu hỏi rộng 88px
+- **`StatCard`**: component nội bộ; icon trong hộp màu nhạt (lightBg) + số lớn + label uppercase; 4 card: Câu hỏi, Điểm TB, Tham gia, Vắng mặt
+- **Bar chart**: `questions: QuestionSummary[]`; màu bar theo `correctCount/answeredCount` (emerald ≥70%, amber 40–70%, rose <40%); axisLine/tickLine ẩn
+- **Pie chart**: 3 màu emerald/rose/slate cho tỉ lệ đúng/sai/bỏ qua; tính từ `overallStats` + `questions` aggregate
+- **Detail tabs**: "Chi tiết từng câu hỏi" dùng `Collapse` với `questions[].options`; "Kết quả học sinh" dùng `Table` từ `students: StudentResult[]` — cột Học sinh | Đã trả lời | Đúng | Bỏ qua | Điểm% (không có per-question matrix vì API chỉ trả aggregate); `rowKey="studentId"`
 
 ## StudentReviewPage
 
-- **Score hero card**: accent strip 4px ở top (gradient theo điểm); Progress circle 110px; 3 mini stat box (Đúng/Sai/Bỏ qua) với nền màu
-- **Performance message**: 3 cấp độ — "Xuất sắc!" (emerald), "Khá tốt!" (amber), "Cần cố gắng hơn" (rose)
-- **Bar chart**: bars màu emerald/rose/slate theo kết quả từng câu
-- **Radar chart**: 2 series — "Trả lời" (indigo) và "Đúng" (emerald)
-- **Question card**: border-left accent + header tinted background theo kết quả; MCQ option highlight (đúng: green, sai+chọn: red)
+Dữ liệu từ `dashboardService.getStudentReview(sessionId)` → `ReviewResponse`. Load song song với `sessionService.get(sessionId)` để lấy `classroomName`. Student name/avatar từ `useAuthStore`.
 
-## TeacherSessionPage — demo state
+- **Score hero card**: accent strip 4px ở top (gradient theo `scorePercent`); Progress circle 110px hiển thị `correctCount/mcqTotal`; 3 mini stat box (Đúng/Sai/Bỏ qua) với nền màu
+- **Performance message**: 3 cấp độ — "Xuất sắc!" ≥70% (emerald), "Khá tốt!" 40–70% (amber), "Cần cố gắng hơn" <40% (rose)
+- **Bar chart**: `questions: QuestionReview[]`; bars màu theo `result` (`correct`=emerald, `wrong`=rose, `skipped`=slate)
+- **Radar chart**: 2 series — "Trả lời" (indigo) và "Đúng" (emerald); nhóm theo `confidence` (high/medium/low)
+- **Question card**: border-left accent + header tinted background theo `result`; MCQ option highlight dùng `OptionReview.correct` (green) và `OptionReview.selectedByMe && !correct` (red)
 
-Trang này dùng `Segmented` control ở top bar để switch giữa 4 state demo (thay cho websocket thật). Segmented không có label "Demo:" — blend vào dark header với `background: rgba(255,255,255,0.1)`.
+## TeacherSessionPage
 
-| State | Mô tả |
-|---|---|
-| `idle` | Vùng video/screen share (ảnh `src/assets/hero.png` + overlay tên GV) + thumbnails HS; hỗ trợ **focus mode** (xem bên dưới) |
-| `running` | Câu hỏi đang chạy + `LiveQuestionStats` cập nhật theo mock data |
-| `ended` | Kết quả đầy đủ sau khi kết thúc câu hỏi |
-| `breakout` | `BreakoutPanel` với 2 mode: **setup** (tạo phòng, gán HS) → **active** (GV vào/rời phòng, broadcast) |
+Route `:id` = `classroomId`. Init flow:
+1. `sessionService.start(classroomId)` → `SessionDto` với `wsTicket`
+2. Nếu lỗi `SESSION_ALREADY_ACTIVE`: `sessionService.listByClassroom` → find active → `authService.getWsTicket`
+3. Load song song: `sessionService.getPresence`, `chatService.getHistory`, `questionService.list` (find running)
+4. `createSessionWsClient(wsTicket, sessionId, () => authService.getWsTicket().ticket)`
 
-Các tính năng khác trong trang:
+**`viewMode`** (derived, không phải state): `breakout/showBreakoutPanel → 'breakout'` | `runningQuestion?.status === 'running' → 'running'` | `runningQuestion?.status === 'ended' → 'ended'` | `'idle'`
+
+**WS events xử lý**: `student_presence` → `setPresence`; `question_started` → `setRunningQuestion` + reset stats; `question_ended` → update status; `raise_hand_changed` → `setRaisedHandIds`; `answer_aggregate` → `setQuestionStats`; `breakout_started/ended` → `setBreakout`; `chat_message` → append
+
+**Các tính năng**:
 - **Bottom control bar**: toggle mic/camera/screen share; toggle student list panel, quick actions panel, chat panel; nút "Kết thúc buổi học"
-- **Session timer**: đếm thời gian từ khi vào trang (hiển thị `HH:MM:SS` ở top bar)
-- **Chat panel** (`ChatPanel`): bật/tắt bằng nút chat ở bottom bar; dùng `MOCK_CHAT_MESSAGES` làm dữ liệu ban đầu
-- **End session modal**: confirm trước khi điều hướng → `/dashboard/:sessionId`
-- **Raised hand**: mock `raisedHandIds = ['s3', 's5']`, hiển thị ✋ trên thumbnail HS
-- **Question timer**: khi GV đặt thời gian, hiển thị circular progress (44px) đếm ngược cạnh nút "Kết thúc"; màu xanh→cam→đỏ theo % còn lại; tự chuyển state `ended` khi về 0; reset khi kết thúc thủ công hoặc chuyển câu tiếp
-- **Silent student alert**: khi `demoState === 'running'`, hiển thị Alert warning với avatar + tên cụ thể của từng HS trong `silentStudentIds`
-- **Focus mode**: `focusedStudentId: string | null` state; khi `demoState === 'idle'` + focus bật → main video area chia 2 grid (GV trái, HS phải phóng to với viền indigo); top bar hiện Tag "Focus: [tên]" + nút X unfocus; thumbnail HS đang focus có viền indigo + nền nhạt; hover thumbnail → hiện `AimOutlined` icon để trigger focus
+- **Session timer**: `setInterval` 1s từ khi mount, hiển thị `HH:MM:SS` ở top bar
+- **Chat panel** (`ChatPanel`): init từ `chatService.getHistory`; gửi qua `ws.sendChat`; nhận qua WS `chat_message`
+- **End session**: `sessionService.end(sessionId)` → navigate `/dashboard/${res.data.sessionId}`
+- **Raised hand**: từ WS `raise_hand_changed`; hiển thị ✋ trên thumbnail HS trong `raisedHandIds`
+- **Question timer**: `timeRemaining` tính từ `runningQuestion.endsAt` (server timestamp) và `now` tick; circular progress (44px) màu xanh→cam→đỏ; tự chuyển `ended` khi về 0
+- **Silent student alert**: `questionStats.silentStudents[]` — Alert warning với avatar + tên từng HS
+- **Focus mode**: `focusedStudentId: string | null`; `ws.sendFocus(studentId)`; main video area chia 2 grid; top bar Tag "Focus: [tên]" + nút X
+- **CreateQuestion**: `handleCreateQuestion(req)` → `questionService.create` → `questionService.start` → set initial `questionStats`
+- **BreakoutPanel**: Sprint 4 pending — vẫn dùng mock `STUDENTS` nội bộ; `showBreakoutPanel` state toggle UI
+- **`presenceRef`**: `useRef<PresenceDto[]>` giữ sync với `presence` state để WS handler truy cập latest value
 
-## StudentSessionPage — demo state
+## StudentSessionPage
 
-Trang này dùng `Segmented` control ở top bar để switch giữa 3 state demo (không có label "Demo:"):
+Route `:id` = `classroomId`. Init flow:
+1. `sessionService.listByClassroom(classroomId)` → find active session
+2. `sessionService.join(activeSession.id)` → `JoinSessionResponse { sessionId, classroomName, teacherName, wsTicket }`
+3. Load song song: `sessionService.getPresence`, `chatService.getHistory`, `questionService.list` (find running → setRunningQuestion)
+4. `createSessionWsClient(wsTicket, sessionId, () => sessionService.join(sessionId).wsTicket)`
 
-| State | Mô tả |
-|---|---|
-| `idle` | Lớp học bình thường — video GV full + thumbnails các HS |
-| `question` | Xuất hiện notification modal "GV vừa đặt câu hỏi"; floating question panel (góc dưới phải) để trả lời + chọn confidence |
-| `breakout` | Banner tên nhóm + task; video grid chỉ hiện thành viên cùng nhóm; có nút demo "GV gửi thông báo" để trigger broadcast alert |
+Nếu không có session active → hiển thị màn hình "Không có buổi học đang diễn ra".
 
-Các tính năng khác trong trang:
-- **Panel thành viên** (trái, 200px): hiển thị `[TEACHER, ...STUDENTS]` qua `StudentStatusList`; GV có tag "(GV)"; toggle bằng nút `TeamOutlined` ở bottom bar
-- **Floating question panel**: hiển thị câu hỏi, đáp án (single/multiple/essay), `ConfidenceSelector`; thu nhỏ được sau khi nộp; header hiện countdown timer Progress circle 34px (mock `QUESTION_TIMER_SECONDS = 90`); tự submit khi hết giờ
-- **Demo loại câu hỏi**: dải nút "Trắc nghiệm / Nhiều đáp án / Tự luận" trong panel, map tới question index `{ single: 0, multiple: 2, essay: 4 }`; đổi type → reset đáp án + restart timer; type hiện tại lưu trong `demoQType` state
-- **Phóng to panel**: nút `ExpandAltOutlined` / `CompressOutlined` trong header panel; khi expanded dùng `position: absolute, inset: 0` để phủ toàn vùng video
-- **Tự luận dùng RichTextEditor**: câu tự luận render `RichTextEditor` thay vì `TextArea`; sau khi submit hiển thị HTML read-only qua `dangerouslySetInnerHTML`; `canSubmit` strip HTML tags trước khi kiểm tra rỗng
-- **Bottom control bar** (dùng `CtrlBtn`): Mic | Camera | Screen Share | ✋ | — | Participants | Chat | Câu hỏi | — | Rời lớp; có `overflowX: auto`
-- **Screen share**: state `screenShareOn`, hiển thị overlay/badge trên self-tile khi breakout
-- **Chat panel** (`ChatPanel`): dùng `MOCK_CHAT_MESSAGES` làm dữ liệu ban đầu
-- **Broadcast alert**: khi ở breakout, GV gửi thông báo hiện `Alert` ở trên cùng
-- **Breakout grid**: ẩn video GV, hiện equal CSS grid (`auto-fill minmax(180px,1fr)`) của các thành viên nhóm; self-tile có viền xanh + mic-off/raised-hand indicator
-- **Leave confirm modal**: click "Rời lớp" → Modal confirm hiện số câu đã trả lời; nút "Rời lớp & Xem kết quả" → navigate `/review/:sessionId`
+**WS events xử lý**: `student_presence` → `setPresence`; `question_started` → `setRunningQuestion` + reset answers + show panel/modal; `question_ended` → update status; `raise_hand_changed` → `setRaisedHandIds`; `breakout_started` → `setMyRoom` + `ws.subscribeRoom`; `breakout_ended` → `setMyRoom(null)` + unsubscribe; `broadcast_message` → `setBroadcastMsg`; `chat_message` → append
+
+**Các tính năng**:
+- **Panel thành viên** (trái, 200px): `[{ id:'teacher', teacherName, isTeacher:true }, ...presence]` qua `StudentStatusList`; toggle `TeamOutlined`
+- **Floating question panel**: câu hỏi từ `runningQuestion: QuestionDto`; options type `single/multiple`; essay dùng `RichTextEditor`; `ConfidenceSelector`; thu nhỏ/phóng to; countdown timer từ `runningQuestion.endsAt`
+- **Submit**: `answerService.submit(sessionId, questionId, { selectedOptionIds, essayText, confidence })`; auto-submit khi `timeRemaining === 0` via `submitFnRef`
+- **Raise hand**: `ws.sendRaiseHand(raised)`; trạng thái MY raise hand = `raisedHandIds.includes(me?.id)`
+- **Chat**: `ws.sendChat(text, roomId?)`; nhận WS `chat_message`; init từ `chatService.getHistory`
+- **Breakout**: `myRoom: RoomDto | null`; grid từ `myRoom.students`; subscribe/unsubscribe room topic
+- **Leave**: `sessionService.leave(sessionId)` → navigate `/review/:sessionId`
+- **Bottom control bar** (dùng `CtrlBtn`): Mic | Camera | Screen Share | ✋ | — | Participants | Chat | Câu hỏi (nếu running) | — | Rời lớp; `overflowX: auto`
 
 ## TypeScript configuration
 
@@ -319,10 +326,7 @@ API trả `startTime`/`endTime` dạng `"HH:mm"` (string không có date). Khi p
 
 ## Mock data conventions
 
-- `src/mock/` vẫn còn trong codebase nhưng **sẽ bị xóa dần** khi tích hợp session pages (Sprint 2–3)
-- `src/mock/questions.ts` — mỗi `Question` có `answers[]` chứa kết quả mock của từng HS
-- `LIVE_SESSION` trong `sessions.ts` import trực tiếp `QUESTIONS` từ `questions.ts`
-- `TEACHER.avatarColor` và `STUDENTS[0].avatarColor` dùng `#6366f1` (không phải `#1677ff`)
+`src/mock/` không còn được import bởi bất kỳ page nào (Sprint 2–3 hoàn thành). File duy nhất còn dùng mock là `BreakoutPanel.tsx` (import `STUDENTS` nội bộ — Sprint 4 sẽ thay). Có thể xóa toàn bộ `src/mock/` sau khi Sprint 4 xong.
 
 ## WebSocket layer (`src/lib/websocket.ts`)
 
@@ -336,7 +340,7 @@ API trả `startTime`/`endTime` dạng `"HH:mm"` (string không có date). Khi p
 
 ## Project status
 
-**Phase 1–2 (M01–M08) đã tích hợp hoàn chỉnh. Sprint 1 (types + services + WS layer) hoàn thành.**
+**Phase 1–4 (M01–M15) đã tích hợp hoàn chỉnh. Sprint 4 (BreakoutPanel + ChatPanel + AdminPage) còn lại.**
 Kế hoạch tích hợp đầy đủ: `ClassPulseDoc/plan/integration_plan_phase3_phase4.md`
 
 | Trang | Trạng thái | API sử dụng |
@@ -346,9 +350,16 @@ Kế hoạch tích hợp đầy đủ: `ClassPulseDoc/plan/integration_plan_phas
 | ClassListPage | ✅ Real API | `classroomService.list/create/join` |
 | ClassDetailPage | ✅ Real API | classroom/post/schedule/member/document services; đầy đủ CRUD |
 | ProfilePage | ✅ Real API | `userService.getMe/updateMe/uploadAvatar` |
-| TeacherSessionPage | 🔶 Mock | Sprint 2 — services + WS layer sẵn sàng |
-| StudentSessionPage | 🔶 Mock | Sprint 3 — services + WS layer sẵn sàng |
-| TeacherDashboardPage | 🔶 Mock | Sprint 2 — `dashboardService.getTeacherDashboard` sẵn sàng |
-| StudentReviewPage | 🔶 Mock | Sprint 3 — `dashboardService.getStudentReview` sẵn sàng |
+| TeacherSessionPage | ✅ Real API | `sessionService.start`; `questionService.create/start/end`; `questionStats` via WS; `breakoutService` (Sprint 4 BreakoutPanel) |
+| StudentSessionPage | ✅ Real API | `sessionService.join/leave`; `answerService.submit`; WS events; `chatService.getHistory` |
+| TeacherDashboardPage | ✅ Real API | `dashboardService.getTeacherDashboard` → `DashboardResponse` |
+| StudentReviewPage | ✅ Real API | `dashboardService.getStudentReview` → `ReviewResponse` |
+| AdminPage | 🔲 Chưa có | Sprint 4 — `adminService.getStats/listClassrooms/listUsers/updateUser` |
+
+**Sprint 4 còn lại:**
+- `BreakoutPanel.tsx` — thay mock `STUDENTS` bằng `breakoutService.create/getActive/end/broadcast/joinRoom/leaveRoom` + WS
+- `ChatPanel.tsx` trong TeacherSessionPage — đã dùng WS `sendChat`; cần kiểm tra chat history load
+- Tạo `AdminPage` với `adminService`
+- Xóa `src/mock/` sau khi BreakoutPanel xong
 
 UI theo phong cách EdTech hiện đại (Coursera/Udemy style): font Outfit, design token indigo, subject-coded gradient card, bento dashboard stats, gamified student review.

@@ -1,276 +1,324 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import {
-  Avatar, Badge, Button, Checkbox, Modal, Progress, Radio, Segmented, Tag, Tooltip, Typography, Alert,
+  Avatar, Badge, Button, Checkbox, Modal, Progress, Radio,
+  Spin, Tag, Tooltip, Typography, Alert,
 } from 'antd';
 import {
   CheckCircleOutlined, ClockCircleOutlined, TeamOutlined,
   SendOutlined, MessageOutlined, AudioOutlined, AudioMutedOutlined,
   VideoCameraOutlined, MinusOutlined, ExpandAltOutlined, ExclamationCircleOutlined,
-  BellOutlined, ArrowLeftOutlined, DesktopOutlined, CompressOutlined,
+  ArrowLeftOutlined, DesktopOutlined, CompressOutlined,
 } from '@ant-design/icons';
-import { useNavigate } from 'react-router-dom';
-import { LIVE_SESSION } from '../../mock/sessions';
-import { STUDENTS, TEACHER } from '../../mock/students';
+import { useNavigate, useParams } from 'react-router-dom';
+import { useAuthStore } from '../../store/authStore';
+import sessionService from '../../services/session.service';
+import questionService from '../../services/question.service';
+import answerService from '../../services/answer.service';
+import chatService from '../../services/chat.service';
+import { createSessionWsClient } from '../../lib/websocket';
+import type { SessionWsClient, WsEvent } from '../../lib/websocket';
 import ConfidenceSelector from '../../components/session/ConfidenceSelector';
-import ChatPanel, { MOCK_CHAT_MESSAGES } from '../../components/session/ChatPanel';
+import ChatPanel from '../../components/session/ChatPanel';
+import type { ChatMessage } from '../../components/session/ChatPanel';
 import StudentStatusList from '../../components/session/StudentStatusList';
 import CtrlBtn from '../../components/session/CtrlBtn';
-import type { ChatMessage } from '../../components/session/ChatPanel';
-import type { ConfidenceLevel } from '../../types';
 import RichTextEditor from '../../components/session/RichTextEditor';
 import heroImg from '../../assets/hero.png';
+import type {
+  JoinSessionResponse, PresenceDto, QuestionDto, BreakoutSessionDto,
+  ChatMessageDto, RoomDto, ConfidenceLevel,
+} from '../../types/api';
 
 const { Text, Title } = Typography;
 
-const STUDENT = STUDENTS[0]; // demo as s1 — Nguyễn Văn An
-const QUESTION_TIMER_SECONDS = 90;
-
-type StudentDemoState = 'idle' | 'question' | 'breakout';
-type DemoQType = 'single' | 'multiple' | 'essay';
-
-// Map each demo type to a question index in LIVE_SESSION.questions
-const Q_TYPE_IDX: Record<DemoQType, number> = { single: 0, multiple: 2, essay: 4 };
-
-function getNow() {
-  const d = new Date();
-  return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+function dtoToChat(dto: ChatMessageDto): ChatMessage {
+  const d = new Date(dto.sentAt);
+  const time = `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+  return {
+    id: dto.id,
+    senderId: dto.sender.id,
+    senderName: dto.sender.name,
+    avatarColor: dto.sender.avatarColor ?? '#6366f1',
+    content: dto.content,
+    time,
+    isTeacher: dto.sender.role === 'teacher',
+  };
 }
 
+const Q_TYPE_LABEL: Record<string, string> = {
+  single: 'Trắc nghiệm 1 đáp án',
+  multiple: 'Nhiều đáp án',
+  essay: 'Tự luận',
+};
+
 export default function StudentSessionPage() {
+  const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const session = LIVE_SESSION;
+  const me = useAuthStore((s) => s.user);
 
-  // ── Demo switcher ──
-  const [demoState, setDemoState] = useState<StudentDemoState>('idle');
+  const [loading, setLoading] = useState(true);
+  const [joinInfo, setJoinInfo] = useState<JoinSessionResponse | null>(null);
 
-  // ── Question type demo ──
-  const [demoQType, setDemoQType] = useState<DemoQType>('single');
-  const question = session.questions[Q_TYPE_IDX[demoQType]];
+  const [presence, setPresence] = useState<PresenceDto[]>([]);
+  const [raisedHandIds, setRaisedHandIds] = useState<string[]>([]);
 
-  // ── Question answer state ──
+  const [runningQuestion, setRunningQuestion] = useState<QuestionDto | null>(null);
+  const [questionSubmitted, setQuestionSubmitted] = useState(false);
   const [selectedOptions, setSelectedOptions] = useState<string[]>([]);
   const [essayText, setEssayText] = useState('');
   const [confidence, setConfidence] = useState<ConfidenceLevel | null>(null);
-  const [submitted, setSubmitted] = useState(false);
 
-  // ── Question popup panel ──
+  const [myRoom, setMyRoom] = useState<RoomDto | null>(null);
+  const [broadcastMsg, setBroadcastMsg] = useState<string | null>(null);
+
+  const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
+
+  const [micOn, setMicOn] = useState(true);
+  const [cameraOn, setCameraOn] = useState(true);
+  const [screenShareOn, setScreenShareOn] = useState(false);
+  const [showChat, setShowChat] = useState(false);
+  const [showParticipants, setShowParticipants] = useState(true);
+  const [leaveOpen, setLeaveOpen] = useState(false);
   const [questionPanelOpen, setQuestionPanelOpen] = useState(false);
   const [panelExpanded, setPanelExpanded] = useState(false);
   const [showNewQuestionModal, setShowNewQuestionModal] = useState(false);
 
-  // ── Media & UI controls ──
-  const [micOn, setMicOn] = useState(true);
-  const [cameraOn, setCameraOn] = useState(true);
-  const [screenShareOn, setScreenShareOn] = useState(false);
-  const [raisedHand, setRaisedHand] = useState(false);
-  const [showChat, setShowChat] = useState(false);
-  const [showParticipants, setShowParticipants] = useState(true);
+  const [now, setNow] = useState(Date.now());
 
-  // ── Chat ──
-  const [chatMessages, setChatMessages] = useState<ChatMessage[]>(MOCK_CHAT_MESSAGES);
+  const wsRef = useRef<SessionWsClient | null>(null);
+  // Ref to always-current submit fn (avoids stale closure in timer effect)
+  const submitFnRef = useRef<(() => void) | null>(null);
 
-  // ── Broadcast (breakout) ──
-  const [broadcastMsg, setBroadcastMsg] = useState<string | null>(null);
+  // Clock tick for countdown
+  useEffect(() => {
+    const tid = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(tid);
+  }, []);
 
-  // ── Question timer (student-side) ──
-  const [timeRemaining, setTimeRemaining] = useState(0);
-  const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  // ── Init ──────────────────────────────────────────────────────────
+  useEffect(() => {
+    async function init() {
+      try {
+        const sessionsRes = await sessionService.listByClassroom(id!);
+        const active = sessionsRes.data?.find((s) => s.status === 'active');
+        if (!active) { setLoading(false); return; }
 
-  // ── Leave confirm modal ──
-  const [leaveOpen, setLeaveOpen] = useState(false);
+        const joinRes = await sessionService.join(active.id);
+        if (!joinRes.data) { setLoading(false); return; }
+        const info = joinRes.data;
+        setJoinInfo(info);
 
-  const myGroup = session.breakoutGroups?.find((g) => g.studentIds.includes(STUDENT.id));
-  const myGroupMembers = myGroup ? STUDENTS.filter((s) => myGroup.studentIds.includes(s.id)) : [];
+        const [presenceRes, chatHistRes, questionsRes] = await Promise.all([
+          sessionService.getPresence(info.sessionId),
+          chatService.getHistory(info.sessionId, 50),
+          questionService.list(info.sessionId),
+        ]);
+        if (presenceRes.data) setPresence(presenceRes.data);
+        if (chatHistRes.data) setChatMessages(chatHistRes.data.map(dtoToChat));
+        const runningQ = questionsRes.data?.find((q) => q.status === 'running');
+        if (runningQ) { setRunningQuestion(runningQ); setQuestionPanelOpen(true); }
 
-  const handleDemoStateChange = (val: string) => {
-    const state = val as StudentDemoState;
-    if (state === 'question' && demoState !== 'question') {
-      setShowNewQuestionModal(true);
-      setQuestionPanelOpen(true);
-      resetAnswers();
+        function handleEvent(event: WsEvent) {
+          switch (event.type) {
+            case 'student_presence':
+              setPresence(event.payload as PresenceDto[]);
+              break;
+            case 'question_started': {
+              const q = event.payload as QuestionDto;
+              setRunningQuestion(q);
+              setQuestionSubmitted(false);
+              setSelectedOptions([]);
+              setEssayText('');
+              setConfidence(null);
+              setQuestionPanelOpen(true);
+              setShowNewQuestionModal(true);
+              break;
+            }
+            case 'question_ended':
+              setRunningQuestion((prev) => (prev ? { ...prev, status: 'ended' } : null));
+              break;
+            case 'raise_hand_changed': {
+              const { studentId, raised } = event.payload as { studentId: string; raised: boolean };
+              setRaisedHandIds((prev) =>
+                raised
+                  ? [...prev.filter((sid) => sid !== studentId), studentId]
+                  : prev.filter((sid) => sid !== studentId),
+              );
+              break;
+            }
+            case 'breakout_started': {
+              const bo = event.payload as BreakoutSessionDto;
+              const room = bo.rooms.find((r) => r.students.some((s) => s.id === me?.id));
+              setMyRoom(room ?? null);
+              if (room) wsRef.current?.subscribeRoom(room.id, handleEvent);
+              break;
+            }
+            case 'breakout_ended':
+              setMyRoom((prev) => {
+                if (prev) wsRef.current?.unsubscribeRoom(prev.id);
+                return null;
+              });
+              break;
+            case 'broadcast_message': {
+              const { content } = event.payload as { content: string };
+              setBroadcastMsg(content);
+              break;
+            }
+            case 'chat_message':
+              setChatMessages((prev) => [...prev, dtoToChat(event.payload as ChatMessageDto)]);
+              break;
+          }
+        }
+
+        const ws = createSessionWsClient(
+          info.wsTicket,
+          info.sessionId,
+          async () => (await sessionService.join(info.sessionId)).data!.wsTicket,
+        );
+        ws.subscribe(handleEvent);
+        wsRef.current = ws;
+        setLoading(false);
+      } catch {
+        setLoading(false);
+      }
     }
-    if (state !== 'question') {
-      setQuestionPanelOpen(false);
-      setPanelExpanded(false);
+    init();
+    return () => wsRef.current?.disconnect();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [id]);
+
+  // ── Derived ───────────────────────────────────────────────────────
+  const isBreakout = myRoom !== null;
+  const isQuestionRunning = runningQuestion?.status === 'running';
+  const TIMER_TOTAL = runningQuestion?.timerSeconds ?? 0;
+  const timeRemaining =
+    isQuestionRunning && runningQuestion?.endsAt && !questionSubmitted
+      ? Math.max(0, Math.round((new Date(runningQuestion.endsAt).getTime() - now) / 1000))
+      : null;
+
+  const essayHasContent = essayText.replace(/<[^>]*>/g, '').trim().length > 0;
+  const canSubmit = selectedOptions.length > 0 || essayHasContent;
+  const myRaisedHand = raisedHandIds.includes(me?.id ?? '');
+  const myAvatarColor = me?.avatarColor ?? '#6366f1';
+
+  // ── Handlers ──────────────────────────────────────────────────────
+  const handleSubmit = useCallback(async () => {
+    if (!runningQuestion || !joinInfo || questionSubmitted) return;
+    setQuestionSubmitted(true);
+    try {
+      await answerService.submit(joinInfo.sessionId, runningQuestion.id, {
+        selectedOptionIds: selectedOptions.length > 0 ? selectedOptions : undefined,
+        essayText: essayText || undefined,
+        confidence: confidence || undefined,
+      });
+    } catch { /* keep submitted flag */ }
+  }, [runningQuestion, joinInfo, questionSubmitted, selectedOptions, essayText, confidence]);
+
+  // Keep submit ref current for timer effect
+  useEffect(() => { submitFnRef.current = handleSubmit; }, [handleSubmit]);
+
+  // Auto-submit when timer expires
+  useEffect(() => {
+    if (timeRemaining === 0 && runningQuestion && !questionSubmitted) {
+      submitFnRef.current?.();
     }
-    setDemoState(state);
-  };
-
-  function resetAnswers() {
-    setSelectedOptions([]);
-    setEssayText('');
-    setConfidence(null);
-    setSubmitted(false);
-  }
-
-  function handleQTypeChange(type: DemoQType) {
-    if (type === demoQType) return;
-    setDemoQType(type);
-    resetAnswers();
-  }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [timeRemaining]);
 
   const handleSelectSingle = (optId: string) => {
-    if (submitted) return;
+    if (questionSubmitted) return;
     setSelectedOptions([optId]);
   };
 
   const handleSelectMultiple = (optId: string) => {
-    if (submitted) return;
+    if (questionSubmitted) return;
     setSelectedOptions((prev) =>
       prev.includes(optId) ? prev.filter((id) => id !== optId) : [...prev, optId],
     );
   };
 
-  const handleSubmit = () => {
-    if (selectedOptions.length === 0 && !essayText.trim()) return;
-    setSubmitted(true);
+  const handleRaiseHand = () => {
+    const raised = !myRaisedHand;
+    wsRef.current?.sendRaiseHand(raised);
   };
 
   const handleSendChat = (text: string) => {
-    setChatMessages((prev) => [
-      ...prev,
-      {
-        id: String(Date.now()),
-        senderId: STUDENT.id,
-        senderName: STUDENT.name,
-        avatarColor: STUDENT.avatarColor ?? '#6366f1',
-        content: text,
-        time: getNow(),
-      },
-    ]);
+    wsRef.current?.sendChat(text, myRoom?.id ?? null);
   };
 
-  const essayHasContent = essayText.replace(/<[^>]*>/g, '').trim().length > 0;
-  const canSubmit = selectedOptions.length > 0 || essayHasContent;
-
-  // Start/stop countdown when question state or type changes
-  useEffect(() => {
-    if (demoState === 'question' && !submitted) {
-      setTimeRemaining(QUESTION_TIMER_SECONDS);
-      timerRef.current = setInterval(() => {
-        setTimeRemaining((prev) => {
-          if (prev <= 1) {
-            clearInterval(timerRef.current!);
-            setSubmitted(true);
-            return 0;
-          }
-          return prev - 1;
-        });
-      }, 1000);
-    } else {
-      if (timerRef.current) clearInterval(timerRef.current);
+  const handleLeave = async () => {
+    if (joinInfo) {
+      try { await sessionService.leave(joinInfo.sessionId); } catch { /* ignore */ }
     }
-    return () => { if (timerRef.current) clearInterval(timerRef.current); };
-  }, [demoState, demoQType]); // eslint-disable-line react-hooks/exhaustive-deps
+    navigate(`/review/${joinInfo?.sessionId}`);
+  };
 
-  const answeredCount = [selectedOptions.length > 0 || essayHasContent].filter(Boolean).length;
+  // ── Participant list ───────────────────────────────────────────────
+  const participants = [
+    { id: 'teacher', name: joinInfo?.teacherName ?? 'Giáo viên', isTeacher: true as const },
+    ...presence.map((p) => ({ id: p.studentId, name: p.name, avatarColor: p.avatarColor })),
+  ];
 
+  // ── Panel styles ──────────────────────────────────────────────────
   const panelStyle: React.CSSProperties = {
-    background: '#fff',
-    borderRadius: 10,
-    overflow: 'hidden',
-    display: 'flex',
-    flexDirection: 'column',
-    flexShrink: 0,
+    background: '#fff', borderRadius: 10, overflow: 'hidden',
+    display: 'flex', flexDirection: 'column', flexShrink: 0,
     boxShadow: '0 2px 16px rgba(0,0,0,0.25)',
   };
 
-  // Floating question panel style: compact vs expanded
   const questionPanelStyle: React.CSSProperties = panelExpanded
-    ? {
-        position: 'absolute',
-        inset: 0,
-        width: '100%',
-        maxHeight: '100%',
-        background: '#fff',
-        borderRadius: 12,
-        boxShadow: '0 8px 40px rgba(0,0,0,0.35)',
-        overflow: 'hidden',
-        display: 'flex',
-        flexDirection: 'column',
-        zIndex: 50,
-      }
-    : {
-        position: 'absolute',
-        right: showChat ? 316 : 0,
-        bottom: 0,
-        width: 360,
-        maxHeight: 'calc(100% - 10px)',
-        background: '#fff',
-        borderRadius: 14,
-        boxShadow: '0 8px 40px rgba(0,0,0,0.35)',
-        overflow: 'hidden',
-        display: 'flex',
-        flexDirection: 'column',
-        zIndex: 50,
-      };
+    ? { position: 'absolute', inset: 0, width: '100%', maxHeight: '100%', background: '#fff', borderRadius: 12, boxShadow: '0 8px 40px rgba(0,0,0,0.35)', overflow: 'hidden', display: 'flex', flexDirection: 'column', zIndex: 50 }
+    : { position: 'absolute', right: showChat ? 316 : 0, bottom: 0, width: 360, maxHeight: 'calc(100% - 10px)', background: '#fff', borderRadius: 14, boxShadow: '0 8px 40px rgba(0,0,0,0.35)', overflow: 'hidden', display: 'flex', flexDirection: 'column', zIndex: 50 };
 
-  const qTypeLabel: Record<DemoQType, string> = {
-    single: 'Trắc nghiệm 1 đáp án',
-    multiple: 'Nhiều đáp án',
-    essay: 'Tự luận',
-  };
+  // ── Loading / error screens ───────────────────────────────────────
+  if (loading) {
+    return (
+      <div style={{ height: '100vh', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', background: '#1a1a2e', gap: 16 }}>
+        <Spin size="large" />
+        <Text style={{ color: 'rgba(255,255,255,0.7)', fontSize: 14 }}>Đang tham gia buổi học...</Text>
+      </div>
+    );
+  }
 
+  if (!joinInfo) {
+    return (
+      <div style={{ height: '100vh', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', background: '#1a1a2e', gap: 16 }}>
+        <Text style={{ color: 'rgba(255,255,255,0.7)', fontSize: 16 }}>Không có buổi học đang diễn ra.</Text>
+        <Button onClick={() => navigate('/classes')}>Về trang chủ</Button>
+      </div>
+    );
+  }
+
+  // ── Render ────────────────────────────────────────────────────────
   return (
     <div style={{ height: '100vh', display: 'flex', flexDirection: 'column', background: '#1a1a2e', overflow: 'hidden' }}>
 
       {/* ─── Top header ─── */}
-      <div
-        style={{
-          height: 52, background: 'rgba(0,0,0,0.5)', backdropFilter: 'blur(8px)',
-          display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-          padding: '0 16px', flexShrink: 0, gap: 12, zIndex: 10,
-        }}
-      >
+      <div style={{ height: 52, background: 'rgba(0,0,0,0.5)', backdropFilter: 'blur(8px)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 16px', flexShrink: 0, gap: 12, zIndex: 10 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-          <Avatar size={28} style={{ background: STUDENT.avatarColor }}>
-            {STUDENT.name.charAt(0)}
-          </Avatar>
+          <Avatar size={28} style={{ background: myAvatarColor }}>{me?.name.charAt(0)}</Avatar>
           <div>
-            <Text strong style={{ fontSize: 13, color: '#fff' }}>{STUDENT.name}</Text>
+            <Text strong style={{ fontSize: 13, color: '#fff' }}>{me?.name}</Text>
             <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
               <Badge status="processing" />
-              <Text style={{ fontSize: 11, color: 'rgba(255,255,255,0.6)' }}>{session.classroomName}</Text>
+              <Text style={{ fontSize: 11, color: 'rgba(255,255,255,0.6)' }}>{joinInfo.classroomName}</Text>
             </div>
           </div>
         </div>
 
-        <Segmented
-          size="small"
-          value={demoState}
-          onChange={handleDemoStateChange}
-          options={[
-            { value: 'idle', label: 'Lớp học' },
-            { value: 'question', label: '📝 Có câu hỏi' },
-            { value: 'breakout', label: '👥 Breakout' },
-          ]}
-          style={{ background: 'rgba(255,255,255,0.1)' }}
-        />
-
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          {demoState === 'question' && !questionPanelOpen && (
-            <Button
-              size="small"
-              type="primary"
-              style={{ background: '#6366f1', borderColor: '#6366f1', fontSize: 12 }}
-              onClick={() => setQuestionPanelOpen(true)}
-            >
+          {runningQuestion && !questionPanelOpen && (
+            <Button size="small" type="primary" style={{ background: '#6366f1', borderColor: '#6366f1', fontSize: 12 }} onClick={() => setQuestionPanelOpen(true)}>
               📝 Câu hỏi đang chờ
             </Button>
           )}
-          <Button
-            size="small"
-            type="text"
-            icon={<ArrowLeftOutlined style={{ color: 'rgba(255,255,255,0.7)' }} />}
-            style={{ background: 'rgba(255,255,255,0.1)' }}
-            onClick={() => navigate(`/review/${session.id}`)}
-          >
+          <Button size="small" type="text" icon={<ArrowLeftOutlined style={{ color: 'rgba(255,255,255,0.7)' }} />} style={{ background: 'rgba(255,255,255,0.1)' }} onClick={() => navigate(`/review/${joinInfo.sessionId}`)}>
             <Text style={{ fontSize: 11, color: 'rgba(255,255,255,0.7)' }}>Kết quả</Text>
           </Button>
         </div>
       </div>
 
-      {/* ─── Broadcast alert (breakout) ─── */}
+      {/* ─── Broadcast alert ─── */}
       {broadcastMsg && (
         <Alert
           type="warning"
@@ -285,24 +333,24 @@ export default function StudentSessionPage() {
       {/* ─── Main area ─── */}
       <div style={{ flex: 1, display: 'flex', overflow: 'hidden', padding: '10px', gap: 10 }}>
 
-        {/* LEFT: Participant list panel */}
+        {/* LEFT: Participant list */}
         {showParticipants && (
           <div style={{ ...panelStyle, width: 200 }}>
             <StudentStatusList
-              students={[TEACHER, ...STUDENTS]}
-              answers={demoState === 'question' ? question.answers : []}
+              participants={participants}
+              answeredIds={questionSubmitted && runningQuestion ? [me?.id ?? ''] : []}
               silentStudentIds={[]}
-              raisedHandIds={raisedHand ? [STUDENT.id] : []}
-              currentQuestionId={demoState === 'question' ? question.id : undefined}
+              raisedHandIds={raisedHandIds}
+              questionActive={isQuestionRunning}
             />
           </div>
         )}
 
-        {/* CENTER: video + breakout */}
+        {/* CENTER: video area */}
         <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 10, overflow: 'hidden', position: 'relative' }}>
 
-          {/* ── IDLE / QUESTION: Teacher main video + student thumbnails ── */}
-          {demoState !== 'breakout' && (
+          {/* ── Idle / Question: Teacher + student thumbnails ── */}
+          {!isBreakout && (
             <>
               <div style={{ flex: 1, borderRadius: 12, overflow: 'hidden', position: 'relative', minHeight: 0 }}>
                 <img src={heroImg} alt="Teacher screen" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
@@ -313,8 +361,10 @@ export default function StudentSessionPage() {
                   </div>
                 )}
                 <div style={{ position: 'absolute', bottom: 10, left: 12, background: 'rgba(0,0,0,0.5)', padding: '3px 10px', borderRadius: 6, display: 'flex', alignItems: 'center', gap: 6 }}>
-                  <Avatar size={20} style={{ background: 'linear-gradient(135deg, #6366f1, #8b5cf6)', fontSize: 11 }}>L</Avatar>
-                  <Text style={{ color: '#fff', fontSize: 12 }}>{session.teacherName}</Text>
+                  <Avatar size={20} style={{ background: 'linear-gradient(135deg, #6366f1, #8b5cf6)', fontSize: 11 }}>
+                    {joinInfo.teacherName.charAt(0)}
+                  </Avatar>
+                  <Text style={{ color: '#fff', fontSize: 12 }}>{joinInfo.teacherName}</Text>
                   <Badge status="processing" />
                 </div>
                 <div style={{ position: 'absolute', top: 10, right: 12 }}>
@@ -323,70 +373,49 @@ export default function StudentSessionPage() {
               </div>
 
               <div style={{ display: 'flex', gap: 8, flexShrink: 0 }}>
+                {/* My tile */}
                 <div style={{ flex: 1, maxWidth: 120, background: '#2d2d44', borderRadius: 8, aspectRatio: '4/3', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 4, position: 'relative', border: '2px solid #6366f1' }}>
-                  {cameraOn ? (
-                    <Avatar size={36} style={{ background: STUDENT.avatarColor }}>{STUDENT.name.charAt(0)}</Avatar>
-                  ) : (
-                    <div style={{ fontSize: 20 }}>🚫</div>
-                  )}
-                  <Text style={{ color: '#fff', fontSize: 10 }} ellipsis>{STUDENT.name.split(' ').pop()} (bạn)</Text>
+                  {cameraOn
+                    ? <Avatar size={36} style={{ background: myAvatarColor }}>{me?.name.charAt(0)}</Avatar>
+                    : <div style={{ fontSize: 20 }}>🚫</div>}
+                  <Text style={{ color: '#fff', fontSize: 10 }} ellipsis>{(me?.name ?? '').split(' ').pop()} (bạn)</Text>
                   {!micOn && <div style={{ position: 'absolute', bottom: 4, left: 4 }}><AudioMutedOutlined style={{ color: '#ff4d4f', fontSize: 12 }} /></div>}
-                  {raisedHand && <div style={{ position: 'absolute', top: 4, right: 4, fontSize: 14 }}>✋</div>}
+                  {myRaisedHand && <div style={{ position: 'absolute', top: 4, right: 4, fontSize: 14 }}>✋</div>}
                 </div>
 
-                {STUDENTS.filter((s) => s.id !== STUDENT.id).slice(0, 5).map((s) => (
-                  <div key={s.id} style={{ flex: 1, maxWidth: 120, background: '#2d2d44', borderRadius: 8, aspectRatio: '4/3', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 4 }}>
-                    <Avatar size={32} style={{ background: s.avatarColor, fontSize: 13 }}>{s.name.charAt(0)}</Avatar>
-                    <Text style={{ color: 'rgba(255,255,255,0.8)', fontSize: 10 }} ellipsis>{s.name.split(' ').pop()}</Text>
-                    <Badge status="processing" />
+                {/* Other students */}
+                {presence.filter((p) => p.studentId !== me?.id).slice(0, 5).map((p) => (
+                  <div key={p.studentId} style={{ flex: 1, maxWidth: 120, background: '#2d2d44', borderRadius: 8, aspectRatio: '4/3', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 4 }}>
+                    <Avatar size={32} style={{ background: p.avatarColor ?? '#6366f1', fontSize: 13 }}>{p.name.charAt(0)}</Avatar>
+                    <Text style={{ color: 'rgba(255,255,255,0.8)', fontSize: 10 }} ellipsis>{p.name.split(' ').pop()}</Text>
+                    <Badge status={p.isOnline ? 'processing' : 'default'} />
                   </div>
                 ))}
               </div>
             </>
           )}
 
-          {/* ── BREAKOUT: Equal grid of group members (no teacher) ── */}
-          {demoState === 'breakout' && myGroup && (
+          {/* ── Breakout: group member grid ── */}
+          {isBreakout && myRoom && (
             <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 10, overflow: 'hidden' }}>
               <div style={{ background: 'linear-gradient(135deg, #6366f122, #4f46e522)', border: '1px solid #6366f144', borderRadius: 10, padding: '8px 16px', display: 'flex', alignItems: 'center', gap: 12, flexShrink: 0 }}>
                 <TeamOutlined style={{ color: '#6366f1', fontSize: 16 }} />
                 <div style={{ flex: 1, minWidth: 0 }}>
-                  <Text strong style={{ color: '#a5b4fc', fontSize: 13 }}>{myGroup.name}</Text>
-                  <Text style={{ color: 'rgba(255,255,255,0.6)', fontSize: 12, marginLeft: 10 }}>{myGroup.task}</Text>
+                  <Text strong style={{ color: '#a5b4fc', fontSize: 13 }}>{myRoom.name}</Text>
+                  {myRoom.task && (
+                    <Text style={{ color: 'rgba(255,255,255,0.6)', fontSize: 12, marginLeft: 10 }}>{myRoom.task}</Text>
+                  )}
                 </div>
-                <Button
-                  size="small"
-                  style={{ fontSize: 11, background: 'rgba(255,255,255,0.1)', borderColor: 'rgba(255,255,255,0.2)', color: '#fff' }}
-                  icon={<BellOutlined />}
-                  onClick={() => setBroadcastMsg('Còn 3 phút, các nhóm chuẩn bị báo cáo kết quả!')}
-                >
-                  Demo: GV gửi thông báo
-                </Button>
               </div>
 
-              <div
-                style={{
-                  flex: 1, display: 'grid',
-                  gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))',
-                  gap: 12, alignContent: 'start', overflowY: 'auto',
-                }}
-              >
-                {myGroupMembers.map((s) => {
-                  const isSelf = s.id === STUDENT.id;
+              <div style={{ flex: 1, display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))', gap: 12, alignContent: 'start', overflowY: 'auto' }}>
+                {myRoom.students.map((s) => {
+                  const isSelf = s.id === me?.id;
                   return (
-                    <div
-                      key={s.id}
-                      style={{
-                        background: '#2d2d44', borderRadius: 10, aspectRatio: '4/3',
-                        display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
-                        gap: 6, position: 'relative', border: isSelf ? '2px solid #6366f1' : '2px solid transparent',
-                      }}
-                    >
-                      {isSelf && !cameraOn ? (
-                        <div style={{ fontSize: 28 }}>🚫</div>
-                      ) : (
-                        <Avatar size={48} style={{ background: s.avatarColor, fontSize: 18 }}>{s.name.charAt(0)}</Avatar>
-                      )}
+                    <div key={s.id} style={{ background: '#2d2d44', borderRadius: 10, aspectRatio: '4/3', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 6, position: 'relative', border: isSelf ? '2px solid #6366f1' : '2px solid transparent' }}>
+                      {isSelf && !cameraOn
+                        ? <div style={{ fontSize: 28 }}>🚫</div>
+                        : <Avatar size={48} style={{ background: s.avatarColor ?? '#6366f1', fontSize: 18 }}>{s.name.charAt(0)}</Avatar>}
                       <Text style={{ color: isSelf ? '#91caff' : 'rgba(255,255,255,0.85)', fontSize: 12, fontWeight: isSelf ? 600 : 400 }}>
                         {s.name.split(' ').pop()}{isSelf ? ' (bạn)' : ''}
                       </Text>
@@ -396,7 +425,9 @@ export default function StudentSessionPage() {
                           <AudioMutedOutlined style={{ color: '#ff4d4f', fontSize: 14 }} />
                         </div>
                       )}
-                      {isSelf && raisedHand && <div style={{ position: 'absolute', top: 8, right: 8, fontSize: 16 }}>✋</div>}
+                      {isSelf && myRaisedHand && (
+                        <div style={{ position: 'absolute', top: 8, right: 8, fontSize: 16 }}>✋</div>
+                      )}
                       {isSelf && screenShareOn && (
                         <div style={{ position: 'absolute', top: 8, left: 8, background: 'rgba(82,196,26,0.85)', borderRadius: 4, padding: '1px 6px', display: 'flex', alignItems: 'center', gap: 4 }}>
                           <DesktopOutlined style={{ color: '#fff', fontSize: 11 }} />
@@ -411,27 +442,25 @@ export default function StudentSessionPage() {
           )}
 
           {/* ── Floating question panel ── */}
-          {demoState === 'question' && questionPanelOpen && (
+          {runningQuestion && questionPanelOpen && (
             <div style={questionPanelStyle}>
-              {/* Panel header */}
+              {/* Header */}
               <div style={{ padding: '10px 14px', background: 'linear-gradient(135deg, #6366f1, #4f46e5)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexShrink: 0 }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0 }}>
-                  <Text strong style={{ color: '#fff', fontSize: 13, whiteSpace: 'nowrap' }}>
-                    📝 Câu hỏi
-                  </Text>
+                  <Text strong style={{ color: '#fff', fontSize: 13, whiteSpace: 'nowrap' }}>📝 Câu hỏi</Text>
                   <Tag color="gold" style={{ fontSize: 11, padding: '0 6px', flexShrink: 0 }}>
-                    {qTypeLabel[demoQType]}
+                    {Q_TYPE_LABEL[runningQuestion.type]}
                   </Tag>
                 </div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
-                  {!submitted && timeRemaining > 0 && (
+                  {timeRemaining !== null && timeRemaining > 0 && (
                     <Progress
                       type="circle"
                       size={34}
-                      percent={Math.round((timeRemaining / QUESTION_TIMER_SECONDS) * 100)}
+                      percent={TIMER_TOTAL > 0 ? Math.round((timeRemaining / TIMER_TOTAL) * 100) : 100}
                       strokeColor={
-                        timeRemaining / QUESTION_TIMER_SECONDS > 0.5 ? '#34d399'
-                          : timeRemaining / QUESTION_TIMER_SECONDS > 0.2 ? '#fbbf24'
+                        TIMER_TOTAL > 0 && timeRemaining / TIMER_TOTAL > 0.5 ? '#34d399'
+                          : TIMER_TOTAL > 0 && timeRemaining / TIMER_TOTAL > 0.2 ? '#fbbf24'
                             : '#f87171'
                       }
                       trailColor="rgba(255,255,255,0.2)"
@@ -445,72 +474,29 @@ export default function StudentSessionPage() {
                     />
                   )}
                   <Tooltip title={panelExpanded ? 'Thu nhỏ' : 'Phóng to'}>
-                    <Button
-                      size="small"
-                      type="text"
-                      icon={panelExpanded
-                        ? <CompressOutlined style={{ color: 'rgba(255,255,255,0.8)' }} />
-                        : <ExpandAltOutlined style={{ color: 'rgba(255,255,255,0.8)' }} />}
-                      onClick={() => setPanelExpanded(!panelExpanded)}
-                      style={{ background: 'rgba(255,255,255,0.15)' }}
-                    />
+                    <Button size="small" type="text" icon={panelExpanded ? <CompressOutlined style={{ color: 'rgba(255,255,255,0.8)' }} /> : <ExpandAltOutlined style={{ color: 'rgba(255,255,255,0.8)' }} />} onClick={() => setPanelExpanded(!panelExpanded)} style={{ background: 'rgba(255,255,255,0.15)' }} />
                   </Tooltip>
                   <Tooltip title="Thu nhỏ">
-                    <Button
-                      size="small"
-                      type="text"
-                      icon={<MinusOutlined style={{ color: 'rgba(255,255,255,0.8)' }} />}
-                      onClick={() => { setQuestionPanelOpen(false); setPanelExpanded(false); }}
-                      style={{ background: 'rgba(255,255,255,0.15)' }}
-                    />
+                    <Button size="small" type="text" icon={<MinusOutlined style={{ color: 'rgba(255,255,255,0.8)' }} />} onClick={() => { setQuestionPanelOpen(false); setPanelExpanded(false); }} style={{ background: 'rgba(255,255,255,0.15)' }} />
                   </Tooltip>
                 </div>
               </div>
 
-              {/* Demo question type switcher */}
-              <div style={{
-                padding: '6px 14px', background: '#f8fafc',
-                borderBottom: '1px solid #f0f0f0',
-                display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0, flexWrap: 'wrap',
-              }}>
-                <Text style={{ fontSize: 11, color: '#94a3b8', marginRight: 2, whiteSpace: 'nowrap' }}>Demo loại câu hỏi:</Text>
-                {(['single', 'multiple', 'essay'] as const).map((t) => (
-                  <Button
-                    key={t}
-                    size="small"
-                    type={demoQType === t ? 'primary' : 'default'}
-                    onClick={() => handleQTypeChange(t)}
-                    style={{
-                      fontSize: 11, height: 24, padding: '0 8px',
-                      ...(demoQType === t ? { background: '#6366f1', borderColor: '#6366f1' } : {}),
-                    }}
-                  >
-                    {t === 'single' ? 'Trắc nghiệm' : t === 'multiple' ? 'Nhiều đáp án' : 'Tự luận'}
-                  </Button>
-                ))}
-              </div>
-
-              {/* Panel body */}
+              {/* Body */}
               <div style={{ flex: 1, overflowY: 'auto', padding: '14px 14px 0' }}>
                 <div
-                  dangerouslySetInnerHTML={{ __html: question.content }}
+                  dangerouslySetInnerHTML={{ __html: runningQuestion.content }}
                   style={{ fontSize: 14, fontWeight: 500, marginBottom: 14, lineHeight: 1.6 }}
                 />
 
-                {question.options && question.type === 'single' && (
+                {runningQuestion.options && runningQuestion.type === 'single' && (
                   <Radio.Group value={selectedOptions[0]} style={{ width: '100%' }}>
                     <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                      {question.options.map((opt) => (
+                      {runningQuestion.options.map((opt) => (
                         <div
                           key={opt.id}
                           onClick={() => handleSelectSingle(opt.id)}
-                          style={{
-                            padding: '10px 12px',
-                            border: `2px solid ${selectedOptions.includes(opt.id) ? '#6366f1' : '#e8e8e8'}`,
-                            borderRadius: 8, cursor: submitted ? 'default' : 'pointer',
-                            background: selectedOptions.includes(opt.id) ? '#eef2ff' : '#fafafa',
-                            display: 'flex', alignItems: 'center', gap: 8, transition: 'all 0.15s',
-                          }}
+                          style={{ padding: '10px 12px', border: `2px solid ${selectedOptions.includes(opt.id) ? '#6366f1' : '#e8e8e8'}`, borderRadius: 8, cursor: questionSubmitted ? 'default' : 'pointer', background: selectedOptions.includes(opt.id) ? '#eef2ff' : '#fafafa', display: 'flex', alignItems: 'center', gap: 8, transition: 'all 0.15s' }}
                         >
                           <Radio value={opt.id} />
                           <Tag style={{ minWidth: 24, textAlign: 'center', margin: 0, fontSize: 11 }}>{opt.label}</Tag>
@@ -521,19 +507,13 @@ export default function StudentSessionPage() {
                   </Radio.Group>
                 )}
 
-                {question.options && question.type === 'multiple' && (
+                {runningQuestion.options && runningQuestion.type === 'multiple' && (
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                    {question.options.map((opt) => (
+                    {runningQuestion.options.map((opt) => (
                       <div
                         key={opt.id}
                         onClick={() => handleSelectMultiple(opt.id)}
-                        style={{
-                          padding: '10px 12px',
-                          border: `2px solid ${selectedOptions.includes(opt.id) ? '#6366f1' : '#e8e8e8'}`,
-                          borderRadius: 8, cursor: submitted ? 'default' : 'pointer',
-                          background: selectedOptions.includes(opt.id) ? '#eef2ff' : '#fafafa',
-                          display: 'flex', alignItems: 'center', gap: 8,
-                        }}
+                        style={{ padding: '10px 12px', border: `2px solid ${selectedOptions.includes(opt.id) ? '#6366f1' : '#e8e8e8'}`, borderRadius: 8, cursor: questionSubmitted ? 'default' : 'pointer', background: selectedOptions.includes(opt.id) ? '#eef2ff' : '#fafafa', display: 'flex', alignItems: 'center', gap: 8 }}
                       >
                         <Checkbox checked={selectedOptions.includes(opt.id)} />
                         <Tag style={{ minWidth: 24, textAlign: 'center', margin: 0, fontSize: 11 }}>{opt.label}</Tag>
@@ -543,40 +523,29 @@ export default function StudentSessionPage() {
                   </div>
                 )}
 
-                {question.type === 'essay' && (
-                  submitted ? (
+                {runningQuestion.type === 'essay' && (
+                  questionSubmitted ? (
                     <div
                       className="ck-content"
                       style={{ fontSize: 13, lineHeight: 1.6, padding: '8px 12px', background: '#f8fafc', borderRadius: 8, border: '1px solid #e2e8f0', minHeight: 64 }}
                       dangerouslySetInnerHTML={{ __html: essayText || '<span style="color:#94a3b8">Không có câu trả lời</span>' }}
                     />
                   ) : (
-                    <RichTextEditor
-                      onChange={setEssayText}
-                      placeholder="Nhập câu trả lời của bạn..."
-                      minHeight={panelExpanded ? 180 : 100}
-                    />
+                    <RichTextEditor onChange={setEssayText} placeholder="Nhập câu trả lời của bạn..." minHeight={panelExpanded ? 180 : 100} />
                   )
                 )}
 
-                {!submitted && (
+                {!questionSubmitted && (
                   <div style={{ marginTop: 12 }}>
                     <ConfidenceSelector value={confidence} onChange={setConfidence} />
                   </div>
                 )}
               </div>
 
-              {/* Panel footer */}
+              {/* Footer */}
               <div style={{ padding: '12px 14px', borderTop: '1px solid #f0f0f0', flexShrink: 0 }}>
-                {!submitted ? (
-                  <Button
-                    type="primary"
-                    icon={<SendOutlined />}
-                    block
-                    onClick={handleSubmit}
-                    disabled={!canSubmit}
-                    style={{ borderRadius: 8, fontWeight: 600 }}
-                  >
+                {!questionSubmitted ? (
+                  <Button type="primary" icon={<SendOutlined />} block onClick={handleSubmit} disabled={!canSubmit} style={{ borderRadius: 8, fontWeight: 600 }}>
                     Gửi câu trả lời
                   </Button>
                 ) : (
@@ -587,14 +556,10 @@ export default function StudentSessionPage() {
                     </div>
                     <Text type="secondary" style={{ fontSize: 12 }}>
                       <ClockCircleOutlined style={{ marginRight: 4 }} />
-                      Chờ giáo viên kết thúc câu hỏi...
+                      {runningQuestion.status === 'ended' ? 'Câu hỏi đã kết thúc.' : 'Chờ giáo viên kết thúc câu hỏi...'}
                     </Text>
                     <div style={{ marginTop: 8 }}>
-                      <Button
-                        size="small"
-                        icon={<MinusOutlined />}
-                        onClick={() => { setQuestionPanelOpen(false); setPanelExpanded(false); }}
-                      >
+                      <Button size="small" icon={<MinusOutlined />} onClick={() => { setQuestionPanelOpen(false); setPanelExpanded(false); }}>
                         Thu nhỏ, tiếp tục học
                       </Button>
                     </div>
@@ -605,12 +570,12 @@ export default function StudentSessionPage() {
           )}
         </div>
 
-        {/* Chat panel */}
+        {/* RIGHT: Chat panel */}
         {showChat && (
           <div style={{ ...panelStyle, width: 280 }}>
             <ChatPanel
               messages={chatMessages}
-              currentUser={{ id: STUDENT.id, name: STUDENT.name, avatarColor: STUDENT.avatarColor ?? '#6366f1' }}
+              currentUser={{ id: me?.id ?? '', name: me?.name ?? '', avatarColor: myAvatarColor }}
               onSend={handleSendChat}
               onClose={() => setShowChat(false)}
               height="100%"
@@ -620,57 +585,41 @@ export default function StudentSessionPage() {
       </div>
 
       {/* ─── Bottom control bar ─── */}
-      <div
-        style={{
-          height: 60, background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(8px)',
-          display: 'flex', alignItems: 'center', justifyContent: 'center',
-          gap: 10, flexShrink: 0, padding: '0 20px', overflowX: 'auto',
-        }}
-      >
+      <div style={{ height: 60, background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(8px)', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10, flexShrink: 0, padding: '0 20px', overflowX: 'auto' }}>
         <CtrlBtn active={!micOn} danger={!micOn} onClick={() => setMicOn(!micOn)} title={micOn ? 'Tắt mic' : 'Bật mic'} icon={micOn ? <AudioOutlined /> : <AudioMutedOutlined />} />
         <CtrlBtn active={!cameraOn} danger={!cameraOn} onClick={() => setCameraOn(!cameraOn)} title={cameraOn ? 'Tắt camera' : 'Bật camera'} icon={<VideoCameraOutlined />} />
         <CtrlBtn active={screenShareOn} onClick={() => setScreenShareOn(!screenShareOn)} title={screenShareOn ? 'Dừng chia sẻ' : 'Chia sẻ màn hình'} icon={<DesktopOutlined />} />
 
-        <CtrlBtn active={raisedHand} onClick={() => setRaisedHand(!raisedHand)} title={raisedHand ? 'Hạ tay' : 'Giơ tay'}>
-          ✋
-        </CtrlBtn>
+        <CtrlBtn active={myRaisedHand} onClick={handleRaiseHand} title={myRaisedHand ? 'Hạ tay' : 'Giơ tay'}>✋</CtrlBtn>
 
         <div style={{ width: 1, height: 28, background: 'rgba(255,255,255,0.2)', margin: '0 4px', flexShrink: 0 }} />
 
         <CtrlBtn active={showParticipants} onClick={() => setShowParticipants(!showParticipants)} title={showParticipants ? 'Ẩn thành viên' : 'Hiện thành viên'} icon={<TeamOutlined />} />
 
         <Tooltip title="Chat">
-          <Badge count={showChat ? 0 : 2} size="small">
-            <Button
-              shape="circle"
-              type={showChat ? 'primary' : 'default'}
-              icon={<MessageOutlined />}
-              style={{ background: showChat ? undefined : 'rgba(255,255,255,0.15)', borderColor: showChat ? undefined : 'transparent', color: showChat ? undefined : '#fff' }}
-              onClick={() => setShowChat(!showChat)}
-            />
-          </Badge>
+          <Button
+            shape="circle"
+            type={showChat ? 'primary' : 'default'}
+            icon={<MessageOutlined />}
+            style={{ background: showChat ? undefined : 'rgba(255,255,255,0.15)', borderColor: showChat ? undefined : 'transparent', color: showChat ? undefined : '#fff' }}
+            onClick={() => setShowChat(!showChat)}
+          />
         </Tooltip>
 
-        {demoState === 'question' && (
+        {runningQuestion && (
           <CtrlBtn
             active={questionPanelOpen}
             onClick={() => setQuestionPanelOpen(!questionPanelOpen)}
             title={questionPanelOpen ? 'Thu nhỏ câu hỏi' : 'Mở câu hỏi'}
             icon={questionPanelOpen ? <MinusOutlined /> : <ExpandAltOutlined />}
           >
-            {submitted ? '✓ Đã trả lời' : '📝 Câu hỏi'}
+            {questionSubmitted ? '✓ Đã trả lời' : '📝 Câu hỏi'}
           </CtrlBtn>
         )}
 
         <div style={{ width: 1, height: 28, background: 'rgba(255,255,255,0.2)', margin: '0 4px', flexShrink: 0 }} />
 
-        <Button
-          type="primary"
-          danger
-          shape="round"
-          onClick={() => setLeaveOpen(true)}
-          style={{ fontWeight: 600, flexShrink: 0 }}
-        >
+        <Button type="primary" danger shape="round" onClick={() => setLeaveOpen(true)} style={{ fontWeight: 600, flexShrink: 0 }}>
           Rời lớp
         </Button>
       </div>
@@ -679,7 +628,7 @@ export default function StudentSessionPage() {
       <Modal
         title={<div style={{ display: 'flex', alignItems: 'center', gap: 8 }}><ExclamationCircleOutlined style={{ color: '#faad14', fontSize: 18 }} /><span>Rời khỏi lớp học?</span></div>}
         open={leaveOpen}
-        onOk={() => navigate(`/review/${session.id}`)}
+        onOk={handleLeave}
         onCancel={() => setLeaveOpen(false)}
         okText="Rời lớp & Xem kết quả"
         cancelText="Tiếp tục học"
@@ -687,30 +636,11 @@ export default function StudentSessionPage() {
         centered
         width={400}
       >
-        <div style={{ padding: '8px 0' }}>
-          <p style={{ marginBottom: 12, color: '#595959' }}>Bạn sẽ rời buổi học và xem lại kết quả của mình.</p>
-          <div style={{ background: '#f5f5f5', borderRadius: 8, padding: '10px 16px', display: 'flex', gap: 24 }}>
-            <div>
-              <Text type="secondary" style={{ fontSize: 12 }}>Đã trả lời</Text>
-              <div><Text strong style={{ fontSize: 16 }}>{answeredCount} / {session.questions.length}</Text></div>
-            </div>
-            <div>
-              <Text type="secondary" style={{ fontSize: 12 }}>Câu hỏi trong buổi</Text>
-              <div><Text strong style={{ fontSize: 16 }}>{session.questions.length}</Text></div>
-            </div>
-          </div>
-        </div>
+        <p style={{ color: '#595959', margin: '8px 0' }}>Bạn sẽ rời buổi học và xem lại kết quả của mình.</p>
       </Modal>
 
-      {/* ── New question notification modal ── */}
-      <Modal
-        open={showNewQuestionModal}
-        onCancel={() => setShowNewQuestionModal(false)}
-        footer={null}
-        centered
-        width={360}
-        closeIcon={null}
-      >
+      {/* ── New question notification ── */}
+      <Modal open={showNewQuestionModal} onCancel={() => setShowNewQuestionModal(false)} footer={null} centered width={360} closeIcon={null}>
         <div style={{ textAlign: 'center', padding: '20px 0 8px' }}>
           <div style={{ fontSize: 52, marginBottom: 12 }}>📢</div>
           <Title level={4} style={{ margin: '0 0 8px' }}>Giáo viên vừa đặt câu hỏi!</Title>

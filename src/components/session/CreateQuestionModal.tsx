@@ -10,7 +10,7 @@ import {
 } from '@ant-design/icons';
 import katex from 'katex';
 import 'katex/dist/katex.min.css';
-import type { QuestionType } from '../../types';
+import type { QuestionType, CreateQuestionRequest } from '../../types/api';
 import RichTextEditor from './RichTextEditor';
 
 const { Text } = Typography;
@@ -164,7 +164,7 @@ function OptionRow({ opt, idx, selectedType, canRemove, onToggle, onTextChange, 
 interface Props {
   open: boolean;
   onClose: () => void;
-  onSubmit: (timerSeconds: number | null) => void;
+  onSubmit: (req: CreateQuestionRequest) => void;
 }
 
 export default function CreateQuestionModal({ open, onClose, onSubmit }: Props) {
@@ -202,8 +202,18 @@ export default function CreateQuestionModal({ open, onClose, onSubmit }: Props) 
   };
 
   const handlePublish = () => {
+    const req: CreateQuestionRequest = {
+      type: selectedType,
+      content,
+      ...(timerSeconds !== null ? { timerSeconds } : {}),
+      ...(selectedType !== 'essay' ? {
+        options: options
+          .filter((o) => o.text.trim())
+          .map((o, i) => ({ label: LABELS[i] ?? String(i + 1), text: o.text, isCorrect: o.isCorrect })),
+      } : {}),
+    };
     handleClose();
-    onSubmit(timerSeconds);
+    onSubmit(req);
   };
 
   const addOption = () => {
