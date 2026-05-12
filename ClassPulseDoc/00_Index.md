@@ -21,6 +21,7 @@
 | 08a | [08_Frontend_Integration_Guide.md](08_Frontend_Integration_Guide.md) | Frontend Integration Phase 1–2: Auth, User, Classroom, Post, Schedule, Document, Upload |
 | 08b | [08_Frontend_Integration_Phase3.md](08_Frontend_Integration_Phase3.md) | Frontend Integration Phase 3: Session, Question, Student Answer |
 | 08c | [08_Frontend_Integration_Phase4.md](08_Frontend_Integration_Phase4.md) | Frontend Integration Phase 4: Breakout, WebSocket (đầy đủ), Dashboard, Review, Admin |
+| 09 | [09_WebRTC_Frontend_Guide.md](09_WebRTC_Frontend_Guide.md) | WebRTC Frontend: Mesh P2P, useWebRTC hook, signaling, video grid, spotlight, breakout, error handling |
 
 ---
 
@@ -45,6 +46,11 @@ Hiểu hệ thống → kiến trúc → DB → auth → API → realtime → co
 ### Nếu bạn đang implement realtime/WebSocket
 ```
 03 (Module 15 — WS event contract) → 04 (implementation) → 05 (WS Ticket)
+```
+
+### Nếu bạn đang implement WebRTC video call
+```
+04 §6 (architecture + signaling flow) → 09 (frontend implementation guide đầy đủ)
 ```
 
 ---
