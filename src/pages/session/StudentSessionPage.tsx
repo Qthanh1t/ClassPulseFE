@@ -7,7 +7,7 @@ import {
   CheckCircleOutlined, ClockCircleOutlined, TeamOutlined,
   SendOutlined, MessageOutlined, AudioOutlined, AudioMutedOutlined,
   VideoCameraOutlined, MinusOutlined, ExpandAltOutlined, ExclamationCircleOutlined,
-  ArrowLeftOutlined, DesktopOutlined, CompressOutlined,
+  ArrowLeftOutlined, DesktopOutlined, CompressOutlined, AimOutlined,
 } from '@ant-design/icons';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useAuthStore } from '../../store/authStore';
@@ -23,7 +23,9 @@ import type { ChatMessage } from '../../components/session/ChatPanel';
 import StudentStatusList from '../../components/session/StudentStatusList';
 import CtrlBtn from '../../components/session/CtrlBtn';
 import RichTextEditor from '../../components/session/RichTextEditor';
-import heroImg from '../../assets/hero.png';
+import VideoTile from '../../components/session/VideoTile';
+import { useLocalMedia } from '../../hooks/useLocalMedia';
+import { useWebRTC } from '../../hooks/useWebRTC';
 import type {
   JoinSessionResponse, PresenceDto, QuestionDto, BreakoutSessionDto,
   ChatMessageDto, RoomDto, ConfidenceLevel,
@@ -61,6 +63,7 @@ export default function StudentSessionPage() {
 
   const [presence, setPresence] = useState<PresenceDto[]>([]);
   const [raisedHandIds, setRaisedHandIds] = useState<string[]>([]);
+  const [focusedStudentId, setFocusedStudentId] = useState<string | null>(null);
 
   const [runningQuestion, setRunningQuestion] = useState<QuestionDto | null>(null);
   const [questionSubmitted, setQuestionSubmitted] = useState(false);
@@ -73,8 +76,6 @@ export default function StudentSessionPage() {
 
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
 
-  const [micOn, setMicOn] = useState(true);
-  const [cameraOn, setCameraOn] = useState(true);
   const [screenShareOn, setScreenShareOn] = useState(false);
   const [showChat, setShowChat] = useState(false);
   const [showParticipants, setShowParticipants] = useState(true);
@@ -86,8 +87,15 @@ export default function StudentSessionPage() {
   const [now, setNow] = useState(Date.now());
 
   const wsRef = useRef<SessionWsClient | null>(null);
-  // Ref to always-current submit fn (avoids stale closure in timer effect)
   const submitFnRef = useRef<(() => void) | null>(null);
+  const teacherIdRef = useRef<string | null>(null);
+  const presenceRef = useRef<PresenceDto[]>([]);
+
+  useEffect(() => { presenceRef.current = presence; }, [presence]);
+
+  // ── WebRTC hooks ────────────────────────────────────────────────────
+  const localMedia = useLocalMedia();
+  const rtc = useWebRTC(me?.id ?? '', wsRef, localMedia.streamRef);
 
   // Clock tick for countdown
   useEffect(() => {
@@ -108,21 +116,41 @@ export default function StudentSessionPage() {
         const info = joinRes.data;
         setJoinInfo(info);
 
-        const [presenceRes, chatHistRes, questionsRes] = await Promise.all([
+        const [presenceRes, chatHistRes, questionsRes, detailRes] = await Promise.all([
           sessionService.getPresence(info.sessionId),
           chatService.getHistory(info.sessionId, 50),
           questionService.list(info.sessionId),
+          sessionService.get(info.sessionId),
         ]);
-        if (presenceRes.data) setPresence(presenceRes.data);
+
+        const loadedPresence = presenceRes.data ?? [];
+        if (loadedPresence.length > 0) setPresence(loadedPresence);
+        presenceRef.current = loadedPresence;
         if (chatHistRes.data) setChatMessages(chatHistRes.data.map(dtoToChat));
         const runningQ = questionsRes.data?.find((q) => q.status === 'running');
         if (runningQ) { setRunningQuestion(runningQ); setQuestionPanelOpen(true); }
 
+        teacherIdRef.current = detailRes.data?.teacher.id ?? null;
+        setLoading(false);
+
         function handleEvent(event: WsEvent) {
           switch (event.type) {
-            case 'student_presence':
-              setPresence(event.payload as PresenceDto[]);
+            case 'student_presence': {
+              const payload = event.payload as { studentId: string; name: string; avatarColor?: string; action: 'joined' | 'left' };
+              if (payload.action === 'left') {
+                rtc.closePeer(payload.studentId);
+              }
+              setPresence((prev) => {
+                if (payload.action === 'joined') {
+                  if (prev.some((x) => x.studentId === payload.studentId)) {
+                    return prev.map((x) => x.studentId === payload.studentId ? { ...x, isOnline: true } : x);
+                  }
+                  return [...prev, { studentId: payload.studentId, name: payload.name, avatarColor: payload.avatarColor, isOnline: true, joinedAt: new Date().toISOString() }];
+                }
+                return prev.map((x) => x.studentId === payload.studentId ? { ...x, isOnline: false } : x);
+              });
               break;
+            }
             case 'question_started': {
               const q = event.payload as QuestionDto;
               setRunningQuestion(q);
@@ -146,19 +174,45 @@ export default function StudentSessionPage() {
               );
               break;
             }
+            case 'focus_changed': {
+              const { focusedStudentId: fid } = event.payload as { focusedStudentId: string | null };
+              setFocusedStudentId(fid);
+              break;
+            }
             case 'breakout_started': {
               const bo = event.payload as BreakoutSessionDto;
               const room = bo.rooms.find((r) => r.students.some((s) => s.id === me?.id));
               setMyRoom(room ?? null);
-              if (room) wsRef.current?.subscribeRoom(room.id, handleEvent);
+              if (room) {
+                wsRef.current?.subscribeRoom(room.id, handleEvent);
+                // Close main session connections; reconnect with roommates
+                rtc.closeAllPeers();
+                const myId = me?.id ?? '';
+                const roommates = room.students.filter((s) => s.id !== myId);
+                setTimeout(() => {
+                  // Polite peer: lower UUID sends offer
+                  roommates.forEach((s) => {
+                    if (myId < s.id) void rtc.callPeer(s.id);
+                  });
+                }, 500);
+              }
               break;
             }
-            case 'breakout_ended':
+            case 'breakout_ended': {
               setMyRoom((prev) => {
                 if (prev) wsRef.current?.unsubscribeRoom(prev.id);
                 return null;
               });
+              // Close breakout connections and reconnect to main session
+              rtc.closeAllPeers();
+              void (async () => {
+                if (teacherIdRef.current) await rtc.callPeer(teacherIdRef.current);
+                for (const p of presenceRef.current) {
+                  if (p.isOnline && p.studentId !== me?.id) await rtc.callPeer(p.studentId);
+                }
+              })();
               break;
+            }
             case 'broadcast_message': {
               const { content } = event.payload as { content: string };
               setBroadcastMsg(content);
@@ -167,6 +221,21 @@ export default function StudentSessionPage() {
             case 'chat_message':
               setChatMessages((prev) => [...prev, dtoToChat(event.payload as ChatMessageDto)]);
               break;
+            case 'webrtc_offer': {
+              const { fromId, sdp } = event.payload as { fromId: string; sdp: string };
+              void rtc.handleOffer(fromId, sdp);
+              break;
+            }
+            case 'webrtc_answer': {
+              const { fromId, sdp } = event.payload as { fromId: string; sdp: string };
+              void rtc.handleAnswer(fromId, sdp);
+              break;
+            }
+            case 'webrtc_ice_candidate': {
+              const { fromId, candidate } = event.payload as { fromId: string; candidate: RTCIceCandidateInit };
+              void rtc.handleIceCandidate(fromId, candidate);
+              break;
+            }
           }
         }
 
@@ -174,16 +243,29 @@ export default function StudentSessionPage() {
           info.wsTicket,
           info.sessionId,
           async () => (await sessionService.join(info.sessionId)).data!.wsTicket,
+          async () => {
+            // WS ready — start media then call teacher + online peers
+            const stream = await localMedia.startMedia(true, true);
+            if (!stream) return;
+            rtc.attachLocalStream(stream);
+            if (teacherIdRef.current) await rtc.callPeer(teacherIdRef.current);
+            for (const p of presenceRef.current) {
+              if (p.isOnline && p.studentId !== me?.id) await rtc.callPeer(p.studentId);
+            }
+          },
         );
         ws.subscribe(handleEvent);
         wsRef.current = ws;
-        setLoading(false);
       } catch {
         setLoading(false);
       }
     }
     init();
-    return () => wsRef.current?.disconnect();
+    return () => {
+      wsRef.current?.disconnect();
+      rtc.closeAllPeers();
+      localMedia.stopMedia();
+    };
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id]);
 
@@ -200,6 +282,9 @@ export default function StudentSessionPage() {
   const canSubmit = selectedOptions.length > 0 || essayHasContent;
   const myRaisedHand = raisedHandIds.includes(me?.id ?? '');
   const myAvatarColor = me?.avatarColor ?? '#6366f1';
+  const iAmFocused = focusedStudentId === me?.id;
+
+  const teacherPeer = teacherIdRef.current ? rtc.peers.get(teacherIdRef.current) : undefined;
 
   // ── Handlers ──────────────────────────────────────────────────────
   const handleSubmit = useCallback(async () => {
@@ -214,10 +299,8 @@ export default function StudentSessionPage() {
     } catch { /* keep submitted flag */ }
   }, [runningQuestion, joinInfo, questionSubmitted, selectedOptions, essayText, confidence]);
 
-  // Keep submit ref current for timer effect
   useEffect(() => { submitFnRef.current = handleSubmit; }, [handleSubmit]);
 
-  // Auto-submit when timer expires
   useEffect(() => {
     if (timeRemaining === 0 && runningQuestion && !questionSubmitted) {
       submitFnRef.current?.();
@@ -238,8 +321,7 @@ export default function StudentSessionPage() {
   };
 
   const handleRaiseHand = () => {
-    const raised = !myRaisedHand;
-    wsRef.current?.sendRaiseHand(raised);
+    wsRef.current?.sendRaiseHand(!myRaisedHand);
   };
 
   const handleSendChat = (text: string) => {
@@ -270,7 +352,6 @@ export default function StudentSessionPage() {
     ? { position: 'absolute', inset: 0, width: '100%', maxHeight: '100%', background: '#fff', borderRadius: 12, boxShadow: '0 8px 40px rgba(0,0,0,0.35)', overflow: 'hidden', display: 'flex', flexDirection: 'column', zIndex: 50 }
     : { position: 'absolute', right: showChat ? 316 : 0, bottom: 0, width: 360, maxHeight: 'calc(100% - 10px)', background: '#fff', borderRadius: 14, boxShadow: '0 8px 40px rgba(0,0,0,0.35)', overflow: 'hidden', display: 'flex', flexDirection: 'column', zIndex: 50 };
 
-  // ── Loading / error screens ───────────────────────────────────────
   if (loading) {
     return (
       <div style={{ height: '100vh', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', background: '#1a1a2e', gap: 16 }}>
@@ -307,6 +388,11 @@ export default function StudentSessionPage() {
         </div>
 
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          {iAmFocused && (
+            <Tag color="purple" icon={<AimOutlined />} style={{ borderRadius: 20, fontSize: 11 }}>
+              Bạn đang được focus
+            </Tag>
+          )}
           {runningQuestion && !questionPanelOpen && (
             <Button size="small" type="primary" style={{ background: '#6366f1', borderColor: '#6366f1', fontSize: 12 }} onClick={() => setQuestionPanelOpen(true)}>
               📝 Câu hỏi đang chờ
@@ -349,48 +435,72 @@ export default function StudentSessionPage() {
         {/* CENTER: video area */}
         <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 10, overflow: 'hidden', position: 'relative' }}>
 
-          {/* ── Idle / Question: Teacher + student thumbnails ── */}
+          {/* ── Idle / Question: Teacher video + student strip ── */}
           {!isBreakout && (
             <>
+              {/* Teacher's main video area */}
               <div style={{ flex: 1, borderRadius: 12, overflow: 'hidden', position: 'relative', minHeight: 0 }}>
-                <img src={heroImg} alt="Teacher screen" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                {screenShareOn && (
-                  <div style={{ position: 'absolute', top: 10, left: 12, background: 'rgba(0,0,0,0.6)', padding: '3px 10px', borderRadius: 6, display: 'flex', alignItems: 'center', gap: 6 }}>
-                    <DesktopOutlined style={{ color: '#52c41a', fontSize: 12 }} />
-                    <Text style={{ color: '#fff', fontSize: 12 }}>Đang chia sẻ màn hình</Text>
+                <VideoTile
+                  stream={teacherPeer?.remoteStream ?? null}
+                  name={joinInfo.teacherName}
+                  avatarColor="#6366f1"
+                  isTeacher
+                  isCameraOff={teacherPeer?.isCameraOff}
+                  borderRadius={12}
+                >
+                  {screenShareOn && (
+                    <div style={{ position: 'absolute', top: 10, left: 12, background: 'rgba(0,0,0,0.6)', padding: '3px 10px', borderRadius: 6, display: 'flex', alignItems: 'center', gap: 6, zIndex: 3 }}>
+                      <DesktopOutlined style={{ color: '#52c41a', fontSize: 12 }} />
+                      <Text style={{ color: '#fff', fontSize: 12 }}>Đang chia sẻ màn hình</Text>
+                    </div>
+                  )}
+                  <div style={{ position: 'absolute', top: 10, right: 12, zIndex: 3 }}>
+                    <Badge status={teacherPeer?.state === 'connected' ? 'processing' : 'default'} text={<Text style={{ color: 'rgba(255,255,255,0.8)', fontSize: 11 }}>LIVE</Text>} />
                   </div>
-                )}
-                <div style={{ position: 'absolute', bottom: 10, left: 12, background: 'rgba(0,0,0,0.5)', padding: '3px 10px', borderRadius: 6, display: 'flex', alignItems: 'center', gap: 6 }}>
-                  <Avatar size={20} style={{ background: 'linear-gradient(135deg, #6366f1, #8b5cf6)', fontSize: 11 }}>
-                    {joinInfo.teacherName.charAt(0)}
-                  </Avatar>
-                  <Text style={{ color: '#fff', fontSize: 12 }}>{joinInfo.teacherName}</Text>
-                  <Badge status="processing" />
-                </div>
-                <div style={{ position: 'absolute', top: 10, right: 12 }}>
-                  <Badge status="processing" text={<Text style={{ color: 'rgba(255,255,255,0.8)', fontSize: 11 }}>LIVE</Text>} />
-                </div>
+                </VideoTile>
               </div>
 
+              {/* Bottom strip: own tile + other connected students */}
               <div style={{ display: 'flex', gap: 8, flexShrink: 0 }}>
                 {/* My tile */}
-                <div style={{ flex: 1, maxWidth: 120, background: '#2d2d44', borderRadius: 8, aspectRatio: '4/3', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 4, position: 'relative', border: '2px solid #6366f1' }}>
-                  {cameraOn
-                    ? <Avatar size={36} style={{ background: myAvatarColor }}>{me?.name.charAt(0)}</Avatar>
-                    : <div style={{ fontSize: 20 }}>🚫</div>}
-                  <Text style={{ color: '#fff', fontSize: 10 }} ellipsis>{(me?.name ?? '').split(' ').pop()} (bạn)</Text>
-                  {!micOn && <div style={{ position: 'absolute', bottom: 4, left: 4 }}><AudioMutedOutlined style={{ color: '#ff4d4f', fontSize: 12 }} /></div>}
-                  {myRaisedHand && <div style={{ position: 'absolute', top: 4, right: 4, fontSize: 14 }}>✋</div>}
+                <div style={{ width: 120, aspectRatio: '4/3', flexShrink: 0 }}>
+                  <VideoTile
+                    stream={localMedia.stream}
+                    name={me?.name ?? 'Bạn'}
+                    avatarColor={myAvatarColor}
+                    isLocal
+                    isMuted={!localMedia.isMicOn}
+                    isCameraOff={!localMedia.isCameraOn}
+                    isFocused={iAmFocused}
+                    compact
+                    borderRadius={8}
+                  >
+                    {myRaisedHand && (
+                      <span style={{ position: 'absolute', top: 4, right: 4, fontSize: 14, zIndex: 3 }}>✋</span>
+                    )}
+                  </VideoTile>
                 </div>
 
-                {/* Other students */}
-                {presence.filter((p) => p.studentId !== me?.id).slice(0, 5).map((p) => (
-                  <div key={p.studentId} style={{ flex: 1, maxWidth: 120, background: '#2d2d44', borderRadius: 8, aspectRatio: '4/3', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 4 }}>
-                    <Avatar size={32} style={{ background: p.avatarColor ?? '#6366f1', fontSize: 13 }}>{p.name.charAt(0)}</Avatar>
-                    <Text style={{ color: 'rgba(255,255,255,0.8)', fontSize: 10 }} ellipsis>{p.name.split(' ').pop()}</Text>
-                    <Badge status={p.isOnline ? 'processing' : 'default'} />
-                  </div>
-                ))}
+                {/* Other online students */}
+                {presence
+                  .filter((p) => p.studentId !== me?.id && p.isOnline)
+                  .slice(0, 5)
+                  .map((p) => {
+                    const peer = rtc.peers.get(p.studentId);
+                    return (
+                      <div key={p.studentId} style={{ width: 120, aspectRatio: '4/3', flexShrink: 0 }}>
+                        <VideoTile
+                          stream={peer?.remoteStream ?? null}
+                          name={p.name}
+                          avatarColor={p.avatarColor}
+                          isCameraOff={peer?.isCameraOff}
+                          isFocused={focusedStudentId === p.studentId}
+                          compact
+                          borderRadius={8}
+                        />
+                      </div>
+                    );
+                  })}
               </div>
             </>
           )}
@@ -411,29 +521,29 @@ export default function StudentSessionPage() {
               <div style={{ flex: 1, display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))', gap: 12, alignContent: 'start', overflowY: 'auto' }}>
                 {myRoom.students.map((s) => {
                   const isSelf = s.id === me?.id;
+                  const peer = rtc.peers.get(s.id);
                   return (
-                    <div key={s.id} style={{ background: '#2d2d44', borderRadius: 10, aspectRatio: '4/3', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 6, position: 'relative', border: isSelf ? '2px solid #6366f1' : '2px solid transparent' }}>
-                      {isSelf && !cameraOn
-                        ? <div style={{ fontSize: 28 }}>🚫</div>
-                        : <Avatar size={48} style={{ background: s.avatarColor ?? '#6366f1', fontSize: 18 }}>{s.name.charAt(0)}</Avatar>}
-                      <Text style={{ color: isSelf ? '#91caff' : 'rgba(255,255,255,0.85)', fontSize: 12, fontWeight: isSelf ? 600 : 400 }}>
-                        {s.name.split(' ').pop()}{isSelf ? ' (bạn)' : ''}
-                      </Text>
-                      <Badge status="processing" />
-                      {isSelf && !micOn && (
-                        <div style={{ position: 'absolute', bottom: 8, left: 8 }}>
-                          <AudioMutedOutlined style={{ color: '#ff4d4f', fontSize: 14 }} />
-                        </div>
-                      )}
-                      {isSelf && myRaisedHand && (
-                        <div style={{ position: 'absolute', top: 8, right: 8, fontSize: 16 }}>✋</div>
-                      )}
-                      {isSelf && screenShareOn && (
-                        <div style={{ position: 'absolute', top: 8, left: 8, background: 'rgba(82,196,26,0.85)', borderRadius: 4, padding: '1px 6px', display: 'flex', alignItems: 'center', gap: 4 }}>
-                          <DesktopOutlined style={{ color: '#fff', fontSize: 11 }} />
-                          <Text style={{ color: '#fff', fontSize: 10 }}>Đang chia sẻ</Text>
-                        </div>
-                      )}
+                    <div key={s.id} style={{ aspectRatio: '4/3' }}>
+                      <VideoTile
+                        stream={isSelf ? localMedia.stream : (peer?.remoteStream ?? null)}
+                        name={s.name}
+                        avatarColor={s.avatarColor}
+                        isLocal={isSelf}
+                        isMuted={isSelf && !localMedia.isMicOn}
+                        isCameraOff={isSelf ? !localMedia.isCameraOn : peer?.isCameraOff}
+                        isFocused={isSelf}
+                        borderRadius={10}
+                      >
+                        {isSelf && myRaisedHand && (
+                          <span style={{ position: 'absolute', top: 8, right: 8, fontSize: 16, zIndex: 3 }}>✋</span>
+                        )}
+                        {isSelf && screenShareOn && (
+                          <div style={{ position: 'absolute', top: 8, left: 8, background: 'rgba(82,196,26,0.85)', borderRadius: 4, padding: '1px 6px', display: 'flex', alignItems: 'center', gap: 4, zIndex: 3 }}>
+                            <DesktopOutlined style={{ color: '#fff', fontSize: 11 }} />
+                            <Text style={{ color: '#fff', fontSize: 10 }}>Đang chia sẻ</Text>
+                          </div>
+                        )}
+                      </VideoTile>
                     </div>
                   );
                 })}
@@ -586,8 +696,8 @@ export default function StudentSessionPage() {
 
       {/* ─── Bottom control bar ─── */}
       <div style={{ height: 60, background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(8px)', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10, flexShrink: 0, padding: '0 20px', overflowX: 'auto' }}>
-        <CtrlBtn active={!micOn} danger={!micOn} onClick={() => setMicOn(!micOn)} title={micOn ? 'Tắt mic' : 'Bật mic'} icon={micOn ? <AudioOutlined /> : <AudioMutedOutlined />} />
-        <CtrlBtn active={!cameraOn} danger={!cameraOn} onClick={() => setCameraOn(!cameraOn)} title={cameraOn ? 'Tắt camera' : 'Bật camera'} icon={<VideoCameraOutlined />} />
+        <CtrlBtn active={!localMedia.isMicOn} danger={!localMedia.isMicOn} onClick={localMedia.toggleMic} title={localMedia.isMicOn ? 'Tắt mic' : 'Bật mic'} icon={localMedia.isMicOn ? <AudioOutlined /> : <AudioMutedOutlined />} />
+        <CtrlBtn active={!localMedia.isCameraOn} danger={!localMedia.isCameraOn} onClick={localMedia.toggleCamera} title={localMedia.isCameraOn ? 'Tắt camera' : 'Bật camera'} icon={<VideoCameraOutlined />} />
         <CtrlBtn active={screenShareOn} onClick={() => setScreenShareOn(!screenShareOn)} title={screenShareOn ? 'Dừng chia sẻ' : 'Chia sẻ màn hình'} icon={<DesktopOutlined />} />
 
         <CtrlBtn active={myRaisedHand} onClick={handleRaiseHand} title={myRaisedHand ? 'Hạ tay' : 'Giơ tay'}>✋</CtrlBtn>

@@ -54,6 +54,8 @@ export function createSessionWsClient(
    * Student: call POST /sessions/{id}/join
    */
   onReconnect: () => Promise<string>,
+  /** Called once STOMP subscriptions are ready — use to kick off WebRTC init */
+  onConnected?: () => void,
 ): SessionWsClient {
   let mainHandler: WsEventHandler | null = null;
   const roomHandlers = new Map<string, WsEventHandler>();
@@ -84,6 +86,9 @@ export function createSessionWsClient(
           client.publish({ destination: `/app/session/${sessionId}/heartbeat`, body: '{}' });
         }
       }, 25_000);
+
+      // Notify caller that subscriptions are ready (used for WebRTC init)
+      onConnected?.();
     },
 
     onDisconnect: async () => {

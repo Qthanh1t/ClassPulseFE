@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import {
   Avatar, Badge, Button, Card, Divider, Modal, Progress, Tag, Tooltip,
-  Typography, Alert, Spin,
+  Typography, Alert, Spin, notification,
 } from 'antd';
 import {
   ArrowLeftOutlined, PlusCircleOutlined,
@@ -19,6 +19,7 @@ import CreateQuestionModal from '../../components/session/CreateQuestionModal';
 import BreakoutPanel from '../../components/session/BreakoutPanel';
 import ChatPanel from '../../components/session/ChatPanel';
 import CtrlBtn from '../../components/session/CtrlBtn';
+import VideoTile from '../../components/session/VideoTile';
 import type { ChatMessage } from '../../components/session/ChatPanel';
 import sessionService from '../../services/session.service';
 import questionService from '../../services/question.service';
@@ -31,7 +32,8 @@ import type {
   BreakoutSessionDto, ChatMessageDto, CreateQuestionRequest,
 } from '../../types/api';
 import { useAuthStore } from '../../store/authStore';
-import heroImg from '../../assets/hero.png';
+import { useLocalMedia } from '../../hooks/useLocalMedia';
+import { useWebRTC } from '../../hooks/useWebRTC';
 
 const { Text } = Typography;
 
@@ -64,7 +66,7 @@ export default function TeacherSessionPage() {
   const { id } = useParams<{ id: string }>(); // classroomId
   const user = useAuthStore((s) => s.user);
 
-  // Core state
+  // ── Core state ──────────────────────────────────────────────────────
   const [loading, setLoading] = useState(true);
   const [session, setSession] = useState<SessionDto | null>(null);
   const [presence, setPresence] = useState<PresenceDto[]>([]);
@@ -76,9 +78,7 @@ export default function TeacherSessionPage() {
   const [showBreakoutPanel, setShowBreakoutPanel] = useState(false);
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
 
-  // UI state
-  const [micOn, setMicOn] = useState(true);
-  const [cameraOn, setCameraOn] = useState(true);
+  // ── UI state ────────────────────────────────────────────────────────
   const [screenShareOn, setScreenShareOn] = useState(false);
   const [showStudentList, setShowStudentList] = useState(true);
   const [showQuickActions, setShowQuickActions] = useState(true);
@@ -95,20 +95,23 @@ export default function TeacherSessionPage() {
 
   useEffect(() => { presenceRef.current = presence; }, [presence]);
 
-  // Elapsed timer
+  // ── WebRTC hooks ────────────────────────────────────────────────────
+  const localMedia = useLocalMedia();
+  const rtc = useWebRTC(user?.id ?? '', wsRef, localMedia.streamRef);
+
+  // ── Timers ──────────────────────────────────────────────────────────
   useEffect(() => {
     const timer = setInterval(() => setElapsedSeconds((prev) => prev + 1), 1000);
     return () => clearInterval(timer);
   }, []);
 
-  // Clock tick for question countdown (only when timer active)
   useEffect(() => {
     if (!runningQuestion?.endsAt) return;
     const clock = setInterval(() => setNow(Date.now()), 500);
     return () => clearInterval(clock);
   }, [runningQuestion?.endsAt]);
 
-  // Init: start/reconnect session + connect WS
+  // ── Init: start/reconnect session + connect WS + init WebRTC ────────
   useEffect(() => {
     if (!id) return;
 
@@ -134,7 +137,6 @@ export default function TeacherSessionPage() {
       setSession(sess);
       setLoading(false);
 
-      // Load existing data in parallel
       const [qRes, pRes, cRes] = await Promise.all([
         questionService.list(sess.id),
         sessionService.getPresence(sess.id),
@@ -146,7 +148,6 @@ export default function TeacherSessionPage() {
       presenceRef.current = loadedPresence;
       setChatMessages((cRes.data ?? []).map(dtoToChat));
 
-      // Check if a question is already running
       const running = (qRes.data ?? []).find((q) => q.status === 'running');
       if (running) setRunningQuestion(running);
 
@@ -156,6 +157,9 @@ export default function TeacherSessionPage() {
             const p = event.payload as {
               studentId: string; name: string; avatarColor?: string; action: 'joined' | 'left';
             };
+            if (p.action === 'left') {
+              rtc.closePeer(p.studentId);
+            }
             setPresence((prev) => {
               if (p.action === 'joined') {
                 if (prev.some((x) => x.studentId === p.studentId)) {
@@ -210,6 +214,11 @@ export default function TeacherSessionPage() {
             );
             break;
           }
+          case 'focus_changed': {
+            const { focusedStudentId: fid } = event.payload as { focusedStudentId: string | null };
+            setFocusedStudentId(fid);
+            break;
+          }
           case 'chat_message': {
             const msg = event.payload as ChatMessageDto;
             setChatMessages((prev) => [...prev, dtoToChat(msg)]);
@@ -225,6 +234,21 @@ export default function TeacherSessionPage() {
             setShowBreakoutPanel(false);
             break;
           }
+          case 'webrtc_offer': {
+            const { fromId, sdp } = event.payload as { fromId: string; sdp: string };
+            void rtc.handleOffer(fromId, sdp);
+            break;
+          }
+          case 'webrtc_answer': {
+            const { fromId, sdp } = event.payload as { fromId: string; sdp: string };
+            void rtc.handleAnswer(fromId, sdp);
+            break;
+          }
+          case 'webrtc_ice_candidate': {
+            const { fromId, candidate } = event.payload as { fromId: string; candidate: RTCIceCandidateInit };
+            void rtc.handleIceCandidate(fromId, candidate);
+            break;
+          }
         }
       }
 
@@ -232,16 +256,39 @@ export default function TeacherSessionPage() {
         sess.wsTicket!,
         sess.id,
         async () => (await authService.getWsTicket()).ticket,
+        async () => {
+          // WS ready — start local media then call all online students
+          const stream = await localMedia.startMedia(true, true);
+          if (!stream) {
+            notification.warning({
+              message: 'Không truy cập được camera/mic',
+              description: localMedia.error ?? 'Vui lòng cấp quyền và tải lại trang.',
+              placement: 'topRight',
+            });
+            return;
+          }
+          // Attach stream to any peer connections created before media was ready
+          rtc.attachLocalStream(stream);
+          // Offer to each online student
+          for (const p of presenceRef.current.filter((x) => x.isOnline)) {
+            await rtc.callPeer(p.studentId);
+          }
+        },
       );
       ws.subscribe(handleEvent);
       wsRef.current = ws;
     }
 
     init();
-    return () => wsRef.current?.disconnect();
-  }, [id]); // eslint-disable-line react-hooks/exhaustive-deps
+    return () => {
+      wsRef.current?.disconnect();
+      rtc.closeAllPeers();
+      localMedia.stopMedia();
+    };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [id]);
 
-  // Derived
+  // ── Derived ─────────────────────────────────────────────────────────
   const focusedStudent = focusedStudentId
     ? presence.find((p) => p.studentId === focusedStudentId) ?? null
     : null;
@@ -264,6 +311,7 @@ export default function TeacherSessionPage() {
         .map((p) => p.studentId)
     : [];
 
+  // ── Handlers ────────────────────────────────────────────────────────
   async function handleCreateQuestion(req: CreateQuestionRequest) {
     if (!session) return;
     try {
@@ -304,6 +352,11 @@ export default function TeacherSessionPage() {
 
   function handleSendChat(text: string) {
     wsRef.current?.sendChat(text);
+  }
+
+  function handleFocusStudent(studentId: string | null) {
+    setFocusedStudentId(studentId);
+    wsRef.current?.sendFocus(studentId);
   }
 
   const participants = [
@@ -382,7 +435,7 @@ export default function TeacherSessionPage() {
           </div>
         </div>
 
-        {/* Right: focus badge + elapsed + avatar */}
+        {/* Right */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexShrink: 0 }}>
           {focusedStudent && (
             <Tag
@@ -393,7 +446,7 @@ export default function TeacherSessionPage() {
               Focus: {focusedStudent.name.split(' ').pop()}
               <CloseOutlined
                 style={{ fontSize: 10, marginLeft: 4, cursor: 'pointer' }}
-                onClick={() => setFocusedStudentId(null)}
+                onClick={() => handleFocusStudent(null)}
               />
             </Tag>
           )}
@@ -461,77 +514,78 @@ export default function TeacherSessionPage() {
           {/* ── IDLE: Video classroom ── */}
           {viewMode === 'idle' && (
             <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 10, minHeight: 0 }}>
+
               {/* Main video area */}
               {focusedStudent ? (
+                /* ── Focus / Spotlight mode: 2-column grid ── */
                 <div style={{ flex: 1, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, minHeight: 0 }}>
-                  {/* Teacher tile */}
+                  {/* Teacher's own tile */}
                   <div style={{ borderRadius: 12, overflow: 'hidden', position: 'relative', border: '2px solid rgba(99,102,241,0.4)' }}>
-                    <img src={heroImg} alt="Screen share" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                    <VideoTile
+                      stream={localMedia.stream}
+                      name={user?.name ?? 'Giáo viên'}
+                      avatarColor="#6366f1"
+                      isTeacher
+                      isLocal
+                      isMuted={!localMedia.isMicOn}
+                      isCameraOff={!localMedia.isCameraOn}
+                      borderRadius={10}
+                    >
+                      {screenShareOn && (
+                        <div style={{ position: 'absolute', top: 8, left: 8, background: 'rgba(0,0,0,0.6)', padding: '2px 8px', borderRadius: 5, display: 'flex', alignItems: 'center', gap: 5, zIndex: 3 }}>
+                          <DesktopOutlined style={{ color: '#52c41a', fontSize: 11 }} />
+                          <Text style={{ color: '#fff', fontSize: 11 }}>Đang chia sẻ màn hình</Text>
+                        </div>
+                      )}
+                    </VideoTile>
+                  </div>
+
+                  {/* Focused student tile */}
+                  <div style={{ borderRadius: 12, overflow: 'hidden', border: '2px solid #6366f1', position: 'relative' }}>
+                    <VideoTile
+                      stream={rtc.peers.get(focusedStudent.studentId)?.remoteStream ?? null}
+                      name={focusedStudent.name}
+                      avatarColor={focusedStudent.avatarColor}
+                      isCameraOff={rtc.peers.get(focusedStudent.studentId)?.isCameraOff}
+                      isFocused
+                      borderRadius={10}
+                    >
+                      <Tag
+                        color="purple"
+                        style={{ position: 'absolute', top: 8, right: 8, borderRadius: 20, fontWeight: 600, zIndex: 3, display: 'flex', alignItems: 'center', gap: 3 }}
+                      >
+                        <AimOutlined />FOCUS
+                      </Tag>
+                    </VideoTile>
+                  </div>
+                </div>
+              ) : (
+                /* ── Normal mode: Teacher's video fills center ── */
+                <div style={{ flex: 1, borderRadius: 12, overflow: 'hidden', position: 'relative', minHeight: 280 }}>
+                  <VideoTile
+                    stream={localMedia.stream}
+                    name={user?.name ?? 'Giáo viên'}
+                    avatarColor="#6366f1"
+                    isTeacher
+                    isLocal
+                    isMuted={!localMedia.isMicOn}
+                    isCameraOff={!localMedia.isCameraOn}
+                    borderRadius={12}
+                  >
                     {screenShareOn && (
-                      <div style={{ position: 'absolute', top: 10, left: 12, background: 'rgba(0,0,0,0.6)', padding: '3px 10px', borderRadius: 6, display: 'flex', alignItems: 'center', gap: 6 }}>
+                      <div style={{ position: 'absolute', top: 10, left: 12, background: 'rgba(0,0,0,0.6)', padding: '3px 10px', borderRadius: 6, display: 'flex', alignItems: 'center', gap: 6, zIndex: 3 }}>
                         <DesktopOutlined style={{ color: '#52c41a', fontSize: 12 }} />
                         <Text style={{ color: '#fff', fontSize: 12 }}>Đang chia sẻ màn hình</Text>
                       </div>
                     )}
-                    <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, background: 'linear-gradient(transparent, rgba(0,0,0,0.7))', padding: '24px 14px 10px', display: 'flex', alignItems: 'center', gap: 10 }}>
-                      <Avatar size={32} style={{ background: 'linear-gradient(135deg, #6366f1, #8b5cf6)', flexShrink: 0 }}>
-                        {user?.name?.charAt(0) ?? 'G'}
-                      </Avatar>
-                      <div>
-                        <Text strong style={{ color: '#fff', fontSize: 13 }}>{user?.name ?? 'Giáo viên'}</Text>
-                        <div style={{ display: 'flex', gap: 4 }}>
-                          {!micOn && <Tag color="error" style={{ fontSize: 11, padding: '0 5px' }}>Mic tắt</Tag>}
-                          {!cameraOn && <Tag color="error" style={{ fontSize: 11, padding: '0 5px' }}>Camera tắt</Tag>}
-                          {micOn && cameraOn && <Text style={{ color: 'rgba(255,255,255,0.7)', fontSize: 12 }}>Đang giảng bài</Text>}
-                        </div>
-                      </div>
-                      <Badge status="processing" text={<Text style={{ color: 'rgba(255,255,255,0.7)', fontSize: 11 }}>LIVE</Text>} style={{ marginLeft: 'auto' }} />
+                    <div style={{ position: 'absolute', top: 10, right: 12, zIndex: 3 }}>
+                      <Badge status="processing" text={<Text style={{ color: 'rgba(255,255,255,0.8)', fontSize: 11 }}>LIVE</Text>} />
                     </div>
-                  </div>
-                  {/* Focused student tile */}
-                  <div style={{ borderRadius: 12, background: '#2a2a40', border: '2px solid #6366f1', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 14, position: 'relative' }}>
-                    <Tag color="purple" style={{ position: 'absolute', top: 10, right: 10, borderRadius: 20, fontWeight: 600 }}>
-                      <AimOutlined style={{ marginRight: 4 }} />FOCUS
-                    </Tag>
-                    <Avatar size={80} style={{ background: focusedStudent.avatarColor ?? '#6366f1', fontSize: 30, boxShadow: '0 0 0 4px rgba(99,102,241,0.3)' }}>
-                      {focusedStudent.name.charAt(0)}
-                    </Avatar>
-                    <div style={{ textAlign: 'center' }}>
-                      <Text strong style={{ color: '#fff', fontSize: 16, display: 'block' }}>{focusedStudent.name}</Text>
-                      <Text style={{ color: 'rgba(255,255,255,0.45)', fontSize: 12, fontStyle: 'italic' }}>Camera đang được phóng to</Text>
-                    </div>
-                    <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, background: 'linear-gradient(transparent, rgba(0,0,0,0.5))', padding: '16px 14px 10px', display: 'flex', justifyContent: 'center' }}>
-                      <Badge status="processing" text={<Text style={{ color: 'rgba(255,255,255,0.6)', fontSize: 11 }}>Đang kết nối</Text>} />
-                    </div>
-                  </div>
-                </div>
-              ) : (
-                <div style={{ flex: 1, borderRadius: 12, overflow: 'hidden', position: 'relative', minHeight: 280 }}>
-                  <img src={heroImg} alt="Screen share" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                  {screenShareOn && (
-                    <div style={{ position: 'absolute', top: 10, left: 12, background: 'rgba(0,0,0,0.6)', padding: '3px 10px', borderRadius: 6, display: 'flex', alignItems: 'center', gap: 6 }}>
-                      <DesktopOutlined style={{ color: '#52c41a', fontSize: 12 }} />
-                      <Text style={{ color: '#fff', fontSize: 12 }}>Đang chia sẻ màn hình</Text>
-                    </div>
-                  )}
-                  <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, background: 'linear-gradient(transparent, rgba(0,0,0,0.7))', padding: '24px 14px 10px', display: 'flex', alignItems: 'center', gap: 10 }}>
-                    <Avatar size={32} style={{ background: 'linear-gradient(135deg, #6366f1, #8b5cf6)', flexShrink: 0 }}>
-                      {user?.name?.charAt(0) ?? 'G'}
-                    </Avatar>
-                    <div>
-                      <Text strong style={{ color: '#fff', fontSize: 13 }}>{user?.name ?? 'Giáo viên'}</Text>
-                      <div style={{ display: 'flex', gap: 4 }}>
-                        {!micOn && <Tag color="error" style={{ fontSize: 11, padding: '0 5px' }}>Mic tắt</Tag>}
-                        {!cameraOn && <Tag color="error" style={{ fontSize: 11, padding: '0 5px' }}>Camera tắt</Tag>}
-                        {micOn && cameraOn && <Text style={{ color: 'rgba(255,255,255,0.7)', fontSize: 12 }}>Đang giảng bài</Text>}
-                      </div>
-                    </div>
-                    <Badge status="processing" text={<Text style={{ color: 'rgba(255,255,255,0.7)', fontSize: 11 }}>LIVE</Text>} style={{ marginLeft: 'auto' }} />
-                  </div>
+                  </VideoTile>
                 </div>
               )}
 
-              {/* Student thumbnails */}
+              {/* Student thumbnail strip */}
               <div style={{ display: 'flex', gap: 8, flexShrink: 0, flexWrap: 'wrap' }}>
                 {presence.length === 0 && (
                   <Text style={{ color: 'rgba(255,255,255,0.35)', fontSize: 12, padding: '8px 0' }}>
@@ -547,45 +601,40 @@ export default function TeacherSessionPage() {
                       title={isFocused ? 'Đang focus · Click để hủy' : 'Click để focus học sinh này'}
                     >
                       <div
-                        style={{
-                          width: 80,
-                          background: isFocused ? '#2a2a40' : '#2d2d44',
-                          borderRadius: 8,
-                          aspectRatio: '4/3',
-                          display: 'flex',
-                          flexDirection: 'column',
-                          alignItems: 'center',
-                          justifyContent: 'center',
-                          gap: 3,
-                          position: 'relative',
-                          cursor: 'pointer',
-                          border: isFocused ? '2px solid #6366f1' : '2px solid transparent',
-                          transition: 'border-color 0.15s, background 0.15s',
-                        }}
+                        style={{ width: 80, aspectRatio: '4/3', cursor: 'pointer', position: 'relative', flexShrink: 0 }}
                         onMouseEnter={() => setHoveredStudentId(p.studentId)}
                         onMouseLeave={() => setHoveredStudentId(null)}
-                        onClick={() => setFocusedStudentId(isFocused ? null : p.studentId)}
+                        onClick={() => handleFocusStudent(isFocused ? null : p.studentId)}
                       >
-                        {(isHovered || isFocused) && (
-                          <AimOutlined
-                            style={{
-                              position: 'absolute',
-                              top: 4, left: 5,
-                              color: isFocused ? '#818cf8' : 'rgba(255,255,255,0.75)',
-                              fontSize: 13,
-                            }}
-                          />
-                        )}
-                        <Avatar size={28} style={{ background: p.avatarColor ?? '#6366f1', fontSize: 12 }}>
-                          {p.name.charAt(0)}
-                        </Avatar>
-                        <Text style={{ color: 'rgba(255,255,255,0.8)', fontSize: 10 }} ellipsis>
-                          {p.name.split(' ').pop()}
-                        </Text>
-                        <Badge status={p.isOnline ? 'processing' : 'default'} />
-                        {raisedHandIds.includes(p.studentId) && (
-                          <span style={{ position: 'absolute', top: 3, right: 4, fontSize: 12 }}>✋</span>
-                        )}
+                        <VideoTile
+                          stream={rtc.peers.get(p.studentId)?.remoteStream ?? null}
+                          name={p.name}
+                          avatarColor={p.avatarColor}
+                          isCameraOff={rtc.peers.get(p.studentId)?.isCameraOff}
+                          isFocused={isFocused}
+                          compact
+                          borderRadius={8}
+                        >
+                          {(isHovered || isFocused) && (
+                            <AimOutlined
+                              style={{
+                                position: 'absolute',
+                                top: 4, left: 5,
+                                color: isFocused ? '#818cf8' : 'rgba(255,255,255,0.75)',
+                                fontSize: 13,
+                                zIndex: 3,
+                              }}
+                            />
+                          )}
+                          {raisedHandIds.includes(p.studentId) && (
+                            <span style={{ position: 'absolute', top: 3, right: 4, fontSize: 12, zIndex: 3 }}>✋</span>
+                          )}
+                          {!p.isOnline && (
+                            <div style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 3, borderRadius: 8 }}>
+                              <Text style={{ color: 'rgba(255,255,255,0.5)', fontSize: 10 }}>Offline</Text>
+                            </div>
+                          )}
+                        </VideoTile>
                       </div>
                     </Tooltip>
                   );
@@ -794,17 +843,17 @@ export default function TeacherSessionPage() {
         }}
       >
         <CtrlBtn
-          active={!micOn}
-          danger={!micOn}
-          onClick={() => setMicOn(!micOn)}
-          title={micOn ? 'Tắt mic' : 'Bật mic'}
-          icon={micOn ? <AudioOutlined /> : <AudioMutedOutlined />}
+          active={!localMedia.isMicOn}
+          danger={!localMedia.isMicOn}
+          onClick={localMedia.toggleMic}
+          title={localMedia.isMicOn ? 'Tắt mic' : 'Bật mic'}
+          icon={localMedia.isMicOn ? <AudioOutlined /> : <AudioMutedOutlined />}
         />
         <CtrlBtn
-          active={!cameraOn}
-          danger={!cameraOn}
-          onClick={() => setCameraOn(!cameraOn)}
-          title={cameraOn ? 'Tắt camera' : 'Bật camera'}
+          active={!localMedia.isCameraOn}
+          danger={!localMedia.isCameraOn}
+          onClick={localMedia.toggleCamera}
+          title={localMedia.isCameraOn ? 'Tắt camera' : 'Bật camera'}
           icon={<VideoCameraOutlined />}
         />
         <CtrlBtn
