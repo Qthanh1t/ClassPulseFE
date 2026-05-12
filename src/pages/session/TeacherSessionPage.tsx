@@ -257,19 +257,21 @@ export default function TeacherSessionPage() {
         sess.id,
         async () => (await authService.getWsTicket()).ticket,
         async () => {
-          // WS ready — start local media then call all online students
-          const stream = await localMedia.startMedia(true, true);
+          // Guard against re-init on WS reconnect (STOMP fires onConnect on every reconnect)
+          let stream = localMedia.streamRef.current;
           if (!stream) {
-            notification.warning({
-              message: 'Không truy cập được camera/mic',
-              description: localMedia.error ?? 'Vui lòng cấp quyền và tải lại trang.',
-              placement: 'topRight',
-            });
-            return;
+            stream = await localMedia.startMedia(true, true);
+            if (!stream) {
+              notification.warning({
+                message: 'Không truy cập được camera/mic',
+                description: 'Vui lòng cấp quyền và tải lại trang.',
+                placement: 'topRight',
+              });
+              return;
+            }
+            rtc.attachLocalStream(stream);
           }
-          // Attach stream to any peer connections created before media was ready
-          rtc.attachLocalStream(stream);
-          // Offer to each online student
+          // Offer to each online student (callPeer is guarded against duplicates)
           for (const p of presenceRef.current.filter((x) => x.isOnline)) {
             await rtc.callPeer(p.studentId);
           }

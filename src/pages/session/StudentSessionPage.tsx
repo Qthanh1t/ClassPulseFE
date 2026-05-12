@@ -244,10 +244,14 @@ export default function StudentSessionPage() {
           info.sessionId,
           async () => (await sessionService.join(info.sessionId)).data!.wsTicket,
           async () => {
-            // WS ready — start media then call teacher + online peers
-            const stream = await localMedia.startMedia(true, true);
-            if (!stream) return;
-            rtc.attachLocalStream(stream);
+            // Guard against re-init on WS reconnect (STOMP fires onConnect on every reconnect)
+            let stream = localMedia.streamRef.current;
+            if (!stream) {
+              stream = await localMedia.startMedia(true, true);
+              if (!stream) return;
+              rtc.attachLocalStream(stream);
+            }
+            // callPeer is guarded against duplicates — safe to call on reconnect
             if (teacherIdRef.current) await rtc.callPeer(teacherIdRef.current);
             for (const p of presenceRef.current) {
               if (p.isOnline && p.studentId !== me?.id) await rtc.callPeer(p.studentId);
