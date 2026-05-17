@@ -21,10 +21,16 @@ function ProtectedRoute() {
 
 function AuthBootstrap({ children }: { children: React.ReactNode }) {
   const [ready, setReady] = useState(false);
+  const user = useAuthStore((s) => s.user);
   const setAuth = useAuthStore((s) => s.setAuth);
   const clearAuth = useAuthStore((s) => s.clearAuth);
 
   useEffect(() => {
+    // Nếu đã có session từ sessionStorage thì không cần gọi refresh
+    if (user) {
+      setReady(true);
+      return;
+    }
     authService.refresh()
       .then((res) => setAuth(res.user, res.accessToken))
       .catch(() => clearAuth())
