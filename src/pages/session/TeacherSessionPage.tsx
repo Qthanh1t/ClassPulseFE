@@ -114,26 +114,19 @@ export default function TeacherSessionPage() {
   // ── Init: start/reconnect session + connect WS + init WebRTC ────────
   useEffect(() => {
     if (!id) return;
+    let cancelled = false;
 
     async function init() {
       let sess: SessionDto;
       try {
+        // Backend trả về session hiện có nếu đã active (không throw SESSION_ALREADY_ACTIVE nữa)
         sess = (await sessionService.start(id!, {})).data!;
-      } catch (err: unknown) {
-        const code = (err as { response?: { data?: { error?: { code?: string } } } })
-          ?.response?.data?.error?.code;
-        if (code === 'SESSION_ALREADY_ACTIVE') {
-          const listRes = await sessionService.listByClassroom(id!);
-          const active = listRes.data?.find((s) => s.status === 'active');
-          if (!active) { setLoading(false); return; }
-          const ticket = await authService.getWsTicket();
-          sess = { ...active, wsTicket: ticket.ticket };
-        } else {
-          setLoading(false);
-          return;
-        }
+      } catch {
+        if (!cancelled) setLoading(false);
+        return;
       }
 
+      if (cancelled) return;
       setSession(sess);
       setLoading(false);
 
@@ -142,6 +135,7 @@ export default function TeacherSessionPage() {
         sessionService.getPresence(sess.id),
         chatService.getHistory(sess.id),
       ]);
+      if (cancelled) return;
       const loadedPresence = pRes.data ?? [];
       setQuestions(qRes.data ?? []);
       setPresence(loadedPresence);
@@ -252,11 +246,13 @@ export default function TeacherSessionPage() {
         }
       }
 
+      if (cancelled) return;
       const ws = createSessionWsClient(
         sess.wsTicket!,
         sess.id,
         async () => (await authService.getWsTicket()).ticket,
         async () => {
+          if (cancelled) return;
           // Guard against re-init on WS reconnect (STOMP fires onConnect on every reconnect)
           let stream = localMedia.streamRef.current;
           if (!stream) {
@@ -281,8 +277,11 @@ export default function TeacherSessionPage() {
       wsRef.current = ws;
     }
 
-    init();
+    // setTimeout đảm bảo StrictMode cleanup cancel được trước khi init chạy
+    const timer = setTimeout(() => { if (!cancelled) void init(); }, 0);
     return () => {
+      cancelled = true;
+      clearTimeout(timer);
       wsRef.current?.disconnect();
       rtc.closeAllPeers();
       localMedia.stopMedia();

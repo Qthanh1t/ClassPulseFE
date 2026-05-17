@@ -105,13 +105,17 @@ export default function StudentSessionPage() {
 
   // ── Init ──────────────────────────────────────────────────────────
   useEffect(() => {
+    let cancelled = false;
+
     async function init() {
       try {
         const sessionsRes = await sessionService.listByClassroom(id!);
+        if (cancelled) return;
         const active = sessionsRes.data?.find((s) => s.status === 'active');
         if (!active) { setLoading(false); return; }
 
         const joinRes = await sessionService.join(active.id);
+        if (cancelled) return;
         if (!joinRes.data) { setLoading(false); return; }
         const info = joinRes.data;
         setJoinInfo(info);
@@ -122,6 +126,7 @@ export default function StudentSessionPage() {
           questionService.list(info.sessionId),
           sessionService.get(info.sessionId),
         ]);
+        if (cancelled) return;
 
         const loadedPresence = presenceRes.data ?? [];
         if (loadedPresence.length > 0) setPresence(loadedPresence);
@@ -239,11 +244,13 @@ export default function StudentSessionPage() {
           }
         }
 
+        if (cancelled) return;
         const ws = createSessionWsClient(
           info.wsTicket,
           info.sessionId,
           async () => (await sessionService.join(info.sessionId)).data!.wsTicket,
           async () => {
+            if (cancelled) return;
             // Guard against re-init on WS reconnect (STOMP fires onConnect on every reconnect)
             let stream = localMedia.streamRef.current;
             if (!stream) {
@@ -261,11 +268,15 @@ export default function StudentSessionPage() {
         ws.subscribe(handleEvent);
         wsRef.current = ws;
       } catch {
-        setLoading(false);
+        if (!cancelled) setLoading(false);
       }
     }
-    init();
+
+    // setTimeout đảm bảo StrictMode cleanup cancel được trước khi init chạy
+    const timer = setTimeout(() => { if (!cancelled) void init(); }, 0);
     return () => {
+      cancelled = true;
+      clearTimeout(timer);
       wsRef.current?.disconnect();
       rtc.closeAllPeers();
       localMedia.stopMedia();
