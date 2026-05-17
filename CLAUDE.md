@@ -126,6 +126,17 @@ npm run preview    # xem trước bản build
 
 Chưa có test runner.
 
+## Environment variables (`.env`)
+
+| Biến | Mặc định | Ghi chú |
+|---|---|---|
+| `VITE_API_BASE_URL` | `http://localhost:8080/api/v1` | Base URL cho Axios |
+| `VITE_WS_URL` | `http://localhost:8080/ws` | URL tuyệt đối cho SockJS; **bắt buộc dùng URL tuyệt đối** — path tương đối `/ws` trỏ vào Vite dev server gây 404 loop |
+
+## vite.config.ts
+
+- `define: { global: 'globalThis' }` — polyfill `global` cho `sockjs-client` (thư viện Node.js-style chạy trong browser)
+
 ## Routing
 
 | Path | Component | Ghi chú |
@@ -253,10 +264,11 @@ Dữ liệu từ `dashboardService.getStudentReview(sessionId)` → `ReviewRespo
 ## TeacherSessionPage
 
 Route `:id` = `classroomId`. Init flow:
-1. `sessionService.start(classroomId)` → `SessionDto` với `wsTicket`
-2. Nếu lỗi `SESSION_ALREADY_ACTIVE`: `sessionService.listByClassroom` → find active → `authService.getWsTicket`
-3. Load song song: `sessionService.getPresence`, `chatService.getHistory`, `questionService.list` (find running)
-4. `createSessionWsClient(wsTicket, sessionId, () => authService.getWsTicket().ticket)`
+1. `sessionService.start(classroomId)` → `SessionDto` với `wsTicket` — backend trả về session hiện có nếu đã active (không còn throw `SESSION_ALREADY_ACTIVE`)
+2. Load song song: `sessionService.getPresence`, `chatService.getHistory`, `questionService.list` (find running)
+3. `createSessionWsClient(wsTicket, sessionId, () => authService.getWsTicket().ticket, onConnected)`
+
+**StrictMode guard**: init được wrap trong `setTimeout(fn, 0)` + `cancelled` flag. StrictMode cleanup chạy sync trước khi timeout fires → cancel lần đầu; lần mount thứ hai init mới thật sự chạy. Mọi `await` trong init đều có `if (cancelled) return` để tránh set state sau cleanup.
 
 **`viewMode`** (derived, không phải state): `breakout/showBreakoutPanel → 'breakout'` | `runningQuestion?.status === 'running' → 'running'` | `runningQuestion?.status === 'ended' → 'ended'` | `'idle'`
 
@@ -281,9 +293,11 @@ Route `:id` = `classroomId`. Init flow:
 1. `sessionService.listByClassroom(classroomId)` → find active session
 2. `sessionService.join(activeSession.id)` → `JoinSessionResponse { sessionId, classroomName, teacherName, wsTicket }`
 3. Load song song: `sessionService.getPresence`, `chatService.getHistory`, `questionService.list` (find running → setRunningQuestion)
-4. `createSessionWsClient(wsTicket, sessionId, () => sessionService.join(sessionId).wsTicket)`
+4. `createSessionWsClient(wsTicket, sessionId, () => sessionService.join(sessionId).wsTicket, onConnected)`
 
 Nếu không có session active → hiển thị màn hình "Không có buổi học đang diễn ra".
+
+**StrictMode guard**: cùng pattern với TeacherSessionPage — `setTimeout(fn, 0)` + `cancelled` flag để tránh double API call.
 
 **WS events xử lý**: `student_presence` → `setPresence`; `question_started` → `setRunningQuestion` + reset answers + show panel/modal; `question_ended` → update status; `raise_hand_changed` → `setRaisedHandIds`; `breakout_started` → `setMyRoom` + `ws.subscribeRoom`; `breakout_ended` → `setMyRoom(null)` + unsubscribe; `broadcast_message` → `setBroadcastMsg`; `chat_message` → append
 
@@ -325,10 +339,12 @@ API trả `startTime`/`endTime` dạng `"HH:mm"` (string không có date). Khi p
 
 ## WebSocket layer (`src/lib/websocket.ts`)
 
-- `createSessionWsClient(ticket, sessionId, onReconnect)` — trả về `SessionWsClient` interface
+- `createSessionWsClient(ticket, sessionId, onReconnect, onConnected?)` — trả về `SessionWsClient` interface
+- SockJS URL lấy từ `import.meta.env.VITE_WS_URL` (fallback `http://localhost:8080/ws`) — **phải là URL tuyệt đối**, không dùng path tương đối `/ws` vì Vite dev server không proxy WebSocket
 - Ticket **dùng 1 lần**, TTL 60s — kết nối ngay sau khi nhận, không lưu localStorage
 - Heartbeat publish tới `/app/session/{id}/heartbeat` mỗi 25s
 - Khi disconnect: gọi `onReconnect()` để lấy ticket mới (teacher dùng `getWsTicket`, student dùng `sessionService.join`)
+- `onConnected` callback — gọi sau khi STOMP subscribe xong, dùng để khởi động WebRTC
 - Subscribe session chính: `/topic/session/{sessionId}` + unicast `/user/queue/private`
 - Subscribe phòng nhỏ: `subscribeRoom(roomId, handler)` / `unsubscribeRoom(roomId)`
 - Send methods: `sendChat`, `sendRaiseHand`, `sendFocus`, `sendWebRtcOffer/Answer/IceCandidate`
