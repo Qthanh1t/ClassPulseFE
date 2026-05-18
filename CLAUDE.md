@@ -132,6 +132,7 @@ Chưa có test runner.
 |---|---|---|
 | `VITE_API_BASE_URL` | `http://localhost:8080/api/v1` | Base URL cho Axios |
 | `VITE_WS_URL` | `http://localhost:8080/ws` | URL tuyệt đối cho SockJS; **bắt buộc dùng URL tuyệt đối** — path tương đối `/ws` trỏ vào Vite dev server gây 404 loop |
+| `VITE_TURN_HOST` | `localhost` | Host/IP của Coturn server; set thành LAN IP của máy chạy Docker khi test 2 thiết bị cùng mạng (VD: `192.168.1.156`) |
 
 ## vite.config.ts
 
@@ -341,6 +342,8 @@ API trả `startTime`/`endTime` dạng `"HH:mm"` (string không có date). Khi p
 
 - `createSessionWsClient(ticket, sessionId, onReconnect, onConnected?)` — trả về `SessionWsClient` interface
 - SockJS URL lấy từ `import.meta.env.VITE_WS_URL` (fallback `http://localhost:8080/ws`) — **phải là URL tuyệt đối**, không dùng path tương đối `/ws` vì Vite dev server không proxy WebSocket
+- **Ticket truyền qua URL query param**: `new SockJS(\`${WS_URL}?ticket=${encodeURIComponent(ticket)}\`)` — `JwtHandshakeHandler` backend đọc từ HTTP query string tại lúc upgrade. **Không dùng `connectHeaders: { ticket }`** — STOMP headers là post-handshake, backend không đọc được.
+- `makeWsFactory(ticket)` trả về factory function; khi reconnect sau disconnect, `client.webSocketFactory` được cập nhật sang factory với ticket mới trước khi STOMP retry.
 - Ticket **dùng 1 lần**, TTL 60s — kết nối ngay sau khi nhận, không lưu localStorage
 - Heartbeat publish tới `/app/session/{id}/heartbeat` mỗi 25s
 - Khi disconnect: gọi `onReconnect()` để lấy ticket mới (teacher dùng `getWsTicket`, student dùng `sessionService.join`)
@@ -348,6 +351,22 @@ API trả `startTime`/`endTime` dạng `"HH:mm"` (string không có date). Khi p
 - Subscribe session chính: `/topic/session/{sessionId}` + unicast `/user/queue/private`
 - Subscribe phòng nhỏ: `subscribeRoom(roomId, handler)` / `unsubscribeRoom(roomId)`
 - Send methods: `sendChat`, `sendRaiseHand`, `sendFocus`, `sendWebRtcOffer/Answer/IceCandidate`
+
+## WebRTC (`src/config/webrtc.ts`, `src/hooks/useWebRTC.ts`)
+
+### ICE server config (`src/config/webrtc.ts`)
+- `VITE_TURN_HOST` env var xác định host của STUN/TURN — dùng LAN IP khi test 2 máy (VD: `192.168.1.156`)
+- ICE servers: Google STUN (fallback), local STUN tại `${TURN_HOST}:3478`, local TURN TCP+UDP với credentials `classpulse`/`secret123`
+- Credentials **phải khớp** với `turnserver.conf`: `lt-cred-mech` + `user=classpulse:secret123`
+
+### `useWebRTC` hook (`src/hooks/useWebRTC.ts`)
+- `pcsRef: Map<peerId, PeerEntry>` — source of truth; `peers` state là bản sao để trigger re-render
+- `createPeerConnection(peerId)` — reuse nếu PC còn usable; đóng stale PC trước khi tạo mới
+- `ontrack` handler dùng `event.track` trực tiếp (không phải `event.streams[0].getTracks()`) — tránh duplicate add khi ontrack fires per-track nhưng `getTracks()` trả toàn bộ stream mỗi lần
+- ICE candidate buffering: nếu `remoteDescription` chưa set, candidate được buffer vào `iceBuf`; drain sau `setRemoteDescription`
+- Glare handling: nếu cả 2 peer cùng gửi offer, peer nhận offer khi đang `have-local-offer` sẽ rollback (`setLocalDescription({type:'rollback'})`) rồi xử lý offer mới
+- Teacher → gọi `callPeer(studentId)` khi nhận `student_presence` joined event
+- Student → polite-peer: peer có UUID nhỏ hơn gửi offer cho student-to-student; auto-detect teacherId từ offer đầu tiên nhận được
 
 ## AdminPage
 

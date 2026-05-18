@@ -64,9 +64,13 @@ export function createSessionWsClient(
 
   const WS_URL = import.meta.env.VITE_WS_URL ?? 'http://localhost:8080/ws';
 
+  // JwtHandshakeHandler reads the ticket from ?ticket= query param in the HTTP
+  // handshake URL — NOT from STOMP connectHeaders (which are STOMP-level, post-handshake).
+  const makeWsFactory = (ticket: string) =>
+    () => new SockJS(`${WS_URL}?ticket=${encodeURIComponent(ticket)}`);
+
   const client = new Client({
-    webSocketFactory: () => new SockJS(WS_URL),
-    connectHeaders: { ticket: wsTicket },
+    webSocketFactory: makeWsFactory(wsTicket),
     reconnectDelay: 5000,
 
     onConnect: () => {
@@ -99,10 +103,11 @@ export function createSessionWsClient(
         hbInterval = null;
       }
       try {
+        // Get a fresh one-time ticket and update the factory before reconnect
         const newTicket = await onReconnect();
-        client.connectHeaders = { ticket: newTicket };
+        client.webSocketFactory = makeWsFactory(newTicket);
       } catch {
-        // STOMP will retry after reconnectDelay
+        // STOMP will retry after reconnectDelay with the old factory
       }
     },
   });

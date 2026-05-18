@@ -38,6 +38,10 @@ export default function VideoTile({
   useEffect(() => {
     if (!videoRef.current) return;
     videoRef.current.srcObject = stream ?? null;
+    // Explicitly call play() — autoPlay attribute alone is unreliable when srcObject changes
+    if (stream) {
+      videoRef.current.play().catch(() => {});
+    }
   }, [stream]);
 
   const showVideo = !!stream && !isCameraOff;

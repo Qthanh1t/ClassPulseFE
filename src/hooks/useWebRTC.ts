@@ -14,6 +14,8 @@ export interface PeerEntry {
 
 export type PeerMap = Map<string, PeerEntry>;
 
+const log = (...args: unknown[]) => console.log('[RTC]', ...args);
+
 export function useWebRTC(
   myUserId: string,
   wsRef: React.RefObject<SessionWsClient | null>,
@@ -21,55 +23,101 @@ export function useWebRTC(
 ) {
   const pcsRef = useRef<PeerMap>(new Map());
   const [peers, setPeers] = useState<PeerMap>(new Map());
+  const iceBuf = useRef<Map<string, RTCIceCandidateInit[]>>(new Map());
 
   const syncPeers = useCallback(() => {
     setPeers(new Map(pcsRef.current));
   }, []);
 
+  const drainIceBuf = useCallback(async (peerId: string, pc: RTCPeerConnection) => {
+    const buf = iceBuf.current.get(peerId);
+    if (!buf?.length) return;
+    log(`draining ${buf.length} buffered ICE candidates for`, peerId);
+    iceBuf.current.set(peerId, []);
+    for (const c of buf) {
+      try { await pc.addIceCandidate(new RTCIceCandidate(c)); } catch { /* stale */ }
+    }
+  }, []);
+
   const createPeerConnection = useCallback(
     (peerId: string): RTCPeerConnection => {
       const existing = pcsRef.current.get(peerId);
-      if (existing) return existing.pc;
+      if (
+        existing &&
+        existing.pc.connectionState !== 'closed' &&
+        existing.pc.connectionState !== 'failed'
+      ) {
+        return existing.pc;
+      }
+      if (existing) {
+        log(`closing stale PC (${existing.pc.connectionState}) for`, peerId);
+        existing.pc.close();
+        pcsRef.current.delete(peerId);
+        iceBuf.current.delete(peerId);
+      }
 
+      log(`creating new PeerConnection for`, peerId, '| localTracks:', localStreamRef.current?.getTracks().length ?? 0);
       const pc = new RTCPeerConnection(RTC_CONFIG);
 
-      // Add local tracks if media is already running
       if (localStreamRef.current) {
         localStreamRef.current.getTracks().forEach((track) => {
           pc.addTrack(track, localStreamRef.current!);
+          log(`  added local ${track.kind} track to PC for`, peerId);
         });
       }
 
       const remoteStream = new MediaStream();
 
       pc.ontrack = (event) => {
-        event.streams[0]?.getTracks().forEach((track) => remoteStream.addTrack(track));
-        const entry = pcsRef.current.get(peerId);
-        if (entry) {
-          entry.remoteStream = remoteStream;
-          entry.isCameraOff = !event.track.enabled;
-          syncPeers();
+        log(`ontrack from ${peerId}: kind=${event.track.kind} enabled=${event.track.enabled}`);
+        // Use event.track directly — avoids duplicate-add when ontrack fires per-track
+        // but event.streams[0].getTracks() returns all tracks in the stream each time.
+        if (!remoteStream.getTracks().includes(event.track)) {
+          remoteStream.addTrack(event.track);
         }
+        const entry = pcsRef.current.get(peerId);
+        if (!entry) return;
+        entry.remoteStream = remoteStream;
+        if (event.track.kind === 'video') {
+          entry.isCameraOff = false;
+        }
+        syncPeers();
       };
 
       pc.onicecandidate = (event) => {
-        if (!event.candidate) return;
+        if (!event.candidate) {
+          log(`ICE gathering done for`, peerId);
+          return;
+        }
+        log(`sending ICE candidate to`, peerId, '|', event.candidate.type, event.candidate.address);
         wsRef.current?.sendWebRtcIceCandidate(peerId, event.candidate);
       };
 
       pc.onconnectionstatechange = () => {
+        const state = pc.connectionState;
+        log(`connection state → ${state} for`, peerId);
         const entry = pcsRef.current.get(peerId);
         if (!entry) return;
-        entry.state = pc.connectionState as PeerState;
+        entry.state = state as PeerState;
         syncPeers();
 
-        if (pc.connectionState === 'failed') {
+        if (state === 'failed') {
+          log(`restarting ICE for`, peerId);
           pc.restartIce();
         }
-        if (pc.connectionState === 'closed') {
+        if (state === 'closed') {
           pcsRef.current.delete(peerId);
+          iceBuf.current.delete(peerId);
           syncPeers();
         }
+      };
+
+      pc.onicegatheringstatechange = () => {
+        log(`ICE gathering state → ${pc.iceGatheringState} for`, peerId);
+      };
+
+      pc.oniceconnectionstatechange = () => {
+        log(`ICE connection state → ${pc.iceConnectionState} for`, peerId);
       };
 
       pcsRef.current.set(peerId, {
@@ -85,20 +133,31 @@ export function useWebRTC(
     [wsRef, localStreamRef, syncPeers],
   );
 
-  // Call a peer (we are the caller / offerer)
   const callPeer = useCallback(
     async (peerId: string) => {
-      if (pcsRef.current.has(peerId) || peerId === myUserId) return;
-      if (!wsRef.current) return;
+      if (peerId === myUserId) return;
+      if (!wsRef.current) { log('callPeer skipped — wsRef not set'); return; }
 
+      const existing = pcsRef.current.get(peerId);
+      if (
+        existing &&
+        existing.pc.connectionState !== 'closed' &&
+        existing.pc.connectionState !== 'failed'
+      ) {
+        log(`callPeer(${peerId}) skipped — already have usable PC (${existing.pc.connectionState})`);
+        return;
+      }
+
+      log(`callPeer → creating offer for`, peerId);
       const pc = createPeerConnection(peerId);
 
       try {
         const offer = await pc.createOffer({ offerToReceiveAudio: true, offerToReceiveVideo: true });
         await pc.setLocalDescription(offer);
+        log(`offer created & sent to`, peerId, '| sdp length:', offer.sdp?.length);
         wsRef.current.sendWebRtcOffer(peerId, pc.localDescription!.sdp);
       } catch (err) {
-        console.error('[WebRTC] Failed to create offer for', peerId, err);
+        console.error('[RTC] Failed to create offer for', peerId, err);
         pc.close();
         pcsRef.current.delete(peerId);
         syncPeers();
@@ -107,69 +166,100 @@ export function useWebRTC(
     [myUserId, wsRef, createPeerConnection, syncPeers],
   );
 
-  // Handle incoming offer (we are the callee / answerer)
   const handleOffer = useCallback(
     async (fromId: string, sdp: string) => {
+      log(`handleOffer from`, fromId, '| myUserId:', myUserId, '| sdp length:', sdp?.length);
+      if (!fromId) { console.warn('[RTC] handleOffer: fromId is missing — backend must include fromId in payload'); return; }
       if (fromId === myUserId) return;
 
       const pc = createPeerConnection(fromId);
+      log(`  PC signalingState for offer:`, pc.signalingState);
 
       try {
+        // Handle glare: if we already sent an offer, roll back before accepting remote offer
+        if (pc.signalingState === 'have-local-offer') {
+          log(`  glare detected — rolling back local offer for`, fromId);
+          await pc.setLocalDescription({ type: 'rollback' });
+        }
         await pc.setRemoteDescription({ type: 'offer', sdp });
+        await drainIceBuf(fromId, pc);
         const answer = await pc.createAnswer();
         await pc.setLocalDescription(answer);
+        log(`answer created & sent to`, fromId, '| sdp length:', answer.sdp?.length);
         wsRef.current?.sendWebRtcAnswer(fromId, pc.localDescription!.sdp);
       } catch (err) {
-        console.error('[WebRTC] Failed to handle offer from', fromId, err);
+        console.error('[RTC] Failed to handle offer from', fromId, err);
       }
     },
-    [myUserId, wsRef, createPeerConnection],
+    [myUserId, wsRef, createPeerConnection, drainIceBuf],
   );
 
-  // Handle incoming answer
   const handleAnswer = useCallback(async (fromId: string, sdp: string) => {
+    log(`handleAnswer from`, fromId, '| sdp length:', sdp?.length);
+    if (!fromId) { console.warn('[RTC] handleAnswer: fromId is missing'); return; }
     const entry = pcsRef.current.get(fromId);
-    if (!entry) return;
+    if (!entry) { log('handleAnswer: no PC found for', fromId); return; }
+    log(`  PC signalingState for answer:`, entry.pc.signalingState);
     try {
       if (entry.pc.signalingState === 'have-local-offer') {
         await entry.pc.setRemoteDescription({ type: 'answer', sdp });
+        await drainIceBuf(fromId, entry.pc);
+        log(`answer set successfully for`, fromId);
+      } else {
+        log(`handleAnswer skipped — signalingState is ${entry.pc.signalingState}`);
       }
     } catch (err) {
-      console.error('[WebRTC] Failed to set answer from', fromId, err);
+      console.error('[RTC] Failed to set answer from', fromId, err);
     }
-  }, []);
+  }, [drainIceBuf]);
 
-  // Handle incoming ICE candidate
   const handleIceCandidate = useCallback(async (fromId: string, candidate: RTCIceCandidateInit) => {
+    if (!fromId) { console.warn('[RTC] handleIceCandidate: fromId is missing'); return; }
     const entry = pcsRef.current.get(fromId);
     if (!entry || entry.pc.connectionState === 'closed') return;
+
+    if (!entry.pc.remoteDescription) {
+      log(`buffering ICE candidate from ${fromId} (no remote description yet)`);
+      const buf = iceBuf.current.get(fromId) ?? [];
+      buf.push(candidate);
+      iceBuf.current.set(fromId, buf);
+      return;
+    }
+
     try {
       await entry.pc.addIceCandidate(new RTCIceCandidate(candidate));
     } catch {
-      // Ignore stale or invalid candidates
+      // stale or invalid candidate
     }
   }, []);
 
   const closePeer = useCallback((peerId: string) => {
     const entry = pcsRef.current.get(peerId);
     if (!entry) return;
+    log(`closing peer`, peerId);
     entry.pc.close();
     pcsRef.current.delete(peerId);
+    iceBuf.current.delete(peerId);
     syncPeers();
   }, [syncPeers]);
 
   const closeAllPeers = useCallback(() => {
+    log(`closing all ${pcsRef.current.size} peers`);
     pcsRef.current.forEach((entry) => entry.pc.close());
     pcsRef.current.clear();
+    iceBuf.current.clear();
     syncPeers();
   }, [syncPeers]);
 
-  // After local media is obtained, add tracks to existing peer connections that missed it
   const attachLocalStream = useCallback((stream: MediaStream) => {
-    pcsRef.current.forEach(({ pc }) => {
+    log(`attachLocalStream: adding tracks to ${pcsRef.current.size} existing PCs`);
+    pcsRef.current.forEach(({ pc, peerId }) => {
       const hasTracks = pc.getSenders().some((s) => s.track !== null);
       if (!hasTracks) {
-        stream.getTracks().forEach((track) => pc.addTrack(track, stream));
+        stream.getTracks().forEach((track) => {
+          pc.addTrack(track, stream);
+          log(`  added ${track.kind} track to PC for`, peerId);
+        });
       }
     });
   }, []);

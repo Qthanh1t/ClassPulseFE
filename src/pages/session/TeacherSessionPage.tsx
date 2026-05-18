@@ -151,8 +151,12 @@ export default function TeacherSessionPage() {
             const p = event.payload as {
               studentId: string; name: string; avatarColor?: string; action: 'joined' | 'left';
             };
+            console.log('[TEACHER] student_presence:', p.action, '| studentId =', p.studentId, '| myUserId =', user?.id);
             if (p.action === 'left') {
               rtc.closePeer(p.studentId);
+            } else {
+              // Teacher always initiates — call newly joined student
+              void rtc.callPeer(p.studentId);
             }
             setPresence((prev) => {
               if (p.action === 'joined') {
@@ -226,21 +230,29 @@ export default function TeacherSessionPage() {
           case 'breakout_ended': {
             setBreakout(null);
             setShowBreakoutPanel(false);
+            // Re-call all online students after breakout ends
+            void (async () => {
+              for (const p of presenceRef.current.filter((x) => x.isOnline)) {
+                await rtc.callPeer(p.studentId);
+              }
+            })();
             break;
           }
           case 'webrtc_offer': {
-            const { fromId, sdp } = event.payload as { fromId: string; sdp: string };
-            void rtc.handleOffer(fromId, sdp);
+            const raw = event.payload as Record<string, unknown>;
+            console.log('[RTC-WS] webrtc_offer keys:', Object.keys(raw), '| fromId:', raw.fromId);
+            void rtc.handleOffer(raw.fromId as string, raw.sdp as string);
             break;
           }
           case 'webrtc_answer': {
-            const { fromId, sdp } = event.payload as { fromId: string; sdp: string };
-            void rtc.handleAnswer(fromId, sdp);
+            const raw = event.payload as Record<string, unknown>;
+            console.log('[RTC-WS] webrtc_answer keys:', Object.keys(raw), '| fromId:', raw.fromId);
+            void rtc.handleAnswer(raw.fromId as string, raw.sdp as string);
             break;
           }
           case 'webrtc_ice_candidate': {
-            const { fromId, candidate } = event.payload as { fromId: string; candidate: RTCIceCandidateInit };
-            void rtc.handleIceCandidate(fromId, candidate);
+            const raw = event.payload as Record<string, unknown>;
+            void rtc.handleIceCandidate(raw.fromId as string, raw.candidate as RTCIceCandidateInit);
             break;
           }
         }
@@ -257,15 +269,16 @@ export default function TeacherSessionPage() {
           let stream = localMedia.streamRef.current;
           if (!stream) {
             stream = await localMedia.startMedia(true, true);
-            if (!stream) {
+            if (stream) {
+              rtc.attachLocalStream(stream);
+            } else {
               notification.warning({
                 message: 'Không truy cập được camera/mic',
-                description: 'Vui lòng cấp quyền và tải lại trang.',
+                description: 'Bạn vẫn tham gia được nhưng sẽ không hiển thị video.',
                 placement: 'topRight',
               });
-              return;
+              // Không return — vẫn tiếp tục kết nối WebRTC để nhận stream từ học sinh
             }
-            rtc.attachLocalStream(stream);
           }
           // Offer to each online student (callPeer is guarded against duplicates)
           for (const p of presenceRef.current.filter((x) => x.isOnline)) {

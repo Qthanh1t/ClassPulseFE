@@ -120,11 +120,10 @@ export default function StudentSessionPage() {
         const info = joinRes.data;
         setJoinInfo(info);
 
-        const [presenceRes, chatHistRes, questionsRes, detailRes] = await Promise.all([
+        const [presenceRes, chatHistRes, questionsRes] = await Promise.all([
           sessionService.getPresence(info.sessionId),
           chatService.getHistory(info.sessionId, 50),
           questionService.list(info.sessionId),
-          sessionService.get(info.sessionId),
         ]);
         if (cancelled) return;
 
@@ -135,7 +134,8 @@ export default function StudentSessionPage() {
         const runningQ = questionsRes.data?.find((q) => q.status === 'running');
         if (runningQ) { setRunningQuestion(runningQ); setQuestionPanelOpen(true); }
 
-        teacherIdRef.current = detailRes.data?.teacher.id ?? null;
+        // teacherIdRef is set lazily: auto-detected from the first webrtc_offer received
+        // (teacher always initiates, so student doesn't need teacher ID upfront)
         setLoading(false);
 
         function handleEvent(event: WsEvent) {
@@ -144,6 +144,9 @@ export default function StudentSessionPage() {
               const payload = event.payload as { studentId: string; name: string; avatarColor?: string; action: 'joined' | 'left' };
               if (payload.action === 'left') {
                 rtc.closePeer(payload.studentId);
+              } else if (payload.studentId !== me?.id && (me?.id ?? '') < payload.studentId) {
+                // Polite peer: lower ID initiates student-to-student connection
+                void rtc.callPeer(payload.studentId);
               }
               setPresence((prev) => {
                 if (payload.action === 'joined') {
@@ -208,12 +211,14 @@ export default function StudentSessionPage() {
                 if (prev) wsRef.current?.unsubscribeRoom(prev.id);
                 return null;
               });
-              // Close breakout connections and reconnect to main session
+              // Close breakout connections; teacher will re-initiate to us
               rtc.closeAllPeers();
               void (async () => {
-                if (teacherIdRef.current) await rtc.callPeer(teacherIdRef.current);
+                // Polite peer: lower ID initiates student-to-student reconnect
                 for (const p of presenceRef.current) {
-                  if (p.isOnline && p.studentId !== me?.id) await rtc.callPeer(p.studentId);
+                  if (p.isOnline && p.studentId !== me?.id && (me?.id ?? '') < p.studentId) {
+                    await rtc.callPeer(p.studentId);
+                  }
                 }
               })();
               break;
@@ -227,18 +232,25 @@ export default function StudentSessionPage() {
               setChatMessages((prev) => [...prev, dtoToChat(event.payload as ChatMessageDto)]);
               break;
             case 'webrtc_offer': {
-              const { fromId, sdp } = event.payload as { fromId: string; sdp: string };
-              void rtc.handleOffer(fromId, sdp);
+              const raw = event.payload as Record<string, unknown>;
+              const fromId = raw.fromId as string;
+              console.log('[RTC-WS] webrtc_offer keys:', Object.keys(raw), '| fromId:', fromId);
+              // Auto-detect teacher ID: offer sender who is not in student presence list
+              if (fromId && fromId !== me?.id && !presenceRef.current.some((p) => p.studentId === fromId)) {
+                teacherIdRef.current = fromId;
+              }
+              void rtc.handleOffer(fromId, raw.sdp as string);
               break;
             }
             case 'webrtc_answer': {
-              const { fromId, sdp } = event.payload as { fromId: string; sdp: string };
-              void rtc.handleAnswer(fromId, sdp);
+              const raw = event.payload as Record<string, unknown>;
+              console.log('[RTC-WS] webrtc_answer keys:', Object.keys(raw), '| fromId:', raw.fromId);
+              void rtc.handleAnswer(raw.fromId as string, raw.sdp as string);
               break;
             }
             case 'webrtc_ice_candidate': {
-              const { fromId, candidate } = event.payload as { fromId: string; candidate: RTCIceCandidateInit };
-              void rtc.handleIceCandidate(fromId, candidate);
+              const raw = event.payload as Record<string, unknown>;
+              void rtc.handleIceCandidate(raw.fromId as string, raw.candidate as RTCIceCandidateInit);
               break;
             }
           }
@@ -251,17 +263,19 @@ export default function StudentSessionPage() {
           async () => (await sessionService.join(info.sessionId)).data!.wsTicket,
           async () => {
             if (cancelled) return;
-            // Guard against re-init on WS reconnect (STOMP fires onConnect on every reconnect)
+            console.log('[onConnected] STOMP ready. myId =', me?.id, '| peers in presence:', presenceRef.current.length);
             let stream = localMedia.streamRef.current;
             if (!stream) {
               stream = await localMedia.startMedia(true, true);
-              if (!stream) return;
-              rtc.attachLocalStream(stream);
+              if (stream) rtc.attachLocalStream(stream);
+              // No return on camera failure — still receive teacher stream
             }
-            // callPeer is guarded against duplicates — safe to call on reconnect
-            if (teacherIdRef.current) await rtc.callPeer(teacherIdRef.current);
+            // Teacher always initiates to student — student only needs to call other students
+            // Student-to-student: polite peer — lower UUID sends the offer
             for (const p of presenceRef.current) {
-              if (p.isOnline && p.studentId !== me?.id) await rtc.callPeer(p.studentId);
+              if (p.isOnline && p.studentId !== me?.id && (me?.id ?? '') < p.studentId) {
+                await rtc.callPeer(p.studentId);
+              }
             }
           },
         );
