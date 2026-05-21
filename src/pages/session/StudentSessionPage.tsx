@@ -129,7 +129,7 @@ export default function StudentSessionPage() {
         ]);
         if (cancelled) return;
 
-        const loadedPresence = presenceRes.data ?? [];
+        const loadedPresence = (presenceRes.data ?? []).filter((p) => p.isOnline);
         if (loadedPresence.length > 0) setPresence(loadedPresence);
         presenceRef.current = loadedPresence;
         if (chatHistRes.data) setChatMessages(chatHistRes.data.map(dtoToChat));
@@ -153,19 +153,41 @@ export default function StudentSessionPage() {
               const payload = event.payload as { studentId: string; name: string; avatarColor?: string; action: 'joined' | 'left' };
               if (payload.action === 'left') {
                 rtc.closePeer(payload.studentId);
-              } else if (payload.studentId !== me?.id && (me?.id ?? '') < payload.studentId) {
+                setPresence((prev) => {
+                  const updated = prev.filter((x) => x.studentId !== payload.studentId);
+                  presenceRef.current = updated;
+                  return updated;
+                });
+              } else {
                 // Polite peer: lower ID initiates student-to-student connection
-                void rtc.callPeer(payload.studentId);
-              }
-              setPresence((prev) => {
-                if (payload.action === 'joined') {
+                if (payload.studentId !== me?.id && (me?.id ?? '') < payload.studentId) {
+                  void rtc.callPeer(payload.studentId);
+                }
+                // Optimistically mark online with whatever the WS payload has
+                setPresence((prev) => {
                   if (prev.some((x) => x.studentId === payload.studentId)) {
                     return prev.map((x) => x.studentId === payload.studentId ? { ...x, isOnline: true } : x);
                   }
                   return [...prev, { studentId: payload.studentId, name: payload.name ?? 'Học sinh', avatarColor: payload.avatarColor, isOnline: true, joinedAt: new Date().toISOString() }];
-                }
-                return prev.map((x) => x.studentId === payload.studentId ? { ...x, isOnline: false } : x);
-              });
+                });
+                // Refresh profile data (name, avatarColor) from API.
+                // Do NOT overwrite isOnline — it comes from WS events and is more up-to-date.
+                void sessionService.getPresence(info.sessionId).then((res) => {
+                  if (res.data) {
+                    const profileMap = new Map(res.data.map((ap) => [ap.studentId, ap]));
+                    setPresence((prev) => {
+                      const updated = prev.map((entry) => {
+                        const profile = profileMap.get(entry.studentId);
+                        return profile
+                          ? { ...entry, name: profile.name ?? entry.name, avatarColor: profile.avatarColor ?? entry.avatarColor }
+                          : entry;
+                      });
+                      presenceRef.current = updated;
+                      return updated;
+                    });
+                  }
+                });
+              }
               break;
             }
             case 'question_started': {
@@ -360,6 +382,12 @@ export default function StudentSessionPage() {
   };
 
   const handleLeave = async () => {
+    // Disconnect WS first — sets deactivating=true so onWebSocketClose
+    // cannot trigger auto-rejoin if the backend closes the socket during leave()
+    wsRef.current?.disconnect();
+    wsRef.current = null;
+    rtc.closeAllPeers();
+    localMedia.stopMedia();
     if (joinInfo) {
       try { await sessionService.leave(joinInfo.sessionId); } catch { /* ignore */ }
     }
@@ -367,9 +395,18 @@ export default function StudentSessionPage() {
   };
 
   // ── Participant list ───────────────────────────────────────────────
+  // Always include self from authStore — getPresence may not return the current student's own entry
   const participants = [
-    { id: 'teacher', name: joinInfo?.teacherName ?? 'Giáo viên', isTeacher: true as const },
-    ...presence.map((p) => ({ id: p.studentId, name: p.name, avatarColor: p.avatarColor })),
+    { id: 'teacher', name: joinInfo?.teacherName ?? 'Giáo viên', isTeacher: true as const, isOnline: true },
+    ...(me ? [{ id: me.id, name: me.name ?? 'Học sinh', avatarColor: me.avatarColor ?? '#6366f1', isOnline: true }] : []),
+    ...presence
+      .filter((p) => p.isOnline && p.studentId !== me?.id)
+      .map((p) => ({
+        id: p.studentId,
+        name: p.name ?? 'Học sinh',
+        avatarColor: p.avatarColor,
+        isOnline: true,
+      })),
   ];
 
   // ── Panel styles ──────────────────────────────────────────────────

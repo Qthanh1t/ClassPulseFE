@@ -113,6 +113,7 @@ export default function TeacherSessionPage() {
     return () => clearInterval(clock);
   }, [runningQuestion?.endsAt]);
 
+
   // ── Init: start/reconnect session + connect WS + init WebRTC ────────
   useEffect(() => {
     if (!id) return;
@@ -138,7 +139,7 @@ export default function TeacherSessionPage() {
         chatService.getHistory(sess.id),
       ]);
       if (cancelled) return;
-      const loadedPresence = pRes.data ?? [];
+      const loadedPresence = (pRes.data ?? []).filter((p) => p.isOnline);
       setQuestions(qRes.data ?? []);
       setPresence(loadedPresence);
       presenceRef.current = loadedPresence;
@@ -168,22 +169,46 @@ export default function TeacherSessionPage() {
             const p = event.payload as {
               studentId: string; name: string; avatarColor?: string; action: 'joined' | 'left';
             };
-            console.log('[TEACHER] student_presence:', p.action, '| studentId =', p.studentId, '| myUserId =', user?.id);
             if (p.action === 'left') {
               rtc.closePeer(p.studentId);
+              setPresence((prev) => {
+                const updated = prev.filter((x) => x.studentId !== p.studentId);
+                presenceRef.current = updated;
+                return updated;
+              });
             } else {
               // Teacher always initiates — call newly joined student
               void rtc.callPeer(p.studentId);
-            }
-            setPresence((prev) => {
-              if (p.action === 'joined') {
+              // Optimistically mark online (may have partial info from WS payload)
+              setPresence((prev) => {
                 if (prev.some((x) => x.studentId === p.studentId)) {
                   return prev.map((x) => x.studentId === p.studentId ? { ...x, isOnline: true } : x);
                 }
                 return [...prev, { studentId: p.studentId, name: p.name ?? 'Học sinh', avatarColor: p.avatarColor, isOnline: true, joinedAt: new Date().toISOString() }];
-              }
-              return prev.map((x) => x.studentId === p.studentId ? { ...x, isOnline: false } : x);
-            });
+              });
+              // Refresh from API: update profile data AND remove students now offline
+              void sessionService.getPresence(sess.id).then((res) => {
+                if (res.data) {
+                  const profileMap = new Map(res.data.map((ap) => [ap.studentId, ap]));
+                  setPresence((prev) => {
+                    const updated = prev
+                      // Remove students explicitly marked offline in the API response
+                      .filter(entry => {
+                        const api = profileMap.get(entry.studentId);
+                        return api === undefined || api.isOnline !== false;
+                      })
+                      .map(entry => {
+                        const profile = profileMap.get(entry.studentId);
+                        return profile
+                          ? { ...entry, name: profile.name ?? entry.name, avatarColor: profile.avatarColor ?? entry.avatarColor }
+                          : entry;
+                      });
+                    presenceRef.current = updated;
+                    return updated;
+                  });
+                }
+              });
+            }
             break;
           }
           case 'question_started': {
@@ -282,9 +307,17 @@ export default function TeacherSessionPage() {
         async () => (await authService.getWsTicket()).ticket,
         async () => {
           if (cancelled) return;
-          // Media is already started in init() before WS connects.
-          // On reconnect, re-offer to all online students whose PC may have dropped.
-          // callPeer is guarded: skips if a usable PC already exists.
+          // On reconnect: refresh presence in case events were missed while WS was down
+          try {
+            const pRes = await sessionService.getPresence(sess.id);
+            if (!cancelled && pRes.data) {
+              const online = pRes.data.filter((p) => p.isOnline);
+              setPresence(online);
+              presenceRef.current = online;
+            }
+          } catch { /* ignore */ }
+          if (cancelled) return;
+          // Re-offer WebRTC to all online students
           for (const p of presenceRef.current.filter((x) => x.isOnline)) {
             await rtc.callPeer(p.studentId);
           }
@@ -381,10 +414,19 @@ export default function TeacherSessionPage() {
     {
       id: user?.id ?? '__teacher__',
       name: user?.name ?? 'Giáo viên',
-      avatarColor: '#6366f1',
+      avatarColor: user?.avatarColor ?? '#6366f1',
       isTeacher: true,
+      isOnline: true,
     },
-    ...presence.map((p) => ({ id: p.studentId, name: p.name, avatarColor: p.avatarColor })),
+    // Only show online students in the list; offline ones stay in presence for the thumbnail strip
+    ...presence
+      .filter((p) => p.isOnline)
+      .map((p) => ({
+        id: p.studentId,
+        name: p.name ?? 'Học sinh',
+        avatarColor: p.avatarColor,
+        isOnline: true,
+      })),
   ];
 
   const panelStyle: React.CSSProperties = {
@@ -562,7 +604,7 @@ export default function TeacherSessionPage() {
                     <VideoTile
                       stream={localMedia.stream}
                       name={user?.name ?? 'Giáo viên'}
-                      avatarColor="#6366f1"
+                      avatarColor={user?.avatarColor ?? '#6366f1'}
                       isTeacher
                       isLocal
                       isMuted={!localMedia.isMicOn}
@@ -864,7 +906,7 @@ export default function TeacherSessionPage() {
               currentUser={{
                 id: user?.id ?? '__teacher__',
                 name: user?.name ?? 'Giáo viên',
-                avatarColor: '#6366f1',
+                avatarColor: user?.avatarColor ?? '#6366f1',
                 isTeacher: true,
               }}
               onSend={handleSendChat}

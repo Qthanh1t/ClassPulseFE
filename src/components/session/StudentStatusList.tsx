@@ -8,6 +8,7 @@ interface Participant {
   name: string;
   avatarColor?: string;
   isTeacher?: boolean;
+  isOnline?: boolean;
 }
 
 interface Props {
@@ -26,7 +27,8 @@ export default function StudentStatusList({
   questionActive = false,
 }: Props) {
   const studentOnly = participants.filter((p) => !p.isTeacher);
-  const answeredCount = studentOnly.filter((p) => answeredIds.includes(p.id)).length;
+  const onlineStudents = studentOnly.filter((p) => p.isOnline !== false);
+  const answeredCount = onlineStudents.filter((p) => answeredIds.includes(p.id)).length;
 
   return (
     <div style={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
@@ -35,8 +37,8 @@ export default function StudentStatusList({
         <div>
           <Text type="secondary" style={{ fontSize: 12 }}>
             {questionActive
-              ? `${answeredCount}/${studentOnly.length} đã trả lời`
-              : `${participants.length} thành viên`}
+              ? `${answeredCount}/${onlineStudents.length} đã trả lời`
+              : `${onlineStudents.length}/${studentOnly.length} online`}
           </Text>
         </div>
         {raisedHandIds.length > 0 && (
@@ -50,9 +52,12 @@ export default function StudentStatusList({
 
       <div style={{ flex: 1, overflowY: 'auto', padding: '8px 0' }}>
         {participants.map((p) => {
+          const online = p.isOnline !== false;
           const isSilent = !p.isTeacher && silentStudentIds.includes(p.id);
           const hasRaisedHand = !p.isTeacher && raisedHandIds.includes(p.id);
           const answered = !p.isTeacher && answeredIds.includes(p.id);
+          const displayName = p.name || '—';
+          const initial = (p.name || '?').charAt(0).toUpperCase();
 
           return (
             <div
@@ -63,12 +68,13 @@ export default function StudentStatusList({
                 gap: 10,
                 padding: '7px 16px',
                 background: hasRaisedHand ? '#fff7e6' : isSilent ? '#fff2f0' : 'transparent',
-                transition: 'background 0.2s',
+                opacity: online ? 1 : 0.45,
+                transition: 'background 0.2s, opacity 0.2s',
               }}
             >
               <div style={{ position: 'relative' }}>
                 <Avatar size={32} style={{ background: p.avatarColor ?? '#6366f1', fontSize: 13 }}>
-                  {p.name.charAt(0)}
+                  {initial}
                 </Avatar>
                 <div
                   style={{
@@ -79,23 +85,26 @@ export default function StudentStatusList({
                     height: 10,
                     borderRadius: '50%',
                     border: '2px solid #fff',
-                    background: '#52c41a',
+                    background: online ? '#52c41a' : '#bfbfbf',
                   }}
                 />
               </div>
 
               <div style={{ flex: 1, minWidth: 0 }}>
                 <Text style={{ fontSize: 13, display: 'block' }} ellipsis>
-                  {p.name}
+                  {displayName}
                 </Text>
                 {p.isTeacher && (
                   <Tag color="blue" style={{ fontSize: 10, padding: '0 4px', lineHeight: '16px', marginTop: 1 }}>
                     GV
                   </Tag>
                 )}
+                {!p.isTeacher && !online && (
+                  <Text type="secondary" style={{ fontSize: 10 }}>Đã rời lớp</Text>
+                )}
               </div>
 
-              {!p.isTeacher && (
+              {!p.isTeacher && online && (
                 <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
                   {hasRaisedHand && (
                     <Tooltip title="Đang giơ tay">
