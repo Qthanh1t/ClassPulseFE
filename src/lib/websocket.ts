@@ -49,7 +49,7 @@ export function createSessionWsClient(
   wsTicket: string,
   sessionId: string,
   /**
-   * Called on disconnect to obtain a fresh one-time ticket.
+   * Called on WebSocket close (network drop or disconnect) to obtain a fresh one-time ticket.
    * Teacher: call POST /auth/ws-ticket
    * Student: call POST /sessions/{id}/join
    */
@@ -62,31 +62,40 @@ export function createSessionWsClient(
   const roomSubs = new Map<string, StompSubscription>();
   let hbInterval: ReturnType<typeof setInterval> | null = null;
 
+  // Track session subscriptions to prevent duplicates on STOMP reconnect
+  let sessionSub: StompSubscription | null = null;
+  let privateSub: StompSubscription | null = null;
+
+  // Mutable ticket — updated before each reconnect attempt
+  let currentTicket = wsTicket;
+  // Set to true when disconnect() is called intentionally — suppresses reconnect ticket refresh
+  let deactivating = false;
+
   const WS_URL = import.meta.env.VITE_WS_URL ?? 'http://localhost:8080/ws';
 
-  // JwtHandshakeHandler reads the ticket from ?ticket= query param in the HTTP
-  // handshake URL — NOT from STOMP connectHeaders (which are STOMP-level, post-handshake).
-  const makeWsFactory = (ticket: string) =>
-    () => new SockJS(`${WS_URL}?ticket=${encodeURIComponent(ticket)}`);
-
   const client = new Client({
-    webSocketFactory: makeWsFactory(wsTicket),
+    // Factory is called fresh for every (re)connect — picks up latest currentTicket
+    webSocketFactory: () => new SockJS(`${WS_URL}?ticket=${encodeURIComponent(currentTicket)}`),
     reconnectDelay: 5000,
 
     onConnect: () => {
-      // Subscribe session broadcast topic
-      client.subscribe(`/topic/session/${sessionId}`, (msg: IMessage) => {
+      // Unsubscribe existing before resubscribing — prevents duplicate event delivery on reconnect
+      sessionSub?.unsubscribe();
+      privateSub?.unsubscribe();
+
+      sessionSub = client.subscribe(`/topic/session/${sessionId}`, (msg: IMessage) => {
         const event = JSON.parse(msg.body) as WsEvent;
         mainHandler?.(event);
       });
 
       // Subscribe unicast (answer_aggregate, webrtc signals)
-      client.subscribe('/user/queue/private', (msg: IMessage) => {
+      privateSub = client.subscribe('/user/queue/private', (msg: IMessage) => {
         const event = JSON.parse(msg.body) as WsEvent;
         mainHandler?.(event);
       });
 
       // Heartbeat every 25s to keep presence alive
+      if (hbInterval !== null) clearInterval(hbInterval);
       hbInterval = setInterval(() => {
         if (client.connected) {
           client.publish({ destination: `/app/session/${sessionId}/heartbeat`, body: '{}' });
@@ -97,18 +106,20 @@ export function createSessionWsClient(
       onConnected?.();
     },
 
-    onDisconnect: async () => {
+    onWebSocketClose: () => {
+      // Skip refresh on intentional disconnect
+      if (deactivating) return;
       if (hbInterval !== null) {
         clearInterval(hbInterval);
         hbInterval = null;
       }
-      try {
-        // Get a fresh one-time ticket and update the factory before reconnect
-        const newTicket = await onReconnect();
-        client.webSocketFactory = makeWsFactory(newTicket);
-      } catch {
-        // STOMP will retry after reconnectDelay with the old factory
-      }
+      // Refresh ticket asynchronously — STOMP waits reconnectDelay (5s) before retrying,
+      // so the new ticket will be ready in time for the next webSocketFactory call.
+      void onReconnect().then((ticket) => {
+        currentTicket = ticket;
+      }).catch(() => {
+        // Keep current ticket; STOMP will retry with it
+      });
     },
   });
 
@@ -182,6 +193,7 @@ export function createSessionWsClient(
     },
 
     disconnect() {
+      deactivating = true;
       if (hbInterval !== null) {
         clearInterval(hbInterval);
         hbInterval = null;

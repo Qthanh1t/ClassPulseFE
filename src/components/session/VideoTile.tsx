@@ -45,9 +45,10 @@ export default function VideoTile({
   }, [stream]);
 
   const showVideo = !!stream && !isCameraOff;
+  const safeName = name ?? '';
   const shortName = isLocal
-    ? `${name.split(' ').pop()} (bạn)`
-    : (name.split(' ').pop() ?? name);
+    ? `${safeName.split(' ').pop()} (bạn)`
+    : (safeName.split(' ').pop() ?? safeName);
 
   return (
     <div
@@ -93,7 +94,7 @@ export default function VideoTile({
             boxShadow: isFocused ? '0 0 0 3px rgba(99,102,241,0.4)' : 'none',
           }}
         >
-          {name.charAt(0).toUpperCase()}
+          {safeName.charAt(0).toUpperCase()}
         </Avatar>
       )}
 
@@ -116,7 +117,7 @@ export default function VideoTile({
           style={{ color: '#fff', fontSize: compact ? 10 : 12, flex: 1, lineHeight: 1.3 }}
           ellipsis
         >
-          {shortName}
+          {shortName || '—'}
         </Text>
         {isTeacher && (
           <span

@@ -145,6 +145,21 @@ export default function TeacherSessionPage() {
       const running = (qRes.data ?? []).find((q) => q.status === 'running');
       if (running) setRunningQuestion(running);
 
+      // Start camera/mic BEFORE connecting WS so localStreamRef is ready when
+      // the first student_presence event fires and callPeer creates a PeerConnection.
+      // If media fails, we still connect WS (teacher can receive but not send video).
+      if (!localMedia.streamRef.current) {
+        const stream = await localMedia.startMedia(true, true);
+        if (!stream && !cancelled) {
+          notification.warning({
+            message: 'Không truy cập được camera/mic',
+            description: 'Bạn vẫn tham gia được nhưng sẽ không hiển thị video.',
+            placement: 'topRight',
+          });
+        }
+      }
+      if (cancelled) return;
+
       function handleEvent(event: WsEvent) {
         switch (event.type) {
           case 'student_presence': {
@@ -163,7 +178,7 @@ export default function TeacherSessionPage() {
                 if (prev.some((x) => x.studentId === p.studentId)) {
                   return prev.map((x) => x.studentId === p.studentId ? { ...x, isOnline: true } : x);
                 }
-                return [...prev, { studentId: p.studentId, name: p.name, avatarColor: p.avatarColor, isOnline: true, joinedAt: new Date().toISOString() }];
+                return [...prev, { studentId: p.studentId, name: p.name ?? 'Học sinh', avatarColor: p.avatarColor, isOnline: true, joinedAt: new Date().toISOString() }];
               }
               return prev.map((x) => x.studentId === p.studentId ? { ...x, isOnline: false } : x);
             });
@@ -265,22 +280,9 @@ export default function TeacherSessionPage() {
         async () => (await authService.getWsTicket()).ticket,
         async () => {
           if (cancelled) return;
-          // Guard against re-init on WS reconnect (STOMP fires onConnect on every reconnect)
-          let stream = localMedia.streamRef.current;
-          if (!stream) {
-            stream = await localMedia.startMedia(true, true);
-            if (stream) {
-              rtc.attachLocalStream(stream);
-            } else {
-              notification.warning({
-                message: 'Không truy cập được camera/mic',
-                description: 'Bạn vẫn tham gia được nhưng sẽ không hiển thị video.',
-                placement: 'topRight',
-              });
-              // Không return — vẫn tiếp tục kết nối WebRTC để nhận stream từ học sinh
-            }
-          }
-          // Offer to each online student (callPeer is guarded against duplicates)
+          // Media is already started in init() before WS connects.
+          // On reconnect, re-offer to all online students whose PC may have dropped.
+          // callPeer is guarded: skips if a usable PC already exists.
           for (const p of presenceRef.current.filter((x) => x.isOnline)) {
             await rtc.callPeer(p.studentId);
           }

@@ -138,6 +138,13 @@ export default function StudentSessionPage() {
         // (teacher always initiates, so student doesn't need teacher ID upfront)
         setLoading(false);
 
+        // Start camera/mic BEFORE connecting WS so localStreamRef is ready when
+        // teacher's offer arrives and the PeerConnection is created.
+        if (!localMedia.streamRef.current) {
+          await localMedia.startMedia(true, true);
+        }
+        if (cancelled) return;
+
         function handleEvent(event: WsEvent) {
           switch (event.type) {
             case 'student_presence': {
@@ -153,7 +160,7 @@ export default function StudentSessionPage() {
                   if (prev.some((x) => x.studentId === payload.studentId)) {
                     return prev.map((x) => x.studentId === payload.studentId ? { ...x, isOnline: true } : x);
                   }
-                  return [...prev, { studentId: payload.studentId, name: payload.name, avatarColor: payload.avatarColor, isOnline: true, joinedAt: new Date().toISOString() }];
+                  return [...prev, { studentId: payload.studentId, name: payload.name ?? 'Học sinh', avatarColor: payload.avatarColor, isOnline: true, joinedAt: new Date().toISOString() }];
                 }
                 return prev.map((x) => x.studentId === payload.studentId ? { ...x, isOnline: false } : x);
               });
@@ -263,15 +270,8 @@ export default function StudentSessionPage() {
           async () => (await sessionService.join(info.sessionId)).data!.wsTicket,
           async () => {
             if (cancelled) return;
-            console.log('[onConnected] STOMP ready. myId =', me?.id, '| peers in presence:', presenceRef.current.length);
-            let stream = localMedia.streamRef.current;
-            if (!stream) {
-              stream = await localMedia.startMedia(true, true);
-              if (stream) rtc.attachLocalStream(stream);
-              // No return on camera failure — still receive teacher stream
-            }
-            // Teacher always initiates to student — student only needs to call other students
-            // Student-to-student: polite peer — lower UUID sends the offer
+            // Media is already started in init() before WS connects.
+            // On reconnect, re-offer to other online students (polite peer: lower UUID initiates).
             for (const p of presenceRef.current) {
               if (p.isOnline && p.studentId !== me?.id && (me?.id ?? '') < p.studentId) {
                 await rtc.callPeer(p.studentId);
