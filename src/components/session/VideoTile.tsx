@@ -1,6 +1,6 @@
 import { useRef, useEffect } from 'react';
-import { Avatar, Badge } from 'antd';
-import { AudioMutedOutlined } from '@ant-design/icons';
+import { Avatar } from 'antd';
+import { AudioMutedOutlined, VideoCameraOutlined } from '@ant-design/icons';
 import { Typography } from 'antd';
 
 const { Text } = Typography;
@@ -16,7 +16,6 @@ interface VideoTileProps {
   isFocused?: boolean;
   compact?: boolean;
   borderRadius?: number;
-  // Optional slot for extra overlays (e.g. raise hand badge)
   children?: React.ReactNode;
 }
 
@@ -38,10 +37,7 @@ export default function VideoTile({
   useEffect(() => {
     if (!videoRef.current) return;
     videoRef.current.srcObject = stream ?? null;
-    // Explicitly call play() — autoPlay attribute alone is unreliable when srcObject changes
-    if (stream) {
-      videoRef.current.play().catch(() => {});
-    }
+    if (stream) videoRef.current.play().catch(() => {});
   }, [stream]);
 
   const showVideo = !!stream && !isCameraOff;
@@ -50,20 +46,29 @@ export default function VideoTile({
     ? `${safeName.split(' ').pop()} (bạn)`
     : (safeName.split(' ').pop() ?? safeName);
 
+  const avatarSize = compact ? 28 : 52;
+
   return (
     <div
       style={{
         position: 'relative',
         width: '100%',
         height: '100%',
-        background: isFocused ? '#1e1b3a' : '#2d2d44',
+        background: isFocused
+          ? 'linear-gradient(145deg, #1a1535, #2a1b6e)'
+          : 'linear-gradient(145deg, #1b1b36, #242445)',
         borderRadius,
         overflow: 'hidden',
-        border: `2px solid ${isFocused ? '#6366f1' : 'transparent'}`,
+        border: isFocused
+          ? '2px solid rgba(99,102,241,0.65)'
+          : '1.5px solid rgba(255,255,255,0.07)',
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
-        transition: 'border-color 0.15s',
+        boxShadow: isFocused
+          ? '0 0 0 4px rgba(99,102,241,0.15), 0 8px 32px rgba(0,0,0,0.5)'
+          : '0 2px 12px rgba(0,0,0,0.35)',
+        transition: 'border-color 0.25s ease, box-shadow 0.25s ease',
       }}
     >
       {/* Video element — always mounted so srcObject persists */}
@@ -83,30 +88,52 @@ export default function VideoTile({
         }}
       />
 
-      {/* Avatar placeholder when camera is off or stream unavailable */}
+      {/* Avatar fallback when camera is off or no stream */}
       {!showVideo && (
-        <Avatar
-          size={compact ? 28 : 52}
-          style={{
-            background: avatarColor,
-            fontSize: compact ? 12 : 20,
-            zIndex: 1,
-            boxShadow: isFocused ? '0 0 0 3px rgba(99,102,241,0.4)' : 'none',
-          }}
-        >
-          {safeName.charAt(0).toUpperCase()}
-        </Avatar>
+        <div style={{
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+          gap: compact ? 3 : 7,
+          zIndex: 1,
+        }}>
+          <Avatar
+            size={avatarSize}
+            style={{
+              background: `linear-gradient(135deg, ${avatarColor}dd, ${avatarColor}88)`,
+              fontSize: compact ? 12 : 20,
+              fontWeight: 700,
+              border: `2px solid ${avatarColor}44`,
+              boxShadow: `0 4px 18px ${avatarColor}35`,
+            }}
+          >
+            {safeName.charAt(0).toUpperCase() || '?'}
+          </Avatar>
+          {!compact && isCameraOff && (
+            <div style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: 4,
+              color: 'rgba(255,255,255,0.35)',
+              fontSize: 10,
+              letterSpacing: '0.04em',
+            }}>
+              <VideoCameraOutlined style={{ fontSize: 10 }} />
+              Camera tắt
+            </div>
+          )}
+        </div>
       )}
 
-      {/* Gradient name overlay */}
+      {/* Bottom gradient + name overlay */}
       <div
         style={{
           position: 'absolute',
           bottom: 0,
           left: 0,
           right: 0,
-          background: 'linear-gradient(transparent, rgba(0,0,0,0.7))',
-          padding: compact ? '14px 6px 4px' : '20px 10px 8px',
+          background: 'linear-gradient(to top, rgba(0,0,0,0.82) 0%, rgba(0,0,0,0.28) 55%, transparent 100%)',
+          padding: compact ? '18px 5px 4px' : '26px 10px 7px',
           display: 'flex',
           alignItems: 'center',
           gap: 4,
@@ -114,41 +141,53 @@ export default function VideoTile({
         }}
       >
         <Text
-          style={{ color: '#fff', fontSize: compact ? 10 : 12, flex: 1, lineHeight: 1.3 }}
+          style={{
+            color: '#fff',
+            fontSize: compact ? 9 : 12,
+            flex: 1,
+            lineHeight: 1.2,
+            fontWeight: 500,
+            textShadow: '0 1px 4px rgba(0,0,0,0.7)',
+          }}
           ellipsis
         >
           {shortName || '—'}
         </Text>
-        {isTeacher && (
-          <span
-            style={{
-              background: '#6366f1',
-              color: '#fff',
-              fontSize: compact ? 8 : 9,
-              padding: compact ? '1px 3px' : '1px 5px',
-              borderRadius: 3,
-              fontWeight: 700,
-              textTransform: 'uppercase',
-              letterSpacing: '0.04em',
-              flexShrink: 0,
-            }}
-          >
+
+        {isTeacher && !compact && (
+          <span style={{
+            background: 'linear-gradient(135deg, #6366f1, #8b5cf6)',
+            color: '#fff',
+            fontSize: 8,
+            padding: '2px 6px',
+            borderRadius: 4,
+            fontWeight: 700,
+            textTransform: 'uppercase',
+            letterSpacing: '0.06em',
+            flexShrink: 0,
+          }}>
             GV
           </span>
         )}
+        {isTeacher && compact && (
+          <span style={{
+            width: 5, height: 5,
+            background: 'linear-gradient(135deg, #6366f1, #8b5cf6)',
+            borderRadius: '50%',
+            flexShrink: 0,
+            boxShadow: '0 0 5px rgba(99,102,241,0.8)',
+          }} />
+        )}
         {isMuted && (
-          <AudioMutedOutlined style={{ color: '#ff4d4f', fontSize: compact ? 10 : 12, flexShrink: 0 }} />
+          <AudioMutedOutlined style={{
+            color: '#f43f5e',
+            fontSize: compact ? 9 : 11,
+            flexShrink: 0,
+          }} />
         )}
       </div>
 
-      {/* LIVE badge for local stream */}
-      {isLocal && (
-        <div style={{ position: 'absolute', top: 6, right: 8, zIndex: 2 }}>
-          <Badge status="processing" />
-        </div>
-      )}
-
-      {/* Extra content (raise hand, focus icon, etc.) */}
+      {/* Extra content slot (raise hand badge, focus icon, LIVE badge, etc.) */}
       {children}
     </div>
   );

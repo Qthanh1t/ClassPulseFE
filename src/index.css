@@ -83,3 +83,47 @@ body {
   color: #64748b;
   margin: 0.4em 0;
 }
+
+/* ── Session utilities ── */
+.no-scrollbar::-webkit-scrollbar { display: none; }
+.no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+
+/* Pulsing LIVE indicator */
+@keyframes live-pulse {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50%       { opacity: 0.6; transform: scale(0.9); }
+}
+.sq-live-dot {
+  animation: live-pulse 1.8s ease-in-out infinite;
+}
+
+/* Session panel slide-in overlay */
+.sq-panel-overlay {
+  animation: panel-in 0.22s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+@keyframes panel-in {
+  from { opacity: 0; transform: translateX(-12px); }
+  to   { opacity: 1; transform: translateX(0); }
+}
+.sq-panel-overlay-right {
+  animation: panel-in-right 0.22s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+@keyframes panel-in-right {
+  from { opacity: 0; transform: translateX(12px); }
+  to   { opacity: 1; transform: translateX(0); }
+}
+
+/* Ctrl button hover lift */
+.sq-ctrl-btn-wrap button:hover:not(:disabled) {
+  transform: translateY(-1px);
+  transition: transform 0.15s ease;
+}
+
+/* Session panel slide-up (mobile question panel) */
+.sq-panel-overlay-up {
+  animation: panel-in-up 0.22s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+@keyframes panel-in-up {
+  from { opacity: 0; transform: translateY(12px); }
+  to   { opacity: 1; transform: translateY(0); }
+}

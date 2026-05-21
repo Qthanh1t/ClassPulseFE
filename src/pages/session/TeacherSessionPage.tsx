@@ -34,6 +34,7 @@ import type {
 import { useAuthStore } from '../../store/authStore';
 import { useLocalMedia } from '../../hooks/useLocalMedia';
 import { useWebRTC } from '../../hooks/useWebRTC';
+import { useBreakpoint } from '../../hooks/useBreakpoint';
 
 const { Text } = Typography;
 
@@ -65,6 +66,7 @@ export default function TeacherSessionPage() {
   const navigate = useNavigate();
   const { id } = useParams<{ id: string }>(); // classroomId
   const user = useAuthStore((s) => s.user);
+  const { compact } = useBreakpoint();
 
   // ── Core state ──────────────────────────────────────────────────────
   const [loading, setLoading] = useState(true);
@@ -80,8 +82,8 @@ export default function TeacherSessionPage() {
 
   // ── UI state ────────────────────────────────────────────────────────
   const [screenShareOn, setScreenShareOn] = useState(false);
-  const [showStudentList, setShowStudentList] = useState(true);
-  const [showQuickActions, setShowQuickActions] = useState(true);
+  const [showStudentList, setShowStudentList] = useState(() => window.innerWidth >= 640);
+  const [showQuickActions, setShowQuickActions] = useState(() => window.innerWidth >= 1024);
   const [showChat, setShowChat] = useState(false);
   const [createOpen, setCreateOpen] = useState(false);
   const [endSessionOpen, setEndSessionOpen] = useState(false);
@@ -395,6 +397,23 @@ export default function TeacherSessionPage() {
     boxShadow: '0 2px 16px rgba(0,0,0,0.25)',
   };
 
+  const overlayBase: React.CSSProperties = compact
+    ? { position: 'fixed', top: 52, bottom: 60, zIndex: 100 }
+    : {};
+
+  function toggleStudentList() {
+    if (compact) { setShowQuickActions(false); setShowChat(false); }
+    setShowStudentList((v) => !v);
+  }
+  function toggleQuickActions() {
+    if (compact) { setShowStudentList(false); setShowChat(false); }
+    setShowQuickActions((v) => !v);
+  }
+  function toggleChat() {
+    if (compact) { setShowStudentList(false); setShowQuickActions(false); }
+    setShowChat((v) => !v);
+  }
+
   if (loading) {
     return (
       <div style={{ height: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#1a1a2e' }}>
@@ -475,7 +494,7 @@ export default function TeacherSessionPage() {
           <Avatar size={26} style={{ background: 'linear-gradient(135deg, #6366f1, #8b5cf6)', fontSize: 12 }}>
             {user?.name?.charAt(0) ?? 'G'}
           </Avatar>
-          <Text style={{ fontSize: 13, color: '#fff' }}>{user?.name ?? 'Giáo viên'}</Text>
+          {!compact && <Text style={{ fontSize: 13, color: '#fff' }}>{user?.name ?? 'Giáo viên'}</Text>}
         </div>
       </div>
 
@@ -513,7 +532,10 @@ export default function TeacherSessionPage() {
 
         {/* LEFT: Student list panel */}
         {showStudentList && (
-          <div style={{ ...panelStyle, width: 220 }}>
+          <div
+            className={compact ? 'sq-panel-overlay' : undefined}
+            style={{ ...panelStyle, ...overlayBase, left: compact ? 0 : undefined, width: 220 }}
+          >
             <StudentStatusList
               participants={participants}
               answeredIds={answeredIds}
@@ -602,7 +624,10 @@ export default function TeacherSessionPage() {
               )}
 
               {/* Student thumbnail strip */}
-              <div style={{ display: 'flex', gap: 8, flexShrink: 0, flexWrap: 'wrap' }}>
+              <div
+                className={compact ? 'no-scrollbar' : undefined}
+                style={{ display: 'flex', gap: 8, flexShrink: 0, flexWrap: compact ? 'nowrap' : 'wrap', overflowX: compact ? 'auto' : undefined }}
+              >
                 {presence.length === 0 && (
                   <Text style={{ color: 'rgba(255,255,255,0.35)', fontSize: 12, padding: '8px 0' }}>
                     Chờ học sinh tham gia...
@@ -617,7 +642,7 @@ export default function TeacherSessionPage() {
                       title={isFocused ? 'Đang focus · Click để hủy' : 'Click để focus học sinh này'}
                     >
                       <div
-                        style={{ width: 80, aspectRatio: '4/3', cursor: 'pointer', position: 'relative', flexShrink: 0 }}
+                        style={{ width: compact ? 60 : 80, aspectRatio: '4/3', cursor: 'pointer', position: 'relative', flexShrink: 0 }}
                         onMouseEnter={() => setHoveredStudentId(p.studentId)}
                         onMouseLeave={() => setHoveredStudentId(null)}
                         onClick={() => handleFocusStudent(isFocused ? null : p.studentId)}
@@ -767,7 +792,10 @@ export default function TeacherSessionPage() {
 
         {/* RIGHT: Quick actions panel */}
         {showQuickActions && (
-          <div style={{ ...panelStyle, width: 200, padding: 14, gap: 10, overflowY: 'auto' }}>
+          <div
+            className={compact ? 'sq-panel-overlay-right' : undefined}
+            style={{ ...panelStyle, ...overlayBase, right: compact ? 0 : undefined, width: 200, padding: 14, gap: 10, overflowY: 'auto' }}
+          >
             <Text strong style={{ fontSize: 13 }}>Hành động nhanh</Text>
 
             <Button
@@ -827,7 +855,10 @@ export default function TeacherSessionPage() {
 
         {/* CHAT panel */}
         {showChat && (
-          <div style={{ ...panelStyle, width: 280 }}>
+          <div
+            className={compact ? 'sq-panel-overlay-right' : undefined}
+            style={{ ...panelStyle, ...overlayBase, right: compact ? 0 : undefined, width: compact ? Math.min(300, window.innerWidth - 20) : 280 }}
+          >
             <ChatPanel
               messages={chatMessages}
               currentUser={{
@@ -846,16 +877,18 @@ export default function TeacherSessionPage() {
 
       {/* ─── Bottom control bar ─── */}
       <div
+        className="no-scrollbar"
         style={{
           height: 60,
           background: 'rgba(0,0,0,0.6)',
           backdropFilter: 'blur(8px)',
           display: 'flex',
           alignItems: 'center',
-          justifyContent: 'center',
+          justifyContent: compact ? 'flex-start' : 'center',
           gap: 10,
           flexShrink: 0,
           padding: '0 20px',
+          overflowX: 'auto',
         }}
       >
         <CtrlBtn
@@ -883,13 +916,13 @@ export default function TeacherSessionPage() {
 
         <CtrlBtn
           active={showStudentList}
-          onClick={() => setShowStudentList(!showStudentList)}
+          onClick={toggleStudentList}
           title={showStudentList ? 'Ẩn danh sách HS' : 'Hiện danh sách HS'}
           icon={<TeamOutlined />}
         />
         <CtrlBtn
           active={showQuickActions}
-          onClick={() => setShowQuickActions(!showQuickActions)}
+          onClick={toggleQuickActions}
           title={showQuickActions ? 'Ẩn hành động nhanh' : 'Hiện hành động nhanh'}
           icon={<PlusCircleOutlined />}
         />
@@ -900,7 +933,7 @@ export default function TeacherSessionPage() {
               type={showChat ? 'primary' : 'default'}
               icon={<MessageOutlined />}
               style={!showChat ? { background: 'rgba(255,255,255,0.15)', borderColor: 'transparent', color: '#fff' } : {}}
-              onClick={() => setShowChat(!showChat)}
+              onClick={toggleChat}
             />
           </Badge>
         </Tooltip>
@@ -918,6 +951,13 @@ export default function TeacherSessionPage() {
           Kết thúc buổi học
         </Button>
       </div>
+
+      {compact && (showStudentList || showQuickActions || showChat) && (
+        <div
+          style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 98 }}
+          onClick={() => { setShowStudentList(false); setShowQuickActions(false); setShowChat(false); }}
+        />
+      )}
 
       {/* Modals */}
       <CreateQuestionModal

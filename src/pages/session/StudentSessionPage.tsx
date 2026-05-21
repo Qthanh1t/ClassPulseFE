@@ -26,6 +26,7 @@ import RichTextEditor from '../../components/session/RichTextEditor';
 import VideoTile from '../../components/session/VideoTile';
 import { useLocalMedia } from '../../hooks/useLocalMedia';
 import { useWebRTC } from '../../hooks/useWebRTC';
+import { useBreakpoint } from '../../hooks/useBreakpoint';
 import type {
   JoinSessionResponse, PresenceDto, QuestionDto, BreakoutSessionDto,
   ChatMessageDto, RoomDto, ConfidenceLevel,
@@ -57,6 +58,7 @@ export default function StudentSessionPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const me = useAuthStore((s) => s.user);
+  const { compact } = useBreakpoint();
 
   const [loading, setLoading] = useState(true);
   const [joinInfo, setJoinInfo] = useState<JoinSessionResponse | null>(null);
@@ -78,7 +80,7 @@ export default function StudentSessionPage() {
 
   const [screenShareOn, setScreenShareOn] = useState(false);
   const [showChat, setShowChat] = useState(false);
-  const [showParticipants, setShowParticipants] = useState(true);
+  const [showParticipants, setShowParticipants] = useState(() => window.innerWidth >= 640);
   const [leaveOpen, setLeaveOpen] = useState(false);
   const [questionPanelOpen, setQuestionPanelOpen] = useState(false);
   const [panelExpanded, setPanelExpanded] = useState(false);
@@ -377,9 +379,24 @@ export default function StudentSessionPage() {
     boxShadow: '0 2px 16px rgba(0,0,0,0.25)',
   };
 
+  const overlayBase: React.CSSProperties = compact
+    ? { position: 'fixed', top: 52, bottom: 60, zIndex: 100 }
+    : {};
+
+  function toggleParticipants() {
+    if (compact) setShowChat(false);
+    setShowParticipants((v) => !v);
+  }
+  function toggleChat() {
+    if (compact) setShowParticipants(false);
+    setShowChat((v) => !v);
+  }
+
   const questionPanelStyle: React.CSSProperties = panelExpanded
     ? { position: 'absolute', inset: 0, width: '100%', maxHeight: '100%', background: '#fff', borderRadius: 12, boxShadow: '0 8px 40px rgba(0,0,0,0.35)', overflow: 'hidden', display: 'flex', flexDirection: 'column', zIndex: 50 }
-    : { position: 'absolute', right: showChat ? 316 : 0, bottom: 0, width: 360, maxHeight: 'calc(100% - 10px)', background: '#fff', borderRadius: 14, boxShadow: '0 8px 40px rgba(0,0,0,0.35)', overflow: 'hidden', display: 'flex', flexDirection: 'column', zIndex: 50 };
+    : compact
+      ? { position: 'fixed', left: 0, right: 0, bottom: 60, top: 52, background: '#fff', borderRadius: 0, boxShadow: '0 8px 40px rgba(0,0,0,0.35)', overflow: 'hidden', display: 'flex', flexDirection: 'column', zIndex: 101 }
+      : { position: 'absolute', right: showChat ? 316 : 0, bottom: 0, width: 360, maxHeight: 'calc(100% - 10px)', background: '#fff', borderRadius: 14, boxShadow: '0 8px 40px rgba(0,0,0,0.35)', overflow: 'hidden', display: 'flex', flexDirection: 'column', zIndex: 50 };
 
   if (loading) {
     return (
@@ -450,7 +467,10 @@ export default function StudentSessionPage() {
 
         {/* LEFT: Participant list */}
         {showParticipants && (
-          <div style={{ ...panelStyle, width: 200 }}>
+          <div
+            className={compact ? 'sq-panel-overlay' : undefined}
+            style={{ ...panelStyle, ...overlayBase, left: compact ? 0 : undefined, width: 200 }}
+          >
             <StudentStatusList
               participants={participants}
               answeredIds={questionSubmitted && runningQuestion ? [me?.id ?? ''] : []}
@@ -490,9 +510,9 @@ export default function StudentSessionPage() {
               </div>
 
               {/* Bottom strip: own tile + other connected students */}
-              <div style={{ display: 'flex', gap: 8, flexShrink: 0 }}>
+              <div className={compact ? 'no-scrollbar' : undefined} style={{ display: 'flex', gap: 8, flexShrink: 0, flexWrap: compact ? 'nowrap' : 'wrap', overflowX: compact ? 'auto' : undefined }}>
                 {/* My tile */}
-                <div style={{ width: 120, aspectRatio: '4/3', flexShrink: 0 }}>
+                <div style={{ width: compact ? 80 : 120, aspectRatio: '4/3', flexShrink: 0 }}>
                   <VideoTile
                     stream={localMedia.stream}
                     name={me?.name ?? 'Bạn'}
@@ -517,7 +537,7 @@ export default function StudentSessionPage() {
                   .map((p) => {
                     const peer = rtc.peers.get(p.studentId);
                     return (
-                      <div key={p.studentId} style={{ width: 120, aspectRatio: '4/3', flexShrink: 0 }}>
+                      <div key={p.studentId} style={{ width: compact ? 80 : 120, aspectRatio: '4/3', flexShrink: 0 }}>
                         <VideoTile
                           stream={peer?.remoteStream ?? null}
                           name={p.name}
@@ -582,7 +602,7 @@ export default function StudentSessionPage() {
 
           {/* ── Floating question panel ── */}
           {runningQuestion && questionPanelOpen && (
-            <div style={questionPanelStyle}>
+            <div className={compact ? 'sq-panel-overlay-up' : undefined} style={questionPanelStyle}>
               {/* Header */}
               <div style={{ padding: '10px 14px', background: 'linear-gradient(135deg, #6366f1, #4f46e5)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexShrink: 0 }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0 }}>
@@ -711,7 +731,10 @@ export default function StudentSessionPage() {
 
         {/* RIGHT: Chat panel */}
         {showChat && (
-          <div style={{ ...panelStyle, width: 280 }}>
+          <div
+            className={compact ? 'sq-panel-overlay-right' : undefined}
+            style={{ ...panelStyle, ...overlayBase, right: compact ? 0 : undefined, width: compact ? Math.min(300, window.innerWidth - 20) : 280 }}
+          >
             <ChatPanel
               messages={chatMessages}
               currentUser={{ id: me?.id ?? '', name: me?.name ?? '', avatarColor: myAvatarColor }}
@@ -733,7 +756,7 @@ export default function StudentSessionPage() {
 
         <div style={{ width: 1, height: 28, background: 'rgba(255,255,255,0.2)', margin: '0 4px', flexShrink: 0 }} />
 
-        <CtrlBtn active={showParticipants} onClick={() => setShowParticipants(!showParticipants)} title={showParticipants ? 'Ẩn thành viên' : 'Hiện thành viên'} icon={<TeamOutlined />} />
+        <CtrlBtn active={showParticipants} onClick={toggleParticipants} title={showParticipants ? 'Ẩn thành viên' : 'Hiện thành viên'} icon={<TeamOutlined />} />
 
         <Tooltip title="Chat">
           <Button
@@ -741,7 +764,7 @@ export default function StudentSessionPage() {
             type={showChat ? 'primary' : 'default'}
             icon={<MessageOutlined />}
             style={{ background: showChat ? undefined : 'rgba(255,255,255,0.15)', borderColor: showChat ? undefined : 'transparent', color: showChat ? undefined : '#fff' }}
-            onClick={() => setShowChat(!showChat)}
+            onClick={toggleChat}
           />
         </Tooltip>
 
@@ -762,6 +785,13 @@ export default function StudentSessionPage() {
           Rời lớp
         </Button>
       </div>
+
+      {compact && (showParticipants || showChat) && (
+        <div
+          style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 98 }}
+          onClick={() => { setShowParticipants(false); setShowChat(false); }}
+        />
+      )}
 
       {/* ── Leave confirm modal ── */}
       <Modal
