@@ -79,7 +79,21 @@ export function useWebRTC(
         if (!entry) return;
         entry.remoteStream = remoteStream;
         if (event.track.kind === 'video') {
-          entry.isCameraOff = false;
+          entry.isCameraOff = event.track.muted;
+          // replaceTrack(null) on sender fires mute/unmute on receiver — use this
+          // as a reliable WebRTC-native fallback for camera-off detection.
+          event.track.onmute = () => {
+            const e = pcsRef.current.get(peerId);
+            if (!e) return;
+            e.isCameraOff = true;
+            syncPeers();
+          };
+          event.track.onunmute = () => {
+            const e = pcsRef.current.get(peerId);
+            if (!e) return;
+            e.isCameraOff = false;
+            syncPeers();
+          };
         }
         syncPeers();
       };
@@ -251,6 +265,26 @@ export function useWebRTC(
     syncPeers();
   }, [syncPeers]);
 
+  const replaceVideoTrack = useCallback(async (newTrack: MediaStreamTrack | null) => {
+    log(`replaceVideoTrack across ${pcsRef.current.size} PCs`);
+    const tasks: Promise<void>[] = [];
+    pcsRef.current.forEach(({ pc, peerId }) => {
+      const sender = pc.getSenders().find((s) => s.track?.kind === 'video');
+      if (sender) {
+        log(`  replacing video sender for`, peerId);
+        tasks.push(sender.replaceTrack(newTrack));
+      }
+    });
+    await Promise.all(tasks);
+  }, []);
+
+  const updatePeerCameraState = useCallback((peerId: string, isCameraOff: boolean) => {
+    const entry = pcsRef.current.get(peerId);
+    if (!entry) return;
+    entry.isCameraOff = isCameraOff;
+    syncPeers();
+  }, [syncPeers]);
+
   const attachLocalStream = useCallback((stream: MediaStream) => {
     log(`attachLocalStream: adding tracks to ${pcsRef.current.size} existing PCs`);
     pcsRef.current.forEach(({ pc, peerId }) => {
@@ -274,5 +308,7 @@ export function useWebRTC(
     handleAnswer,
     handleIceCandidate,
     attachLocalStream,
+    replaceVideoTrack,
+    updatePeerCameraState,
   };
 }

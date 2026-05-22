@@ -92,6 +92,7 @@ export default function StudentSessionPage() {
   const submitFnRef = useRef<(() => void) | null>(null);
   const teacherIdRef = useRef<string | null>(null);
   const presenceRef = useRef<PresenceDto[]>([]);
+  const screenTrackRef = useRef<MediaStreamTrack | null>(null);
 
   useEffect(() => { presenceRef.current = presence; }, [presence]);
 
@@ -191,14 +192,12 @@ export default function StudentSessionPage() {
               break;
             }
             case 'session_ended': {
-              // Teacher ended the session — auto-redirect student to review
-              const endedPayload = event.payload as { sessionId?: string };
-              const endedSessionId = endedPayload.sessionId ?? info.sessionId;
+              const { sessionId: endedSessionId } = event.payload as { sessionId?: string };
               wsRef.current?.disconnect();
               wsRef.current = null;
               rtc.closeAllPeers();
               localMedia.stopMedia();
-              navigate(`/review/${endedSessionId}`);
+              navigate(`/review/${endedSessionId ?? info.sessionId}`);
               break;
             }
             case 'question_started': {
@@ -273,6 +272,21 @@ export default function StudentSessionPage() {
             case 'chat_message':
               setChatMessages((prev) => [...prev, dtoToChat(event.payload as ChatMessageDto)]);
               break;
+            case 'camera_state_changed': {
+              const { fromId, isCameraOff } = event.payload as { fromId: string; isCameraOff: boolean };
+              rtc.updatePeerCameraState(fromId, isCameraOff);
+              break;
+            }
+            case 'teacher_joined_room': {
+              setBroadcastMsg('Giáo viên đã vào phòng');
+              if (teacherIdRef.current) void rtc.callPeer(teacherIdRef.current);
+              break;
+            }
+            case 'teacher_left_room': {
+              setBroadcastMsg('Giáo viên đã rời phòng');
+              if (teacherIdRef.current) rtc.closePeer(teacherIdRef.current);
+              break;
+            }
             case 'webrtc_offer': {
               const raw = event.payload as Record<string, unknown>;
               const fromId = raw.fromId as string;
@@ -407,6 +421,38 @@ export default function StudentSessionPage() {
   const handleSendChat = (text: string) => {
     wsRef.current?.sendChat(text, myRoom?.id ?? null);
   };
+
+  function handleToggleCamera() {
+    localMedia.toggleCamera();
+    const track = localMedia.streamRef.current?.getVideoTracks()[0];
+    if (track) wsRef.current?.sendCameraState(!track.enabled);
+  }
+
+  async function handleToggleScreenShare() {
+    if (screenShareOn) {
+      screenTrackRef.current?.stop();
+      screenTrackRef.current = null;
+      const cameraTrack = localMedia.streamRef.current?.getVideoTracks()[0] ?? null;
+      await rtc.replaceVideoTrack(cameraTrack);
+      setScreenShareOn(false);
+    } else {
+      try {
+        const displayStream = await navigator.mediaDevices.getDisplayMedia({ video: true, audio: false });
+        const screenTrack = displayStream.getVideoTracks()[0];
+        screenTrackRef.current = screenTrack;
+        await rtc.replaceVideoTrack(screenTrack);
+        setScreenShareOn(true);
+        screenTrack.onended = async () => {
+          screenTrackRef.current = null;
+          const cameraTrack = localMedia.streamRef.current?.getVideoTracks()[0] ?? null;
+          await rtc.replaceVideoTrack(cameraTrack);
+          setScreenShareOn(false);
+        };
+      } catch {
+        // User cancelled screen share picker — ignore
+      }
+    }
+  }
 
   const handleLeave = async () => {
     // Disconnect WS first — sets deactivating=true so onWebSocketClose
@@ -644,7 +690,7 @@ export default function StudentSessionPage() {
                         isLocal={isSelf}
                         isMuted={isSelf && !localMedia.isMicOn}
                         isCameraOff={isSelf ? !localMedia.isCameraOn : peer?.isCameraOff}
-                        isFocused={isSelf}
+                        isSelf={isSelf}
                         borderRadius={10}
                       >
                         {isSelf && myRaisedHand && (
@@ -813,8 +859,8 @@ export default function StudentSessionPage() {
       {/* ─── Bottom control bar ─── */}
       <div style={{ height: 60, background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(8px)', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10, flexShrink: 0, padding: '0 20px', overflowX: 'auto' }}>
         <CtrlBtn active={!localMedia.isMicOn} danger={!localMedia.isMicOn} onClick={localMedia.toggleMic} title={localMedia.isMicOn ? 'Tắt mic' : 'Bật mic'} icon={localMedia.isMicOn ? <AudioOutlined /> : <AudioMutedOutlined />} />
-        <CtrlBtn active={!localMedia.isCameraOn} danger={!localMedia.isCameraOn} onClick={localMedia.toggleCamera} title={localMedia.isCameraOn ? 'Tắt camera' : 'Bật camera'} icon={<VideoCameraOutlined />} />
-        <CtrlBtn active={screenShareOn} onClick={() => setScreenShareOn(!screenShareOn)} title={screenShareOn ? 'Dừng chia sẻ' : 'Chia sẻ màn hình'} icon={<DesktopOutlined />} />
+        <CtrlBtn active={!localMedia.isCameraOn} danger={!localMedia.isCameraOn} onClick={handleToggleCamera} title={localMedia.isCameraOn ? 'Tắt camera' : 'Bật camera'} icon={<VideoCameraOutlined />} />
+        <CtrlBtn active={screenShareOn} onClick={() => { void handleToggleScreenShare(); }} title={screenShareOn ? 'Dừng chia sẻ' : 'Chia sẻ màn hình'} icon={<DesktopOutlined />} />
 
         <CtrlBtn active={myRaisedHand} onClick={handleRaiseHand} title={myRaisedHand ? 'Hạ tay' : 'Giơ tay'}>✋</CtrlBtn>
 

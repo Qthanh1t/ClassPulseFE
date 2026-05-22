@@ -14,6 +14,7 @@ interface VideoTileProps {
   isCameraOff?: boolean;
   isLocal?: boolean;
   isFocused?: boolean;
+  isSelf?: boolean;
   compact?: boolean;
   borderRadius?: number;
   children?: React.ReactNode;
@@ -28,6 +29,7 @@ export default function VideoTile({
   isCameraOff,
   isLocal,
   isFocused,
+  isSelf,
   compact = false,
   borderRadius = 8,
   children,
@@ -61,13 +63,17 @@ export default function VideoTile({
         overflow: 'hidden',
         border: isFocused
           ? '2px solid rgba(99,102,241,0.65)'
-          : '1.5px solid rgba(255,255,255,0.07)',
+          : isSelf
+            ? '2px solid rgba(16,185,129,0.55)'
+            : '1.5px solid rgba(255,255,255,0.07)',
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
         boxShadow: isFocused
           ? '0 0 0 4px rgba(99,102,241,0.15), 0 8px 32px rgba(0,0,0,0.5)'
-          : '0 2px 12px rgba(0,0,0,0.35)',
+          : isSelf
+            ? '0 0 0 3px rgba(16,185,129,0.12), 0 4px 16px rgba(0,0,0,0.4)'
+            : '0 2px 12px rgba(0,0,0,0.35)',
         transition: 'border-color 0.25s ease, box-shadow 0.25s ease',
       }}
     >

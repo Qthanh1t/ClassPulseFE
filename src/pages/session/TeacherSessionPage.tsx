@@ -94,6 +94,7 @@ export default function TeacherSessionPage() {
 
   const wsRef = useRef<SessionWsClient | null>(null);
   const presenceRef = useRef<PresenceDto[]>([]);
+  const screenTrackRef = useRef<MediaStreamTrack | null>(null);
 
   useEffect(() => { presenceRef.current = presence; }, [presence]);
 
@@ -280,6 +281,11 @@ export default function TeacherSessionPage() {
             })();
             break;
           }
+          case 'camera_state_changed': {
+            const { fromId, isCameraOff } = event.payload as { fromId: string; isCameraOff: boolean };
+            rtc.updatePeerCameraState(fromId, isCameraOff);
+            break;
+          }
           case 'webrtc_offer': {
             const raw = event.payload as Record<string, unknown>;
             console.log('[RTC-WS] webrtc_offer keys:', Object.keys(raw), '| fromId:', raw.fromId);
@@ -403,6 +409,38 @@ export default function TeacherSessionPage() {
 
   function handleSendChat(text: string) {
     wsRef.current?.sendChat(text);
+  }
+
+  function handleToggleCamera() {
+    localMedia.toggleCamera();
+    const track = localMedia.streamRef.current?.getVideoTracks()[0];
+    if (track) wsRef.current?.sendCameraState(!track.enabled);
+  }
+
+  async function handleToggleScreenShare() {
+    if (screenShareOn) {
+      screenTrackRef.current?.stop();
+      screenTrackRef.current = null;
+      const cameraTrack = localMedia.streamRef.current?.getVideoTracks()[0] ?? null;
+      await rtc.replaceVideoTrack(cameraTrack);
+      setScreenShareOn(false);
+    } else {
+      try {
+        const displayStream = await navigator.mediaDevices.getDisplayMedia({ video: true, audio: false });
+        const screenTrack = displayStream.getVideoTracks()[0];
+        screenTrackRef.current = screenTrack;
+        await rtc.replaceVideoTrack(screenTrack);
+        setScreenShareOn(true);
+        screenTrack.onended = async () => {
+          screenTrackRef.current = null;
+          const cameraTrack = localMedia.streamRef.current?.getVideoTracks()[0] ?? null;
+          await rtc.replaceVideoTrack(cameraTrack);
+          setScreenShareOn(false);
+        };
+      } catch {
+        // User cancelled screen share picker — ignore
+      }
+    }
   }
 
   function handleFocusStudent(studentId: string | null) {
@@ -943,13 +981,13 @@ export default function TeacherSessionPage() {
         <CtrlBtn
           active={!localMedia.isCameraOn}
           danger={!localMedia.isCameraOn}
-          onClick={localMedia.toggleCamera}
+          onClick={handleToggleCamera}
           title={localMedia.isCameraOn ? 'Tắt camera' : 'Bật camera'}
           icon={<VideoCameraOutlined />}
         />
         <CtrlBtn
           active={screenShareOn}
-          onClick={() => setScreenShareOn(!screenShareOn)}
+          onClick={() => { void handleToggleScreenShare(); }}
           title={screenShareOn ? 'Dừng chia sẻ' : 'Chia sẻ màn hình'}
           icon={<DesktopOutlined />}
         />

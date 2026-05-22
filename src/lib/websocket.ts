@@ -20,7 +20,8 @@ export type WsEventType =
   | 'webrtc_answer'
   | 'webrtc_ice_candidate'
   | 'teacher_joined_room'
-  | 'teacher_left_room';
+  | 'teacher_left_room'
+  | 'camera_state_changed';
 
 export interface WsEvent<T = unknown> {
   type: WsEventType;
@@ -41,6 +42,7 @@ export interface SessionWsClient {
   sendWebRtcOffer: (targetId: string, sdp: string) => void;
   sendWebRtcAnswer: (targetId: string, sdp: string) => void;
   sendWebRtcIceCandidate: (targetId: string, candidate: RTCIceCandidate) => void;
+  sendCameraState: (isCameraOff: boolean) => void;
   disconnect: () => void;
 }
 
@@ -190,6 +192,13 @@ export function createSessionWsClient(
       client.publish({
         destination: `/app/session/${sessionId}/webrtc/ice-candidate`,
         body: JSON.stringify({ targetId, candidate }),
+      });
+    },
+
+    sendCameraState(isCameraOff) {
+      client.publish({
+        destination: `/app/session/${sessionId}/camera-state`,
+        body: JSON.stringify({ isCameraOff }),
       });
     },
 
