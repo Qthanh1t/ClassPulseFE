@@ -6,6 +6,7 @@ import type { IMessage, StompSubscription } from '@stomp/stompjs';
 
 export type WsEventType =
   | 'student_presence'
+  | 'session_ended'
   | 'question_started'
   | 'question_ended'
   | 'raise_hand_changed'

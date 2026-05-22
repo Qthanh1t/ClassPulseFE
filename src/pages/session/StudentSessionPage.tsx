@@ -190,6 +190,17 @@ export default function StudentSessionPage() {
               }
               break;
             }
+            case 'session_ended': {
+              // Teacher ended the session — auto-redirect student to review
+              const endedPayload = event.payload as { sessionId?: string };
+              const endedSessionId = endedPayload.sessionId ?? info.sessionId;
+              wsRef.current?.disconnect();
+              wsRef.current = null;
+              rtc.closeAllPeers();
+              localMedia.stopMedia();
+              navigate(`/review/${endedSessionId}`);
+              break;
+            }
             case 'question_started': {
               const q = event.payload as QuestionDto;
               setRunningQuestion(q);
@@ -291,7 +302,23 @@ export default function StudentSessionPage() {
         const ws = createSessionWsClient(
           info.wsTicket,
           info.sessionId,
-          async () => (await sessionService.join(info.sessionId)).data!.wsTicket,
+          async () => {
+            try {
+              return (await sessionService.join(info.sessionId)).data!.wsTicket;
+            } catch (err) {
+              // Session kết thúc → redirect sang review thay vì retry vô hạn
+              const code = (err as { response?: { data?: { error?: { code?: string } } } })
+                ?.response?.data?.error?.code;
+              if (code === 'SESSION_NOT_ACTIVE' || code === 'SESSION_ENDED' || code === 'SESSION_NOT_FOUND') {
+                wsRef.current?.disconnect();
+                wsRef.current = null;
+                rtc.closeAllPeers();
+                localMedia.stopMedia();
+                navigate(`/review/${info.sessionId}`);
+              }
+              throw err;
+            }
+          },
           async () => {
             if (cancelled) return;
             // Media is already started in init() before WS connects.
