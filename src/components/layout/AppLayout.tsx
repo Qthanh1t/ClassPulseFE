@@ -2,7 +2,6 @@ import { useState } from 'react';
 import { Layout, Avatar, Badge, Dropdown, Typography } from 'antd';
 import {
   BookOutlined,
-  DashboardOutlined,
   MenuFoldOutlined,
   MenuUnfoldOutlined,
   UserOutlined,
@@ -27,7 +26,6 @@ interface NavItem {
 
 const NAV_ITEMS: NavItem[] = [
   { key: 'classes', icon: <BookOutlined />, label: 'Lớp học', path: '/classes' },
-  { key: 'dashboard', icon: <DashboardOutlined />, label: 'Dashboard', path: '/dashboard/sess1' },
 ];
 
 const NAV_ADMIN: NavItem[] = [
@@ -84,9 +82,7 @@ export default function AppLayout() {
   const location = useLocation();
   const { user, clearAuth } = useAuthStore();
 
-  const selectedKey = location.pathname.startsWith('/dashboard')
-    ? 'dashboard'
-    : location.pathname.startsWith('/admin')
+  const selectedKey = location.pathname.startsWith('/admin')
     ? 'admin'
     : 'classes';
 

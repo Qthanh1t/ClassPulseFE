@@ -211,7 +211,7 @@ src/
 Sidebar **fixed** (không scroll theo trang), width 232px (collapsed: 64px). Content area dùng `marginLeft` động để tránh overlap.
 
 - **Logo**: gradient rounded square (`#6366f1 → #8b5cf6`) + text "StudyQuest"
-- **Nav primary** (`NAV_ITEMS`): Lớp học, Dashboard
+- **Nav primary** (`NAV_ITEMS`): Lớp học (Dashboard đã xóa — không có global dashboard page; TeacherDashboard và StudentReview accessed qua redirect sau session)
 - **Nav secondary** (`NAV_SECONDARY`): Cài đặt — (đã bỏ mục "Tài liệu"; tài liệu giờ nằm trong tab của ClassDetailPage)
 - **Nav**: custom `<button>` (không dùng AntD `Menu`) với class `.sq-nav-item`; active dùng `background: #eef2ff, color: #6366f1, fontWeight: 600`
 - **User card**: docked ở bottom sidebar, hiện tên + vai trò; ẩn khi collapsed (chỉ hiện Avatar)
@@ -228,15 +228,16 @@ Layout 2 cột (không dùng AppLayout):
 
 ## ClassListPage
 
-- **Hero banner**: gradient indigo, hiện tên GV, số lớp, số HS, online count
-- **`CourseCard`**: component nội bộ; banner gradient theo subject (xem Subject gradients); hover lift qua `.sq-card-hover`; 2 nút: "Bắt đầu (GV)" (gradient primary) + icon button vào học (học sinh)
-- **`AddClassCard`**: placeholder dạng dashed border, tối giản
-- **Join with code**: section cuối trang, Input + Button inline
+- **Hero banner**: gradient indigo, hiện tên user, số lớp, online count; teacher thêm stat "X học sinh"; teacher thêm nút "Tạo lớp mới"
+- **`CourseCard`**: component nội bộ; nhận prop `isTeacher: boolean`; banner gradient theo subject (xem Subject gradients); hover lift qua `.sq-card-hover`; **1 nút action theo role**: teacher → "Bắt đầu buổi học" (gradient primary) / student → "Vào học" (outline indigo)
+- **`AddClassCard`**: placeholder dạng dashed border, tối giản; chỉ hiện cho teacher
+- **Join with code**: section cuối trang, Input + Button inline; **chỉ hiện cho student** (teacher không join bằng code)
 
 ## ClassDetailPage
 
 - **Hero banner**: gradient theo subject (dùng `SUBJECT_STYLE` record trong file)
 - **Tabs** (Bảng tin / Lịch học / Thành viên / Tài liệu): render trong `Card` borderRadius 16
+- **Hero action button**: teacher → "Bắt đầu buổi học" (`navigate('/session/teacher/:id')`); student → "Vào học" (`navigate('/session/student/:id')`)
 - **Quản lý lớp (teacher only)**: nút `⋯` kebab menu trong hero banner — "Chỉnh sửa lớp" (modal pre-fill, `classroomService.update`), "Tạo mã mới" (`classroomService.regenerateJoinCode`, cập nhật `cls.joinCode` inline), "Xóa lớp" (Popconfirm → `classroomService.remove` → navigate `/classes`); nút `⟳` nhỏ cạnh badge mã lớp cũng trigger regen
 - **Bảng tin — tạo/sửa/xóa post**: compose box dùng `RichTextEditor`; bài đăng có nút `⋯` (hiện với teacher hoặc tác giả) — "Chỉnh sửa" (inline `RichTextEditor` với `initialValue={post.content}`, `postService.update`), "Xóa bài" (Popconfirm → `postService.remove`); đính kèm file hiển thị chip indigo
 - **Lịch học — tạo/sửa/xóa**: nút "Thêm buổi học" mở modal; mỗi buổi học có icon `EditOutlined` (mở modal pre-fill bằng `dayjs('2000-01-01 ' + s.startTime)` để tránh lỗi parse HH:mm) và `DeleteOutlined` với Popconfirm; modal dual-mode (create/edit) dùng `editingSchedule` state; `scheduleService.update/remove`

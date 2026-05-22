@@ -834,10 +834,10 @@ export default function ClassDetailPage() {
             <Button
               size="large"
               icon={<PlayCircleOutlined />}
-              onClick={() => navigate(`/session/teacher/${cls.id}`)}
+              onClick={() => navigate(isTeacher ? `/session/teacher/${cls.id}` : `/session/student/${cls.id}`)}
               style={{ background: '#fff', color: '#6366f1', border: 'none', fontWeight: 700, borderRadius: 12, height: 44, paddingInline: 24, boxShadow: '0 4px 12px rgba(0,0,0,0.12)' }}
             >
-              Bắt đầu buổi học
+              {isTeacher ? 'Bắt đầu buổi học' : 'Vào học'}
             </Button>
             {isTeacher && (
               <Dropdown

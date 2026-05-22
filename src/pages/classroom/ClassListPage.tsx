@@ -5,7 +5,7 @@ import {
 } from 'antd';
 import {
   PlusOutlined, TeamOutlined, CalendarOutlined,
-  PlayCircleOutlined, UserOutlined, DownOutlined,
+  PlayCircleOutlined, UserOutlined,
   CodeOutlined, DatabaseOutlined, ApartmentOutlined,
   BookOutlined, SearchOutlined,
 } from '@ant-design/icons';
@@ -51,11 +51,12 @@ const DEFAULT_SUBJECT: SubjectConfig = {
   icon: <BookOutlined style={{ fontSize: 28, color: '#fff' }} />,
 };
 
-function CourseCard({ cls, onStart, onJoinAsStudent, onCardClick }: {
+function CourseCard({ cls, onStart, onJoinAsStudent, onCardClick, isTeacher }: {
   cls: ClassroomDto;
   onStart: () => void;
   onJoinAsStudent: () => void;
   onCardClick: () => void;
+  isTeacher: boolean;
 }) {
   const config = SUBJECT_CONFIG[cls.subject ?? ''] ?? DEFAULT_SUBJECT;
 
@@ -113,24 +114,26 @@ function CourseCard({ cls, onStart, onJoinAsStudent, onCardClick }: {
         <div style={{ height: 1, background: '#f1f5f9', margin: '0 0 14px' }} />
 
         <div style={{ display: 'flex', gap: 8 }}>
-          <Button
-            type="primary"
-            size="small"
-            icon={<PlayCircleOutlined />}
-            onClick={(e) => { e.stopPropagation(); onStart(); }}
-            style={{ flex: 1, background: 'linear-gradient(135deg, #6366f1, #8b5cf6)', border: 'none', fontWeight: 600, fontSize: 13, height: 34 }}
-          >
-            Bắt đầu (GV)
-          </Button>
-          <Button
-            size="small"
-            icon={<UserOutlined />}
-            onClick={(e) => { e.stopPropagation(); onJoinAsStudent(); }}
-            style={{ height: 34, fontSize: 13, border: '1px solid #e2e8f0', color: '#64748b' }}
-            title="Vào học (học sinh)"
-          >
-            <DownOutlined style={{ fontSize: 10 }} />
-          </Button>
+          {isTeacher ? (
+            <Button
+              type="primary"
+              size="small"
+              icon={<PlayCircleOutlined />}
+              onClick={(e) => { e.stopPropagation(); onStart(); }}
+              style={{ flex: 1, background: 'linear-gradient(135deg, #6366f1, #8b5cf6)', border: 'none', fontWeight: 600, fontSize: 13, height: 34 }}
+            >
+              Bắt đầu buổi học
+            </Button>
+          ) : (
+            <Button
+              size="small"
+              icon={<UserOutlined />}
+              onClick={(e) => { e.stopPropagation(); onJoinAsStudent(); }}
+              style={{ flex: 1, height: 34, fontSize: 13, fontWeight: 600, border: '1.5px solid #6366f1', color: '#6366f1' }}
+            >
+              Vào học
+            </Button>
+          )}
         </div>
       </div>
     </div>
@@ -244,10 +247,12 @@ export default function ClassListPage() {
                 <BookOutlined style={{ color: 'rgba(255,255,255,0.75)', fontSize: 14 }} />
                 <span style={{ color: 'rgba(255,255,255,0.85)', fontSize: 13 }}>{classes.length} lớp học</span>
               </div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                <TeamOutlined style={{ color: 'rgba(255,255,255,0.75)', fontSize: 14 }} />
-                <span style={{ color: 'rgba(255,255,255,0.85)', fontSize: 13 }}>{totalStudents} học sinh</span>
-              </div>
+              {isTeacher && (
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <TeamOutlined style={{ color: 'rgba(255,255,255,0.75)', fontSize: 14 }} />
+                  <span style={{ color: 'rgba(255,255,255,0.85)', fontSize: 13 }}>{totalStudents} học sinh</span>
+                </div>
+              )}
               <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                 <Badge status="processing" color="#34d399" />
                 <span style={{ color: 'rgba(255,255,255,0.85)', fontSize: 13 }}>Đang hoạt động</span>
@@ -287,6 +292,7 @@ export default function ClassListPage() {
             <Col key={cls.id} xs={24} sm={12} lg={8}>
               <CourseCard
                 cls={cls}
+                isTeacher={isTeacher}
                 onCardClick={() => navigate(`/classes/${cls.id}`)}
                 onStart={() => navigate(`/session/teacher/${cls.id}`)}
                 onJoinAsStudent={() => navigate(`/session/student/${cls.id}`)}
@@ -301,8 +307,8 @@ export default function ClassListPage() {
         </Row>
       )}
 
-      {/* Join with code */}
-      <div style={{ marginTop: 28, padding: '20px 24px', background: '#fff', borderRadius: 16, border: '1px solid #e2e8f0', display: 'flex', alignItems: 'center', gap: 16, flexWrap: 'wrap' }}>
+      {/* Join with code — chỉ hiện cho student */}
+      {!isTeacher && <div style={{ marginTop: 28, padding: '20px 24px', background: '#fff', borderRadius: 16, border: '1px solid #e2e8f0', display: 'flex', alignItems: 'center', gap: 16, flexWrap: 'wrap' }}>
         <div style={{ flex: 1, minWidth: 200 }}>
           <div style={{ fontSize: 14, fontWeight: 600, color: '#0f172a', marginBottom: 2 }}>Tham gia bằng mã lớp</div>
           <div style={{ fontSize: 13, color: '#64748b' }}>Nhập mã do giáo viên cung cấp để tham gia lớp học</div>
@@ -325,7 +331,7 @@ export default function ClassListPage() {
             Tham gia
           </Button>
         </div>
-      </div>
+      </div>}
 
       {/* Create class modal */}
       <Modal
