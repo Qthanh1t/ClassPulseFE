@@ -544,9 +544,11 @@ export default function StudentSessionPage() {
         </div>
 
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          {iAmFocused && (
+          {focusedStudentId && (
             <Tag color="purple" icon={<AimOutlined />} style={{ borderRadius: 20, fontSize: 11 }}>
-              Bạn đang được focus
+              {iAmFocused
+                ? 'Bạn đang được focus'
+                : `Focus: ${presence.find((p) => p.studentId === focusedStudentId)?.name?.split(' ').pop() ?? 'Học sinh'}`}
             </Tag>
           )}
           {runningQuestion && !questionPanelOpen && (
@@ -597,27 +599,69 @@ export default function StudentSessionPage() {
           {/* ── Idle / Question: Teacher video + student strip ── */}
           {!isBreakout && (
             <>
-              {/* Teacher's main video area */}
-              <div style={{ flex: 1, borderRadius: 12, overflow: 'hidden', position: 'relative', minHeight: 0 }}>
-                <VideoTile
-                  stream={teacherPeer?.remoteStream ?? null}
-                  name={joinInfo.teacherName}
-                  avatarColor="#6366f1"
-                  isTeacher
-                  isCameraOff={teacherPeer?.isCameraOff}
-                  borderRadius={12}
-                >
-                  {screenShareOn && (
-                    <div style={{ position: 'absolute', top: 10, left: 12, background: 'rgba(0,0,0,0.6)', padding: '3px 10px', borderRadius: 6, display: 'flex', alignItems: 'center', gap: 6, zIndex: 3 }}>
-                      <DesktopOutlined style={{ color: '#52c41a', fontSize: 12 }} />
-                      <Text style={{ color: '#fff', fontSize: 12 }}>Đang chia sẻ màn hình</Text>
-                    </div>
-                  )}
-                  <div style={{ position: 'absolute', top: 10, right: 12, zIndex: 3 }}>
-                    <Badge status={teacherPeer?.state === 'connected' ? 'processing' : 'default'} text={<Text style={{ color: 'rgba(255,255,255,0.8)', fontSize: 11 }}>LIVE</Text>} />
+              {focusedStudentId ? (
+                /* ── Focus / Spotlight mode: 2-column grid teacher | focused student ── */
+                <div style={{ flex: 1, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, minHeight: 0 }}>
+                  {/* Teacher tile */}
+                  <div style={{ borderRadius: 12, overflow: 'hidden', position: 'relative', border: '2px solid rgba(99,102,241,0.4)' }}>
+                    <VideoTile
+                      stream={teacherPeer?.remoteStream ?? null}
+                      name={joinInfo.teacherName}
+                      avatarColor="#6366f1"
+                      isTeacher
+                      isCameraOff={teacherPeer?.isCameraOff}
+                      borderRadius={10}
+                    >
+                      <div style={{ position: 'absolute', top: 10, right: 12, zIndex: 3 }}>
+                        <Badge status={teacherPeer?.state === 'connected' ? 'processing' : 'default'} text={<Text style={{ color: 'rgba(255,255,255,0.8)', fontSize: 11 }}>LIVE</Text>} />
+                      </div>
+                    </VideoTile>
                   </div>
-                </VideoTile>
-              </div>
+
+                  {/* Focused student tile */}
+                  <div style={{ borderRadius: 12, overflow: 'hidden', border: '2px solid #6366f1', position: 'relative' }}>
+                    <VideoTile
+                      stream={focusedStudentId === me?.id ? localMedia.stream : (rtc.peers.get(focusedStudentId)?.remoteStream ?? null)}
+                      name={focusedStudentId === me?.id ? (me?.name ?? 'Bạn') : (presence.find((p) => p.studentId === focusedStudentId)?.name ?? 'Học sinh')}
+                      avatarColor={focusedStudentId === me?.id ? myAvatarColor : presence.find((p) => p.studentId === focusedStudentId)?.avatarColor}
+                      isLocal={focusedStudentId === me?.id}
+                      isMuted={focusedStudentId === me?.id ? !localMedia.isMicOn : undefined}
+                      isCameraOff={focusedStudentId === me?.id ? !localMedia.isCameraOn : rtc.peers.get(focusedStudentId)?.isCameraOff}
+                      isFocused
+                      borderRadius={10}
+                    >
+                      <Tag
+                        color="purple"
+                        style={{ position: 'absolute', top: 8, right: 8, borderRadius: 20, fontWeight: 600, zIndex: 3, display: 'flex', alignItems: 'center', gap: 3 }}
+                      >
+                        <AimOutlined />FOCUS
+                      </Tag>
+                    </VideoTile>
+                  </div>
+                </div>
+              ) : (
+                /* ── Normal mode: Teacher's video fills main area ── */
+                <div style={{ flex: 1, borderRadius: 12, overflow: 'hidden', position: 'relative', minHeight: 0 }}>
+                  <VideoTile
+                    stream={teacherPeer?.remoteStream ?? null}
+                    name={joinInfo.teacherName}
+                    avatarColor="#6366f1"
+                    isTeacher
+                    isCameraOff={teacherPeer?.isCameraOff}
+                    borderRadius={12}
+                  >
+                    {screenShareOn && (
+                      <div style={{ position: 'absolute', top: 10, left: 12, background: 'rgba(0,0,0,0.6)', padding: '3px 10px', borderRadius: 6, display: 'flex', alignItems: 'center', gap: 6, zIndex: 3 }}>
+                        <DesktopOutlined style={{ color: '#52c41a', fontSize: 12 }} />
+                        <Text style={{ color: '#fff', fontSize: 12 }}>Đang chia sẻ màn hình</Text>
+                      </div>
+                    )}
+                    <div style={{ position: 'absolute', top: 10, right: 12, zIndex: 3 }}>
+                      <Badge status={teacherPeer?.state === 'connected' ? 'processing' : 'default'} text={<Text style={{ color: 'rgba(255,255,255,0.8)', fontSize: 11 }}>LIVE</Text>} />
+                    </div>
+                  </VideoTile>
+                </div>
+              )}
 
               {/* Bottom strip: own tile + other connected students */}
               <div className={compact ? 'no-scrollbar' : undefined} style={{ display: 'flex', gap: 8, flexShrink: 0, flexWrap: compact ? 'nowrap' : 'wrap', overflowX: compact ? 'auto' : undefined }}>
