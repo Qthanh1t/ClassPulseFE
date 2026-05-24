@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import {
-  Avatar, Badge, Button, Card, Divider, Modal, Progress, Tag, Tooltip,
+  Avatar, Badge, Button, Card, Collapse, Divider, Drawer, Modal, Progress, Tag, Tooltip,
   Typography, Alert, Spin, notification,
 } from 'antd';
 import {
@@ -10,7 +10,7 @@ import {
   AudioOutlined, AudioMutedOutlined, VideoCameraOutlined,
   MessageOutlined, TeamOutlined, ClockCircleOutlined,
   PoweroffOutlined, ExclamationCircleOutlined,
-  AimOutlined, CloseOutlined,
+  AimOutlined, CloseOutlined, BarChartOutlined,
 } from '@ant-design/icons';
 import { useNavigate, useParams } from 'react-router-dom';
 import StudentStatusList from '../../components/session/StudentStatusList';
@@ -91,12 +91,16 @@ export default function TeacherSessionPage() {
   const [hoveredStudentId, setHoveredStudentId] = useState<string | null>(null);
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
   const [now, setNow] = useState(Date.now());
+  const [allQuestionStats, setAllQuestionStats] = useState<Map<string, QuestionStatsDto>>(new Map());
+  const [showResultsDrawer, setShowResultsDrawer] = useState(false);
 
   const wsRef = useRef<SessionWsClient | null>(null);
   const presenceRef = useRef<PresenceDto[]>([]);
+  const questionsRef = useRef<QuestionDto[]>([]);
   const screenTrackRef = useRef<MediaStreamTrack | null>(null);
 
   useEffect(() => { presenceRef.current = presence; }, [presence]);
+  useEffect(() => { questionsRef.current = questions; }, [questions]);
 
   // ── WebRTC hooks ────────────────────────────────────────────────────
   const localMedia = useLocalMedia();
@@ -148,6 +152,21 @@ export default function TeacherSessionPage() {
 
       const running = (qRes.data ?? []).find((q) => q.status === 'running');
       if (running) setRunningQuestion(running);
+
+      // Pre-fetch stats for already-ended questions so the results drawer can show them
+      const endedQs = (qRes.data ?? []).filter((q) => q.status === 'ended');
+      if (endedQs.length > 0) {
+        Promise.allSettled(endedQs.map((q) => questionService.getStats(sess.id, q.id))).then((results) => {
+          if (cancelled) return;
+          setAllQuestionStats((prev) => {
+            const map = new Map(prev);
+            results.forEach((r, i) => {
+              if (r.status === 'fulfilled' && r.value.data) map.set(endedQs[i].id, r.value.data);
+            });
+            return map;
+          });
+        });
+      }
 
       // Start camera/mic BEFORE connecting WS so localStreamRef is ready when
       // the first student_presence event fires and callPeer creates a PeerConnection.
@@ -213,39 +232,75 @@ export default function TeacherSessionPage() {
             break;
           }
           case 'question_started': {
-            const q = event.payload as QuestionDto;
-            setRunningQuestion(q);
-            setQuestions((prev) => {
-              const exists = prev.find((x) => x.id === q.id);
-              return exists ? prev.map((x) => x.id === q.id ? q : x) : [...prev, q];
+            // Backend payload: { questionId, type, content, options[{id,label,text,isCorrect,order}], endsAt }
+            const raw = event.payload as {
+              questionId: string; type: string; content: string;
+              options?: { id: string; label: string; text: string; isCorrect: boolean; order: number }[];
+              endsAt?: string;
+            };
+            // Use setQuestions updater to read the LATEST state (avoids stale questionsRef causing duplicates)
+            let resolvedQ: QuestionDto | null = null;
+            setQuestions((current) => {
+              const existing = current.find((x) => x.id === raw.questionId);
+              if (existing) {
+                const updated = { ...existing, status: 'running' as const, endsAt: raw.endsAt ?? existing.endsAt };
+                resolvedQ = updated;
+                return current.map((x) => x.id === raw.questionId ? updated : x);
+              }
+              // Fallback: question not yet in state (reconnect scenario) — construct from WS payload
+              const fallback: QuestionDto = {
+                id: raw.questionId, questionOrder: 0, type: raw.type as QuestionDto['type'],
+                content: raw.content, status: 'running', createdAt: new Date().toISOString(),
+                options: (raw.options ?? []).map((o) => ({
+                  id: o.id, label: o.label, text: o.text, isCorrect: o.isCorrect, optionOrder: o.order,
+                })),
+                endsAt: raw.endsAt,
+              };
+              resolvedQ = fallback;
+              return [...current, fallback];
             });
-            setQuestionStats({
-              questionId: q.id,
-              totalStudents: presenceRef.current.length,
-              answeredCount: 0,
-              skippedCount: 0,
-              correctCount: 0,
-              wrongCount: 0,
-              optionDistribution: (q.options ?? []).map((o) => ({
-                optionId: o.id, label: o.label, text: o.text, isCorrect: o.isCorrect, count: 0,
-              })),
-              confidenceBreakdown: { high: 0, medium: 0, low: 0, none: 0 },
-              silentStudents: [],
-            });
+            const q = resolvedQ ?? questionsRef.current.find((x) => x.id === raw.questionId) ?? null;
+            if (q) {
+              setRunningQuestion(q);
+              setQuestionStats({
+                questionId: q.id,
+                totalStudents: presenceRef.current.length,
+                answeredCount: 0, skippedCount: 0, correctCount: 0, wrongCount: 0,
+                optionDistribution: (q.options ?? []).map((o) => ({
+                  optionId: o.id, label: o.label, text: o.text, isCorrect: o.isCorrect, count: 0,
+                })),
+                confidenceBreakdown: { high: 0, medium: 0, low: 0, none: 0 },
+                silentStudents: presenceRef.current.map((p) => ({ id: p.studentId, name: p.name, avatarColor: p.avatarColor })),
+              });
+            }
             break;
           }
           case 'question_ended': {
-            const ended = event.payload as { id: string; endedAt: string };
-            setRunningQuestion((prev) => prev ? { ...prev, status: 'ended' as const, endedAt: ended.endedAt } : null);
-            setQuestions((prev) => prev.map((q) => q.id === ended.id ? { ...q, status: 'ended' as const } : q));
-            questionService.getStats(sess.id, ended.id).then((r) => {
-              if (r.data) setQuestionStats(r.data);
+            // Backend payload: { questionId } — NOT { id, endedAt }
+            const ended = event.payload as { questionId: string };
+            setRunningQuestion((prev) => prev?.id === ended.questionId ? { ...prev, status: 'ended' as const } : prev);
+            setQuestions((prev) => prev.map((q) => q.id === ended.questionId ? { ...q, status: 'ended' as const } : q));
+            questionService.getStats(sess.id, ended.questionId).then((r) => {
+              if (r.data) {
+                setQuestionStats(r.data);
+                setAllQuestionStats((prev) => new Map(prev).set(ended.questionId, r.data!));
+              }
             });
             break;
           }
           case 'answer_aggregate': {
-            const agg = event.payload as Partial<QuestionStatsDto>;
-            setQuestionStats((prev) => prev ? { ...prev, ...agg } : null);
+            // Backend payload: { questionId, answeredCount, totalCount } — no silentStudents
+            const agg = event.payload as { questionId: string; answeredCount: number; totalCount: number };
+            // Update counts immediately for live progress bar
+            setQuestionStats((prev) => prev ? {
+              ...prev,
+              answeredCount: agg.answeredCount,
+              totalStudents: agg.totalCount,
+            } : null);
+            // Fetch full stats (silentStudents, optionDistribution, confidence) from REST
+            questionService.getStats(sess.id, agg.questionId).then((r) => {
+              if (r.data) setQuestionStats(r.data);
+            });
             break;
           }
           case 'raise_hand_changed': {
@@ -375,7 +430,13 @@ export default function TeacherSessionPage() {
       const created = (await questionService.create(session.id, req)).data!;
       const started = (await questionService.start(session.id, created.id)).data!;
       const newQ: QuestionDto = { ...created, ...started };
-      setQuestions((prev) => [...prev, newQ]);
+      // Dedup-safe: WS question_started may fire before this and add fallback entry
+      setQuestions((prev) => {
+        if (prev.some((q) => q.id === newQ.id)) {
+          return prev.map((q) => q.id === newQ.id ? newQ : q);
+        }
+        return [...prev, newQ];
+      });
       setRunningQuestion(newQ);
       setQuestionStats({
         questionId: newQ.id,
@@ -390,8 +451,19 @@ export default function TeacherSessionPage() {
         confidenceBreakdown: { high: 0, medium: 0, low: 0, none: 0 },
         silentStudents: presenceRef.current.map((p) => ({ id: p.studentId, name: p.name, avatarColor: p.avatarColor })),
       });
-    } catch {
-      // handled via WS events if server responds
+    } catch (err) {
+      const errCode = (err as { response?: { data?: { error?: { code?: string } } } })?.response?.data?.error?.code;
+      const errMsg = (err as { response?: { data?: { error?: { message?: string } } } })?.response?.data?.error?.message;
+      const desc = errCode === 'QUESTION_ALREADY_RUNNING'
+        ? 'Đang có câu hỏi khác đang chạy. Hãy kết thúc câu hỏi hiện tại trước.'
+        : errCode === 'NO_CORRECT_OPTION'
+          ? 'Phải chọn ít nhất 1 đáp án đúng.'
+          : (errMsg ?? 'Vui lòng thử lại.');
+      notification.error({
+        message: 'Không thể phát câu hỏi',
+        description: desc,
+        placement: 'topRight',
+      });
     }
   }
 
@@ -925,10 +997,11 @@ export default function TeacherSessionPage() {
             <Button
               size="small"
               block
-              onClick={() => session && navigate(`/dashboard/${session.id}`)}
-              disabled={!session}
+              icon={<BarChartOutlined />}
+              onClick={() => setShowResultsDrawer(true)}
+              disabled={questions.filter((q) => q.status === 'ended').length === 0}
             >
-              Xem Dashboard
+              Xem kết quả phiên
             </Button>
           </div>
         )}
@@ -1038,6 +1111,117 @@ export default function TeacherSessionPage() {
           onClick={() => { setShowStudentList(false); setShowQuickActions(false); setShowChat(false); }}
         />
       )}
+
+      {/* ─── Session Results Drawer ─── */}
+      <Drawer
+        title={
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <BarChartOutlined style={{ color: '#6366f1' }} />
+            <span>Kết quả phiên học</span>
+          </div>
+        }
+        open={showResultsDrawer}
+        onClose={() => setShowResultsDrawer(false)}
+        width={500}
+        placement="right"
+        mask={false}
+      >
+        {questions.length === 0 ? (
+          <div style={{ textAlign: 'center', color: '#8c8c8c', padding: 40 }}>
+            Chưa có câu hỏi nào trong phiên này.
+          </div>
+        ) : (
+          <>
+            <div style={{ display: 'flex', gap: 12, marginBottom: 20 }}>
+              <div style={{ flex: 1, background: '#f0f5ff', borderRadius: 10, padding: '10px 14px', textAlign: 'center' }}>
+                <Text strong style={{ fontSize: 22, color: '#6366f1' }}>
+                  {questions.filter((q) => q.status === 'ended').length}
+                </Text>
+                <div><Text type="secondary" style={{ fontSize: 12 }}>Câu đã kết thúc</Text></div>
+              </div>
+              <div style={{ flex: 1, background: '#f6ffed', borderRadius: 10, padding: '10px 14px', textAlign: 'center' }}>
+                <Text strong style={{ fontSize: 22, color: '#52c41a' }}>
+                  {presence.filter((p) => p.isOnline).length}
+                </Text>
+                <div><Text type="secondary" style={{ fontSize: 12 }}>Học sinh online</Text></div>
+              </div>
+            </div>
+            <Collapse
+              accordion
+              items={questions.map((q) => {
+                const stats = (q.id === runningQuestion?.id && questionStats)
+                  ? questionStats
+                  : allQuestionStats.get(q.id);
+                const isRunning = q.status === 'running';
+                const typeLabel = q.type === 'single' ? 'Trắc nghiệm 1 đáp án'
+                  : q.type === 'multiple' ? 'Nhiều đáp án' : 'Tự luận';
+                return {
+                  key: q.id,
+                  label: (
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                      <Text strong style={{ fontSize: 13, minWidth: 28 }}>
+                        {q.questionOrder > 0 ? `Câu ${q.questionOrder}` : 'Câu'}
+                      </Text>
+                      <Tag style={{ fontSize: 11, margin: 0, padding: '0 6px' }}>{typeLabel}</Tag>
+                      {isRunning && (
+                        <Tag color="blue" style={{ fontSize: 11, padding: '0 5px', margin: 0 }}>Đang chạy</Tag>
+                      )}
+                      {q.status === 'ended' && stats && (
+                        <Tag color="green" style={{ fontSize: 11, padding: '0 5px', margin: 0 }}>
+                          {stats.answeredCount}/{stats.totalStudents} trả lời
+                        </Tag>
+                      )}
+                    </div>
+                  ),
+                  children: (
+                    <div>
+                      {/* Question content */}
+                      <div
+                        dangerouslySetInnerHTML={{ __html: q.content }}
+                        style={{
+                          fontSize: 14, fontWeight: 500, lineHeight: 1.6, marginBottom: 12,
+                          padding: '10px 12px', background: '#f8fafc', borderRadius: 8,
+                          border: '1px solid #e2e8f0',
+                        }}
+                      />
+                      {/* Options (MCQ) */}
+                      {q.options && q.options.length > 0 && (
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginBottom: 12 }}>
+                          {q.options.map((opt) => (
+                            <div
+                              key={opt.id}
+                              style={{
+                                display: 'flex', gap: 8, alignItems: 'center',
+                                padding: '6px 10px', borderRadius: 6,
+                                background: opt.isCorrect ? '#f6ffed' : '#fafafa',
+                                border: `1px solid ${opt.isCorrect ? '#b7eb8f' : '#f0f0f0'}`,
+                              }}
+                            >
+                              <Tag color={opt.isCorrect ? 'success' : 'default'} style={{ minWidth: 24, textAlign: 'center', margin: 0, fontSize: 11 }}>
+                                {opt.label}
+                              </Tag>
+                              <Text style={{ fontSize: 13 }}>{opt.text}</Text>
+                              {opt.isCorrect && <CheckCircleOutlined style={{ color: '#52c41a', marginLeft: 'auto', fontSize: 13 }} />}
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                      {/* Stats */}
+                      {stats ? (
+                        <LiveQuestionStats stats={stats} questionType={q.type} />
+                      ) : (
+                        <div style={{ color: '#8c8c8c', fontSize: 13, textAlign: 'center', padding: '12px 0' }}>
+                          {q.status === 'draft' ? 'Câu hỏi chưa bắt đầu' : 'Đang tải kết quả...'}
+                        </div>
+                      )}
+                    </div>
+                  ),
+                };
+              })}
+            />
+          </>
+        )}
+      </Drawer>
 
       {/* Modals */}
       <CreateQuestionModal

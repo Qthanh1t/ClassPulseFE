@@ -1,7 +1,7 @@
 import { useState, useRef } from 'react';
 import {
   Modal, Steps, Button, Radio, Input, Checkbox, Space,
-  Typography, Card, Divider, Switch, Segmented, InputNumber, Tooltip,
+  Typography, Card, Divider, Switch, Segmented, InputNumber, Tooltip, message,
 } from 'antd';
 import type { InputRef } from 'antd';
 import {
@@ -202,6 +202,18 @@ export default function CreateQuestionModal({ open, onClose, onSubmit }: Props) 
   };
 
   const handlePublish = () => {
+    if (selectedType !== 'essay') {
+      const filledOptions = options.filter((o) => o.text.trim());
+      if (filledOptions.length < 2) {
+        void message.error('Cần ít nhất 2 lựa chọn có nội dung.');
+        return;
+      }
+      const hasCorrect = filledOptions.some((o) => o.isCorrect);
+      if (!hasCorrect) {
+        void message.error('Phải chọn ít nhất 1 đáp án đúng (click vào radio/checkbox bên cạnh đáp án đúng).');
+        return;
+      }
+    }
     const req: CreateQuestionRequest = {
       type: selectedType,
       content,

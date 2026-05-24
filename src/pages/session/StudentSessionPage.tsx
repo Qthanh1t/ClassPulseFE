@@ -29,7 +29,7 @@ import { useWebRTC } from '../../hooks/useWebRTC';
 import { useBreakpoint } from '../../hooks/useBreakpoint';
 import type {
   JoinSessionResponse, PresenceDto, QuestionDto, BreakoutSessionDto,
-  ChatMessageDto, RoomDto, ConfidenceLevel,
+  ChatMessageDto, RoomDto, ConfidenceLevel, QuestionType,
 } from '../../types/api';
 
 const { Text, Title } = Typography;
@@ -201,7 +201,29 @@ export default function StudentSessionPage() {
               break;
             }
             case 'question_started': {
-              const q = event.payload as QuestionDto;
+              // Backend payload: { questionId, type, content, options[{id,label,text,isCorrect,order}], endsAt }
+              // NOT a QuestionDto — must map fields manually
+              const raw = event.payload as {
+                questionId: string; type: QuestionType; content: string;
+                options?: { id: string; label: string; text: string; isCorrect: boolean; order: number }[];
+                endsAt?: string;
+              };
+              const estimatedTimer = raw.endsAt
+                ? Math.round((new Date(raw.endsAt).getTime() - Date.now()) / 1000)
+                : 0;
+              const q: QuestionDto = {
+                id: raw.questionId,
+                questionOrder: 0,
+                type: raw.type,
+                content: raw.content,
+                status: 'running',
+                createdAt: new Date().toISOString(),
+                timerSeconds: estimatedTimer > 0 ? estimatedTimer : undefined,
+                options: (raw.options ?? []).map((o) => ({
+                  id: o.id, label: o.label, text: o.text, isCorrect: o.isCorrect, optionOrder: o.order,
+                })),
+                endsAt: raw.endsAt,
+              };
               setRunningQuestion(q);
               setQuestionSubmitted(false);
               setSelectedOptions([]);
@@ -211,9 +233,12 @@ export default function StudentSessionPage() {
               setShowNewQuestionModal(true);
               break;
             }
-            case 'question_ended':
-              setRunningQuestion((prev) => (prev ? { ...prev, status: 'ended' } : null));
+            case 'question_ended': {
+              // Backend payload: { questionId }
+              const ended = event.payload as { questionId: string };
+              setRunningQuestion((prev) => (prev?.id === ended.questionId ? { ...prev, status: 'ended' } : prev));
               break;
+            }
             case 'raise_hand_changed': {
               const { studentId, raised } = event.payload as { studentId: string; raised: boolean };
               setRaisedHandIds((prev) =>
