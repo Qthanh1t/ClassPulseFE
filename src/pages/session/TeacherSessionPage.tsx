@@ -14,7 +14,7 @@ import {
 } from '@ant-design/icons';
 import { useNavigate, useParams } from 'react-router-dom';
 import StudentStatusList from '../../components/session/StudentStatusList';
-import LiveQuestionStats from '../../components/session/LiveQuestionStats';
+import StudentAnswersPanel from '../../components/session/StudentAnswersPanel';
 import CreateQuestionModal from '../../components/session/CreateQuestionModal';
 import BreakoutPanel from '../../components/session/BreakoutPanel';
 import ChatPanel from '../../components/session/ChatPanel';
@@ -900,10 +900,14 @@ export default function TeacherSessionPage() {
                   </div>
                 )}
               </Card>
-              {questionStats && (
+              {questionStats && session && (
                 <Card style={{ borderRadius: 12 }}>
-                  <Text strong style={{ fontSize: 14, display: 'block', marginBottom: 4 }}>Thống kê thời gian thực</Text>
-                  <LiveQuestionStats stats={questionStats} questionType={runningQuestion.type} />
+                  <StudentAnswersPanel
+                    sessionId={session.id}
+                    question={runningQuestion}
+                    stats={questionStats}
+                    presence={presence}
+                  />
                 </Card>
               )}
             </div>
@@ -925,7 +929,14 @@ export default function TeacherSessionPage() {
                 dangerouslySetInnerHTML={{ __html: runningQuestion.content }}
                 style={{ fontSize: 15, fontWeight: 500, marginBottom: 16 }}
               />
-              {questionStats && <LiveQuestionStats stats={questionStats} questionType={runningQuestion.type} />}
+              {questionStats && session && (
+                <StudentAnswersPanel
+                  sessionId={session.id}
+                  question={runningQuestion}
+                  stats={questionStats}
+                  presence={presence}
+                />
+              )}
             </Card>
           )}
 
@@ -1206,9 +1217,14 @@ export default function TeacherSessionPage() {
                           ))}
                         </div>
                       )}
-                      {/* Stats */}
-                      {stats ? (
-                        <LiveQuestionStats stats={stats} questionType={q.type} />
+                      {/* Stats + per-student answers */}
+                      {stats && session ? (
+                        <StudentAnswersPanel
+                          sessionId={session.id}
+                          question={q}
+                          stats={stats}
+                          presence={presence}
+                        />
                       ) : (
                         <div style={{ color: '#8c8c8c', fontSize: 13, textAlign: 'center', padding: '12px 0' }}>
                           {q.status === 'draft' ? 'Câu hỏi chưa bắt đầu' : 'Đang tải kết quả...'}
