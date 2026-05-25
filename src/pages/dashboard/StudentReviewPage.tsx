@@ -84,8 +84,9 @@ export default function StudentReviewPage() {
     );
   }
 
-  const { correctCount, skippedCount, answeredCount, scorePercent, questions } = review;
-  const wrongCount = answeredCount - correctCount;
+  const { correctCount, skippedCount, scorePercent, questions } = review;
+  // Essay questions have result='pending_review' (no correct/wrong) — exclude from wrong count
+  const wrongCount = questions.filter((q) => q.result === 'wrong').length;
 
   const isExcellent = scorePercent >= 70;
   const isGood = scorePercent >= 40 && scorePercent < 70;
@@ -101,21 +102,22 @@ export default function StudentReviewPage() {
   const mcqQuestions = questions.filter((q) => q.type !== 'essay');
   const mcqTotal = mcqQuestions.length;
 
-  // Bar chart data
+  // Bar chart data — essay questions shown as indigo (submitted, not graded)
   const questionChartData = questions.map((q, idx) => ({
     name: `C${idx + 1}`,
     value: 1,
-    result: q.result === 'correct' ? 'Đúng' : q.result === 'wrong' ? 'Sai' : 'Bỏ qua',
-    isCorrect: isCorrectReview(q),
+    result: q.result === 'correct' ? 'Đúng' : q.result === 'wrong' ? 'Sai' : q.result === 'pending_review' ? 'Đã nộp' : 'Bỏ qua',
+    isCorrect: q.result === 'correct',
+    isEssay: q.type === 'essay',
     hasAnswer: hasAnsweredReview(q),
     confLabel: q.confidence ? CONFIDENCE_LABEL[q.confidence] : 'Không TL',
   }));
 
-  // Radar chart data
+  // Radar chart data — "correct" counts MCQ correct only, not essay submissions
   const radarData = ['high', 'medium', 'low'].map((level) => ({
     subject: level === 'high' ? 'Tự tin cao' : level === 'medium' ? 'Tự tin TB' : 'Tự tin thấp',
     answered: questions.filter((q) => q.confidence === level && hasAnsweredReview(q)).length,
-    correct: questions.filter((q) => q.confidence === level && isCorrectReview(q)).length,
+    correct: questions.filter((q) => q.confidence === level && q.type !== 'essay' && q.result === 'correct').length,
   }));
 
   const sessionDate = new Date(review.startedAt).toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit', year: 'numeric' });
@@ -210,13 +212,21 @@ export default function StudentReviewPage() {
                 />
                 <Bar dataKey="value" radius={[5, 5, 0, 0]} maxBarSize={36}>
                   {questionChartData.map((entry, index) => (
-                    <Cell key={`q-bar-${index}`} fill={!entry.hasAnswer ? '#e2e8f0' : entry.isCorrect ? '#10b981' : '#f43f5e'} />
+                    <Cell
+                      key={`q-bar-${index}`}
+                      fill={
+                        !entry.hasAnswer ? '#e2e8f0'
+                          : entry.isEssay ? '#6366f1'
+                          : entry.isCorrect ? '#10b981'
+                          : '#f43f5e'
+                      }
+                    />
                   ))}
                 </Bar>
               </BarChart>
             </ResponsiveContainer>
-            <div style={{ display: 'flex', gap: 14, marginTop: 8, justifyContent: 'center' }}>
-              {[{ label: 'Đúng', color: '#10b981' }, { label: 'Sai', color: '#f43f5e' }, { label: 'Bỏ qua', color: '#e2e8f0' }].map(({ label, color }) => (
+            <div style={{ display: 'flex', gap: 14, marginTop: 8, justifyContent: 'center', flexWrap: 'wrap' }}>
+              {[{ label: 'Đúng', color: '#10b981' }, { label: 'Sai', color: '#f43f5e' }, { label: 'Bỏ qua', color: '#e2e8f0' }, { label: 'Đã nộp (TL)', color: '#6366f1' }].map(({ label, color }) => (
                 <div key={label} style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
                   <div style={{ width: 8, height: 8, borderRadius: 2, background: color }} />
                   <Text style={{ fontSize: 11, color: '#94a3b8' }}>{label}</Text>

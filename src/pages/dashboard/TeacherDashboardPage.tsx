@@ -130,14 +130,23 @@ export default function TeacherDashboardPage() {
   const avgResponseRate = Math.round(dashboard.overallStats.avgScorePercent);
   const nonParticipants = dashboard.totalStudents - dashboard.overallStats.participantCount;
 
-  // Chart data: per-question correct rate
-  const questionChartData = dashboard.questions.map((q) => ({
-    name: `Câu ${q.questionOrder}`,
-    rate: q.answeredCount > 0 ? Math.round((q.correctCount / q.totalStudents) * 100) : 0,
-    correct: q.correctCount,
-    total: q.totalStudents,
-    type: q.type,
-  }));
+  // Chart data: correct rate for MCQ, participation rate for essay
+  const questionChartData = dashboard.questions.map((q) => {
+    const isEssay = q.type === 'essay';
+    return {
+      name: `Câu ${q.questionOrder}`,
+      rate: q.totalStudents > 0
+        ? isEssay
+          ? Math.round((q.answeredCount / q.totalStudents) * 100)
+          : Math.round((q.correctCount / q.totalStudents) * 100)
+        : 0,
+      correct: q.correctCount,
+      answered: q.answeredCount,
+      total: q.totalStudents,
+      type: q.type,
+      isEssay,
+    };
+  });
 
   const pieData = [
     { name: 'Đúng', value: totalCorrect, color: '#10b981' },
@@ -204,8 +213,13 @@ export default function TeacherDashboardPage() {
 
   // Question collapse items
   const questionCollapseItems = dashboard.questions.map((q: QuestionSummary, idx: number) => {
-    const rate = q.totalStudents > 0 ? Math.round((q.correctCount / q.totalStudents) * 100) : 0;
-    const rateColor = rate >= 70 ? '#10b981' : rate >= 40 ? '#f59e0b' : '#f43f5e';
+    const isEssay = q.type === 'essay';
+    const rate = q.totalStudents > 0
+      ? isEssay
+        ? Math.round((q.answeredCount / q.totalStudents) * 100)
+        : Math.round((q.correctCount / q.totalStudents) * 100)
+      : 0;
+    const rateColor = isEssay ? '#6366f1' : (rate >= 70 ? '#10b981' : rate >= 40 ? '#f59e0b' : '#f43f5e');
     const optionChartData = (q.options ?? []).map((opt) => ({
       name: opt.label,
       count: opt.count,
@@ -222,10 +236,14 @@ export default function TeacherDashboardPage() {
             <span dangerouslySetInnerHTML={{ __html: q.content.replace(/<[^>]+>/g, '') }} />
           </Text>
           <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexShrink: 0 }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-              <div style={{ width: 6, height: 6, borderRadius: '50%', background: rateColor }} />
-              <Text style={{ fontSize: 12, color: rateColor, fontWeight: 600 }}>{rate}%</Text>
-            </div>
+            <Tooltip title={isEssay ? `Tỉ lệ tham gia: ${rate}%` : `Tỉ lệ đúng: ${rate}%`}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6, cursor: 'default' }}>
+                <div style={{ width: 6, height: 6, borderRadius: '50%', background: rateColor }} />
+                <Text style={{ fontSize: 12, color: rateColor, fontWeight: 600 }}>
+                  {rate}%{isEssay && <span style={{ fontSize: 10, fontWeight: 400, marginLeft: 2 }}>tham gia</span>}
+                </Text>
+              </div>
+            </Tooltip>
             <Text style={{ fontSize: 11, color: '#94a3b8' }}>{q.answeredCount}/{q.totalStudents} HS</Text>
           </div>
         </div>
@@ -409,8 +427,8 @@ export default function TeacherDashboardPage() {
                 <BarChartOutlined style={{ color: '#6366f1', fontSize: 16 }} />
               </div>
               <div>
-                <div style={{ fontSize: 14, fontWeight: 700, color: '#0f172a' }}>Tỉ lệ đúng theo câu hỏi</div>
-                <div style={{ fontSize: 12, color: '#94a3b8' }}>Phân tích kết quả từng câu hỏi</div>
+                <div style={{ fontSize: 14, fontWeight: 700, color: '#0f172a' }}>Tỉ lệ đúng / tham gia theo câu hỏi</div>
+                <div style={{ fontSize: 12, color: '#94a3b8' }}>MCQ: tỉ lệ đúng · Tự luận: tỉ lệ tham gia</div>
               </div>
             </div>
 
@@ -419,25 +437,34 @@ export default function TeacherDashboardPage() {
                 <XAxis dataKey="name" tick={{ fontSize: 12, fill: '#64748b' }} axisLine={false} tickLine={false} />
                 <YAxis domain={[0, 100]} tickFormatter={(v) => `${v}%`} tick={{ fontSize: 11, fill: '#94a3b8' }} axisLine={false} tickLine={false} />
                 <RechartTooltip
-                  formatter={(value: unknown) => [`${String(value)}%`, 'Tỉ lệ đúng']}
+                  formatter={(value: unknown, _n: unknown, props: { payload?: { isEssay?: boolean } }) => [
+                    `${String(value)}%`,
+                    props.payload?.isEssay ? 'Tỉ lệ tham gia (tự luận)' : 'Tỉ lệ đúng',
+                  ]}
                   contentStyle={{ borderRadius: 10, border: '1px solid #e2e8f0', fontSize: 13, boxShadow: '0 4px 12px rgba(0,0,0,0.06)' }}
                 />
                 <Bar dataKey="rate" radius={[6, 6, 0, 0]} maxBarSize={52}>
                   {questionChartData.map((entry, index) => (
                     <Cell
                       key={`bar-${index}`}
-                      fill={entry.rate >= 70 ? '#10b981' : entry.rate >= 40 ? '#f59e0b' : '#f43f5e'}
+                      fill={
+                        entry.isEssay ? '#6366f1'
+                          : entry.rate >= 70 ? '#10b981'
+                          : entry.rate >= 40 ? '#f59e0b'
+                          : '#f43f5e'
+                      }
                     />
                   ))}
                 </Bar>
               </BarChart>
             </ResponsiveContainer>
 
-            <div style={{ display: 'flex', gap: 16, marginTop: 8, justifyContent: 'center' }}>
+            <div style={{ display: 'flex', gap: 16, marginTop: 8, justifyContent: 'center', flexWrap: 'wrap' }}>
               {[
                 { label: 'Tốt (≥70%)', color: '#10b981' },
                 { label: 'Khá (40–70%)', color: '#f59e0b' },
                 { label: 'Yếu (<40%)', color: '#f43f5e' },
+                { label: 'Tự luận', color: '#6366f1' },
               ].map(({ label, color }) => (
                 <div key={label} style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
                   <div style={{ width: 8, height: 8, borderRadius: 2, background: color }} />
