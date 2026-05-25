@@ -130,13 +130,15 @@ Chưa có test runner.
 
 | Biến | Mặc định | Ghi chú |
 |---|---|---|
-| `VITE_API_BASE_URL` | `http://localhost:8080/api/v1` | Base URL cho Axios |
-| `VITE_WS_URL` | `http://localhost:8080/ws` | URL tuyệt đối cho SockJS; **bắt buộc dùng URL tuyệt đối** — path tương đối `/ws` trỏ vào Vite dev server gây 404 loop |
-| `VITE_TURN_HOST` | `localhost` | Host/IP của Coturn server; set thành LAN IP của máy chạy Docker khi test 2 thiết bị cùng mạng (VD: `192.168.1.156`) |
+| `VITE_API_BASE_URL` | `/api/v1` | Base URL cho Axios. Dùng **đường dẫn tương đối** — Vite proxy chặn và forward tới backend, cookie luôn same-site. |
+| `VITE_WS_URL` | `/ws` | URL cho SockJS. Dùng **đường dẫn tương đối** — Vite proxy (`ws: true`) upgrade và forward WebSocket về backend. (Trước khi có proxy phải dùng URL tuyệt đối để tránh 404 loop.) |
+| `VITE_BACKEND_TARGET` | `http://localhost:8080` | Địa chỉ thật của backend — chỉ dùng bởi Vite dev proxy, không expose ra browser. Đổi thành LAN IP khi test đa thiết bị. |
+| `VITE_TURN_HOST` | `localhost` | Host/IP của Coturn server; set thành LAN IP khi test 2 thiết bị cùng mạng (VD: `192.168.1.34`). |
 
 ## vite.config.ts
 
 - `define: { global: 'globalThis' }` — polyfill `global` cho `sockjs-client` (thư viện Node.js-style chạy trong browser)
+- `server.proxy` — forward `/api` và `/ws` tới `VITE_BACKEND_TARGET`; `ws: true` để proxy cả WebSocket upgrade. Giúp browser luôn giao tiếp với Vite dev server (same-site), tránh toàn bộ vấn đề cookie SameSite khi frontend và backend ở hostname khác nhau.
 
 ## Routing
 
@@ -342,7 +344,7 @@ API trả `startTime`/`endTime` dạng `"HH:mm"` (string không có date). Khi p
 ## WebSocket layer (`src/lib/websocket.ts`)
 
 - `createSessionWsClient(ticket, sessionId, onReconnect, onConnected?)` — trả về `SessionWsClient` interface
-- SockJS URL lấy từ `import.meta.env.VITE_WS_URL` (fallback `http://localhost:8080/ws`) — **phải là URL tuyệt đối**, không dùng path tương đối `/ws` vì Vite dev server không proxy WebSocket
+- SockJS URL lấy từ `import.meta.env.VITE_WS_URL` (fallback `http://localhost:8080/ws`) — hiện tại dùng **đường dẫn tương đối** `/ws`, Vite dev proxy (`ws: true`) forward về backend
 - **Ticket truyền qua URL query param**: `new SockJS(\`${WS_URL}?ticket=${encodeURIComponent(ticket)}\`)` — `JwtHandshakeHandler` backend đọc từ HTTP query string tại lúc upgrade. **Không dùng `connectHeaders: { ticket }`** — STOMP headers là post-handshake, backend không đọc được.
 - `makeWsFactory(ticket)` trả về factory function; khi reconnect sau disconnect, `client.webSocketFactory` được cập nhật sang factory với ticket mới trước khi STOMP retry.
 - Ticket **dùng 1 lần**, TTL 60s — kết nối ngay sau khi nhận, không lưu localStorage
