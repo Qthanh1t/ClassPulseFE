@@ -52,14 +52,20 @@ Với ≤ 30 học sinh, mỗi client mở kết nối P2P trực tiếp với t
 Bạn join session
   │
   ├── 1. GET /sessions/{id}/presence  →  lấy danh sách người đang online
-  ├── 2. getUserMedia()               →  lấy camera/mic
-  ├── 3. Với mỗi người trong danh sách: createOffer() → gửi qua STOMP
+  ├── 2. GET /sessions/{id}           →  pre-fetch teacher.id vào teacherIdRef
+  ├── 3. getUserMedia()               →  lấy camera/mic
+  ├── 4. createSessionWsClient(...)   →  connect STOMP
   │
-  └── Khi có người join sau (student_presence event "joined"):
-        Họ sẽ offer đến bạn → bạn chỉ cần xử lý inbound offer
+  └── onConnected (sau khi STOMP đã subscribe xong):
+        ├── GET /presence (refresh)   →  cập nhật danh sách online mới nhất
+        ├── callPeer(teacherIdRef)    →  kết nối với giáo viên
+        └── Với mỗi HS online: callPeer()  →  kết nối với tất cả học sinh
 ```
 
-**Quy tắc quan trọng:** Người mới join **luôn là người gửi offer** đến những người đã có mặt. Điều này tránh "glare" (hai bên đồng thời offer nhau).
+> **Tại sao phải gọi từ `onConnected` chứ không phải ngay sau REST join?**  
+> Backend `PresenceEventListener` phát `student_presence` tại thời điểm STOMP CONNECT — **trước** khi STOMP gửi CONNECTED frame về client, tức là trước khi client subscribe `/user/queue/private`. Teacher/S1 nhận event, gửi WebRTC offer tới S2 — nhưng offer đó rơi vào queue khi S2 chưa subscribe, bị **drop vĩnh viễn**. Giải pháp: S2 chủ động gọi lại trong `onConnected` (khi subscription đã sẵn sàng). Glare resolution xử lý trường hợp Teacher/S1 vẫn còn PC ở trạng thái `have-local-offer`.
+
+**Quy tắc "polite peer" cho student-to-student:** Khi nhận `student_presence` action='joined' của một HS join SAU mình, student có UUID nhỏ hơn sẽ gửi offer. Student có UUID lớn hơn chờ nhận offer. Điều này tránh cả hai bên đồng thời offer nhau cho những kết nối tương lai. (Các kết nối với peer đã online trước mình được xử lý qua `onConnected`.)
 
 ---
 
@@ -504,59 +510,112 @@ const handlePrivateEvent = useCallback(
 
 ## 7. Tích hợp với Presence System
 
-### 7.1 Kết nối khi join session
+### 7.1 Kết nối khi join session (Student)
 
 ```typescript
-// Trong LiveSession.tsx — sau khi WS connect xong
+// StudentSessionPage — init flow
 
-async function initWebRTC(sessionId: string) {
-  // 1. Lấy media trước
-  const stream = await startMedia(true, true);
-  if (!stream) return; // user từ chối quyền
-  localStreamRef.current = stream;
+// Bước 1: REST calls song song
+const [presenceRes, , , sessionDetailRes] = await Promise.all([
+  sessionService.getPresence(info.sessionId),
+  chatService.getHistory(info.sessionId, 50),
+  questionService.list(info.sessionId),
+  sessionService.get(info.sessionId).catch(() => null), // pre-fetch teacher.id
+]);
 
-  // 2. Lấy danh sách người đang online
-  const res = await api.get<PresenceDto[]>(`/sessions/${sessionId}/presence`);
-  const onlineUsers = res.data.data.filter(
-    (p) => p.isOnline && p.studentId !== myUserId, // loại bỏ chính mình
-  );
-
-  // 3. Offer đến từng người đã có mặt
-  for (const user of onlineUsers) {
-    await callPeer(user.studentId);
-  }
+// Pre-lưu teacher ID để dùng trong onConnected
+if (sessionDetailRes?.data?.teacher?.id) {
+  teacherIdRef.current = sessionDetailRes.data.teacher.id;
 }
+
+// Bước 2: Lấy camera/mic TRƯỚC khi connect WS
+await localMedia.startMedia(true, true);
+
+// Bước 3: Connect WS — truyền onConnected callback
+const ws = createSessionWsClient(
+  info.wsTicket,
+  info.sessionId,
+  onReconnect,
+  async () => {
+    // onConnected — STOMP đã subscribe xong, safe để gửi/nhận unicast
+    // Refresh presence: backend đã broadcast student_presence trước khi ta subscribe
+    const freshRes = await sessionService.getPresence(info.sessionId);
+    const online = freshRes.data?.filter((p) => p.isOnline) ?? [];
+    setPresence(online);
+    presenceRef.current = online;
+
+    // Gọi teacher trước (luôn luôn — offer của teacher có thể đã bị drop)
+    if (teacherIdRef.current) {
+      await rtc.callPeer(teacherIdRef.current);
+    }
+    // Gọi tất cả HS đang online (không phân biệt UUID order)
+    // Nếu họ đang có PC ở have-local-offer → glare resolution sẽ rollback
+    for (const p of presenceRef.current) {
+      if (p.isOnline && p.studentId !== me?.id) {
+        await rtc.callPeer(p.studentId);
+      }
+    }
+  },
+);
 ```
 
 ### 7.2 Xử lý người join/leave sau
 
 ```typescript
-// Trong handleSessionEvent — case 'student_presence'
+// Trong handleEvent — case 'student_presence'
+// Payload từ backend: { studentId, action, name, avatarColor? }
 
 case 'student_presence': {
-  const { studentId, action } = payload as PresenceEvent;
+  const payload = event.payload as {
+    studentId: string;
+    name: string;
+    avatarColor?: string;
+    action: 'joined' | 'left';
+  };
 
-  if (action === 'joined' && studentId !== myUserId) {
-    // Người mới join sẽ tự offer đến ta — KHÔNG gọi callPeer ở đây
-    // Chỉ cần đảm bảo createPeerConnection sẵn sàng nhận offer
-    addOnlineStudent(studentId); // cập nhật UI presence list
-  }
-
-  if (action === 'left') {
-    closePeer(studentId);         // đóng P2P connection
-    removeOnlineStudent(studentId);
+  if (payload.action === 'left') {
+    rtc.closePeer(payload.studentId);
+    setPresence((prev) => {
+      const updated = prev.filter((x) => x.studentId !== payload.studentId);
+      presenceRef.current = updated;
+      return updated;
+    });
+  } else {
+    // Polite peer: student có UUID nhỏ hơn là người offer (cho peer join SAU ta)
+    if (payload.studentId !== me?.id && (me?.id ?? '') < payload.studentId) {
+      void rtc.callPeer(payload.studentId);
+    }
+    // Optimistically cập nhật presence với name từ WS payload (không chờ REST)
+    setPresence((prev) => {
+      if (prev.some((x) => x.studentId === payload.studentId)) {
+        return prev.map((x) =>
+          x.studentId === payload.studentId ? { ...x, isOnline: true } : x,
+        );
+      }
+      return [
+        ...prev,
+        {
+          studentId: payload.studentId,
+          name: payload.name ?? 'Học sinh',
+          avatarColor: payload.avatarColor,
+          isOnline: true,
+          joinedAt: new Date().toISOString(),
+        },
+      ];
+    });
+    // REST refresh để đồng bộ data đầy đủ
+    void sessionService.getPresence(info.sessionId).then((res) => { /* merge */ });
   }
   break;
 }
 ```
 
-> **Tại sao không callPeer khi người khác join?**  
-> Người vừa join vào session sẽ tự offer đến tất cả người đã có mặt (dựa trên presence list họ nhận được). Nếu ta cũng callPeer, hai bên đồng thời offer nhau sẽ gây "glare". Quy tắc: **người mới luôn là người offer.**
+> **Lưu ý race condition đã giải quyết:** Backend `PresenceEventListener` fires `student_presence` tại `SessionConnectEvent` — thời điểm này xảy ra TRƯỚC khi STOMP gửi CONNECTED frame về S2. Teacher/S1 nhận event và gửi offer vào `/user/queue/private` của S2, nhưng S2 chưa subscribe queue đó → offer bị **drop**. Fix: trong `onConnected` (sau khi subscription sẵn sàng), S2 chủ động gọi tất cả peer. Glare resolution (`rollback` nếu `have-local-offer`) xử lý PC stale của Teacher/S1.
 
 ### 7.3 Trường hợp Teacher
 
 Teacher start session → không có ai trong presence list → không cần offer đến ai.  
-Khi học sinh join lần lượt, mỗi học sinh sẽ offer đến teacher.
+Khi học sinh join lần lượt, mỗi học sinh sẽ chủ động offer đến teacher (qua `onConnected`). Teacher gọi `callPeer(studentId)` khi nhận `student_presence` joined event để đảm bảo cả hai chiều đều thử kết nối.
 
 ---
 
@@ -966,20 +1025,39 @@ pc.onconnectionstatechange = () => {
 
 ### 11.2 ICE Candidates đến trước Remote Description
 
-Khi candidates đến trước `setRemoteDescription` hoàn thành, cần buffer lại:
+`RTCPeerConnection` **không** tự buffer candidates trong mọi trình duyệt — Safari đặc biệt throw error khi `addIceCandidate` được gọi trước `setRemoteDescription`. Implement manual buffer:
 
 ```typescript
-// Dùng built-in: RTCPeerConnection tự buffer ICE candidates
-// nếu remote description chưa được set — đây là hành vi mặc định.
-// KHÔNG cần implement manual buffer trong hầu hết trường hợp.
+// useWebRTC.ts — iceBuf: Map<peerId, RTCIceCandidateInit[]>
 
-// Chỉ cần đảm bảo KHÔNG gọi addIceCandidate trước setRemoteDescription:
 case 'webrtc_ice_candidate': {
   const entry = pcsRef.current.get(fromId);
-  if (!entry) return;
-  // RTCPeerConnection tự xử lý ordering — gọi trực tiếp là OK
-  await entry.pc.addIceCandidate(new RTCIceCandidate(candidate));
+  if (!entry || entry.pc.connectionState === 'closed') return;
+
+  if (!entry.pc.remoteDescription) {
+    // Buffer lại, drain sau setRemoteDescription
+    const buf = iceBuf.current.get(fromId) ?? [];
+    buf.push(candidate);
+    iceBuf.current.set(fromId, buf);
+    return;
+  }
+
+  try {
+    await entry.pc.addIceCandidate(new RTCIceCandidate(candidate));
+  } catch {
+    // stale/invalid candidate — bỏ qua
+  }
   break;
+}
+
+// Gọi drainIceBuf(peerId, pc) ngay sau mỗi setRemoteDescription:
+async function drainIceBuf(peerId: string, pc: RTCPeerConnection) {
+  const buf = iceBuf.current.get(peerId);
+  if (!buf?.length) return;
+  iceBuf.current.set(peerId, []);
+  for (const c of buf) {
+    try { await pc.addIceCandidate(new RTCIceCandidate(c)); } catch { /* stale */ }
+  }
 }
 ```
 
@@ -1058,11 +1136,14 @@ useEffect(() => {
 
 Trước khi demo hoặc test:
 
-- [ ] `getUserMedia` được gọi **sau** khi user click nút "Vào học" — không gọi tự động khi load trang
+- [ ] `getUserMedia` được gọi trước khi connect WS (trong init) — không gọi sau khi WS connected để đảm bảo `localStreamRef` sẵn sàng khi offer đến
 - [ ] Local video dùng `muted` để tránh echo
 - [ ] Local video dùng `transform: scaleX(-1)` (mirror) cho tự nhiên
-- [ ] Offer luôn từ người mới join → không bao giờ gọi `callPeer` khi nhận `student_presence` action='joined'
-- [ ] ICE server credentials không để hardcode trong production — load từ env
+- [ ] Student gọi `callPeer` trong **`onConnected` callback** (không phải ngay sau REST join) — đảm bảo STOMP subscription sẵn sàng nhận offer trước khi initiating
+- [ ] Khi nhận `student_presence` action='joined', student dùng polite-peer (UUID nhỏ hơn offer) cho peer join SAU mình; **không** áp dụng cho các peer đã online trước (handled in `onConnected`)
+- [ ] Manual ICE candidate buffer (`iceBuf`) — `drainIceBuf` sau `setRemoteDescription`, không dùng direct `addIceCandidate` khi `!remoteDescription`
+- [ ] Glare handling: rollback `have-local-offer` trước khi `setRemoteDescription` với offer mới
+- [ ] ICE server credentials không để hardcode trong production — load từ env (`VITE_TURN_HOST`)
 - [ ] Cleanup `RTCPeerConnection.close()` và `track.stop()` khi unmount
 - [ ] `video.srcObject = stream` trong `useEffect`, không dùng URL.createObjectURL
 - [ ] Test với 2 tab trên cùng máy (localhost) trước khi test qua LAN/internet
@@ -1094,38 +1175,48 @@ pc.onicegatheringstatechange = () => {
 
 ```
 Teacher start session
-  └── joinSession() → lấy wsTicket → connect STOMP
-      └── initWebRTC():
-            startMedia() → lấy camera/mic
+  └── sessionService.start() → wsTicket → connect STOMP
+      └── onConnected:
+            startMedia() → camera/mic
             GET /presence → [] (chưa ai online)
-            → Không offer đến ai
+            → Không offer đến ai; chờ HS offer đến
 
-Student join session
-  └── joinSession() → lấy wsTicket → connect STOMP
-      └── initWebRTC():
-            startMedia() → lấy camera/mic
+Student 1 (S1) join
+  └── sessionService.join() → wsTicket → startMedia() → connect STOMP
+      ├── Backend fires student_presence { action:'joined', name:'S1' }
+      │     → Teacher nhận event → callPeer(S1) → offer → /user/queue/private của S1
+      │     [nhưng S1 chưa subscribe!  offer bị DROP]
+      │
+      └── onConnected (S1 đã subscribe):
             GET /presence → [teacher]
-            callPeer(teacherId):
-              createPeerConnection(teacher)
-              createOffer() → STOMP /webrtc/offer {targetId: teacher}
-                → Teacher nhận webrtc_offer
-                → Teacher: setRemoteDescription + createAnswer
-                → Teacher: STOMP /webrtc/answer {targetId: student}
-                  → Student: setRemoteDescription(answer)
-              ICE negotiation song song (cả 2 chiều)
-              → connectionState: 'connected'
-              → Video/Audio stream hiển thị
+            callPeer(teacher) → offer → Teacher nhận
+            → Teacher: setRemoteDescription + answer
+            → ICE negotiation → connected
+            → S1 thấy video Teacher ✓
 
-Second student join
-  └── GET /presence → [teacher, student1]
-      callPeer(teacher), callPeer(student1)
-      → 2 offer gửi đi
-      → teacher và student1 answer
-      → Video grid: 3 ô
+Student 2 (S2) join
+  └── sessionService.join() → wsTicket → startMedia() → connect STOMP
+      ├── Backend fires student_presence { action:'joined', name:'S2' }
+      │     → Teacher nhận → callPeer(S2) → offer → DROP (S2 chưa subscribe)
+      │     → S1 nhận → callPeer(S2) theo polite-peer nếu S1.uuid < S2.uuid → DROP
+      │
+      └── onConnected (S2 đã subscribe):
+            GET /presence → [teacher, S1]  (isOnline=true — backend fix @JsonProperty)
+            callPeer(teacher):
+              → Teacher có stale have-local-offer PC
+              → Teacher nhận offer → rollback stale offer → xử lý S2's offer → answer
+              → connected ✓
+            callPeer(S1):
+              → S1 có stale PC (nếu đã offer) hoặc không (nếu polite-peer skip)
+              → S1 nhận offer → rollback/xử lý → answer
+              → connected ✓
+            → S2 thấy video Teacher và S1 ✓
 
 Student1 leave (đóng tab / mất mạng)
   └── Server: updateLeftAt, Redis SREM
-      → broadcast student_presence { action: 'left', studentId: student1 }
-  └── Teacher + Student2: closePeer(student1)
-      → Video grid: 2 ô
+      → broadcast student_presence { action:'left', studentId:S1 }
+  └── Teacher + S2: closePeer(S1)
+      → Video grid cập nhật ✓
 ```
+
+> **Điểm mấu chốt:** `isOnline` trong JSON response từ `/presence` trước đây bị serialize thành `"online"` do Jackson strips `is` prefix khỏi boolean getter. Sau fix `@JsonProperty("isOnline")` trong `PresenceDto.java`, frontend đọc đúng → `filter(p => p.isOnline)` trả về danh sách đầy đủ → S2's `onConnected` loop gọi được S1.

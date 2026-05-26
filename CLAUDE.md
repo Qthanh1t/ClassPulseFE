@@ -296,7 +296,7 @@ Route `:id` = `classroomId`. Init flow:
 Route `:id` = `classroomId`. Init flow:
 1. `sessionService.listByClassroom(classroomId)` → find active session
 2. `sessionService.join(activeSession.id)` → `JoinSessionResponse { sessionId, classroomName, teacherName, wsTicket }`
-3. Load song song: `sessionService.getPresence`, `chatService.getHistory`, `questionService.list` (find running → setRunningQuestion)
+3. Load song song: `sessionService.getPresence`, `chatService.getHistory`, `questionService.list` (find running → setRunningQuestion), `sessionService.get(sessionId)` (pre-fetch `teacher.id` vào `teacherIdRef`)
 4. `createSessionWsClient(wsTicket, sessionId, () => sessionService.join(sessionId).wsTicket, onConnected)`
 
 Nếu không có session active → hiển thị màn hình "Không có buổi học đang diễn ra".
@@ -304,6 +304,8 @@ Nếu không có session active → hiển thị màn hình "Không có buổi h
 **StrictMode guard**: cùng pattern với TeacherSessionPage — `setTimeout(fn, 0)` + `cancelled` flag để tránh double API call.
 
 **WS events xử lý**: `student_presence` → `setPresence`; `question_started` → `setRunningQuestion` + reset answers + show panel/modal; `question_ended` → update status; `raise_hand_changed` → `setRaisedHandIds`; `breakout_started` → `setMyRoom` + `ws.subscribeRoom`; `breakout_ended` → `setMyRoom(null)` + unsubscribe; `broadcast_message` → `setBroadcastMsg`; `chat_message` → append
+
+**`student_presence` payload (WS event)**: `{ studentId, action: 'joined'|'left', name, avatarColor? }` — backend gửi `name` và `avatarColor` trực tiếp trong event (lấy từ WS session attributes), không cần gọi REST API để lấy tên. Khi `action='joined'`, frontend optimistically cập nhật presence ngay với name từ payload, sau đó REST refresh để đồng bộ thêm.
 
 **Các tính năng**:
 - **Panel thành viên** (trái, 200px): `[{ id:'teacher', teacherName, isTeacher:true }, ...presence]` qua `StudentStatusList`; toggle `TeamOutlined`
@@ -369,7 +371,22 @@ API trả `startTime`/`endTime` dạng `"HH:mm"` (string không có date). Khi p
 - ICE candidate buffering: nếu `remoteDescription` chưa set, candidate được buffer vào `iceBuf`; drain sau `setRemoteDescription`
 - Glare handling: nếu cả 2 peer cùng gửi offer, peer nhận offer khi đang `have-local-offer` sẽ rollback (`setLocalDescription({type:'rollback'})`) rồi xử lý offer mới
 - Teacher → gọi `callPeer(studentId)` khi nhận `student_presence` joined event
-- Student → polite-peer: peer có UUID nhỏ hơn gửi offer cho student-to-student; auto-detect teacherId từ offer đầu tiên nhận được
+- Student → **`onConnected` callback** (sau khi STOMP subscriptions sẵn sàng): refresh presence → gọi `callPeer(teacherIdRef.current)` + `callPeer` tất cả HS online; **không** dùng polite-peer đơn thuần vì backend broadcast `student_presence` xảy ra TRƯỚC khi student WS subscribe → offer của teacher/S1 gửi vào queue khi S2 chưa subscribe, bị drop; S2 phải chủ động gọi lại trong `onConnected`
+- Student → `student_presence` joined event: gọi `callPeer` theo polite-peer (UUID nhỏ hơn offer trước) cho các student join SAU mình; auto-detect `teacherIdRef` từ offer đầu tiên nhận được nếu pre-fetch thất bại
+
+## Backend — Presence & WebRTC (notes cho người đọc code backend)
+
+Backend repo: `C:\code\datn\classpulse`. Ghi chú những điểm đã sửa / cần chú ý:
+
+### `PresenceDto.java` — Jackson boolean serialization
+`private boolean isOnline` với Lombok `@Getter` sinh ra `isOnline()`. Jackson tự động bỏ tiền tố `is` khi serialize boolean getter → JSON field là `"online"`, không phải `"isOnline"`. Frontend TypeScript interface expect `isOnline`, kết quả đọc `undefined`. **Fix**: thêm `@JsonProperty("isOnline")` trên field.
+
+### `JwtHandshakeHandler.java` — Session attributes
+Tại handshake, ngoài `userId`/`userRole`/`sessionId`, nay còn lưu thêm `userName` và `userAvatarColor` vào `attributes`. Cho phép `PresenceEventListener` đính kèm name/avatar vào WS event mà không cần DB lookup thêm.
+
+### `PresenceEventListener.java` — student_presence payload
+`handleConnect(SessionConnectEvent)` fires tại thời điểm STOMP CONNECT, **trước khi** STOMP gửi CONNECTED frame về client. Điều này có nghĩa backend broadcast `student_presence` khi student 2 (S2) chưa kịp subscribe `/user/queue/private`. Offer của Teacher/S1 gửi tới S2 bị drop. Frontend xử lý bằng `onConnected` callback (xem StudentSessionPage).  
+Payload hiện tại: `{ studentId, action, name, avatarColor }` — `name` và `avatarColor` lấy từ session attributes.
 
 ## AdminPage
 
