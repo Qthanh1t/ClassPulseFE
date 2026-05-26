@@ -123,10 +123,11 @@ export default function StudentSessionPage() {
         const info = joinRes.data;
         setJoinInfo(info);
 
-        const [presenceRes, chatHistRes, questionsRes] = await Promise.all([
+        const [presenceRes, chatHistRes, questionsRes, sessionDetailRes] = await Promise.all([
           sessionService.getPresence(info.sessionId),
           chatService.getHistory(info.sessionId, 50),
           questionService.list(info.sessionId),
+          sessionService.get(info.sessionId).catch(() => null),
         ]);
         if (cancelled) return;
 
@@ -137,8 +138,11 @@ export default function StudentSessionPage() {
         const runningQ = questionsRes.data?.find((q) => q.status === 'running');
         if (runningQ) { setRunningQuestion(runningQ); setQuestionPanelOpen(true); }
 
-        // teacherIdRef is set lazily: auto-detected from the first webrtc_offer received
-        // (teacher always initiates, so student doesn't need teacher ID upfront)
+        // Pre-fetch Teacher ID so we can initiate WebRTC to Teacher on WS connect.
+        // Fallback: auto-detected lazily from the first webrtc_offer received.
+        if (sessionDetailRes?.data?.teacher?.id) {
+          teacherIdRef.current = sessionDetailRes.data.teacher.id;
+        }
         setLoading(false);
 
         // Start camera/mic BEFORE connecting WS so localStreamRef is ready when
@@ -171,20 +175,25 @@ export default function StudentSessionPage() {
                   }
                   return [...prev, { studentId: payload.studentId, name: payload.name ?? 'Học sinh', avatarColor: payload.avatarColor, isOnline: true, joinedAt: new Date().toISOString() }];
                 });
-                // Refresh profile data (name, avatarColor) from API.
-                // Do NOT overwrite isOnline — it comes from WS events and is more up-to-date.
+                // Refresh profile data from API; also add any students not yet in state.
                 void sessionService.getPresence(info.sessionId).then((res) => {
                   if (res.data) {
                     const profileMap = new Map(res.data.map((ap) => [ap.studentId, ap]));
                     setPresence((prev) => {
+                      const existingIds = new Set(prev.map((e) => e.studentId));
                       const updated = prev.map((entry) => {
                         const profile = profileMap.get(entry.studentId);
                         return profile
                           ? { ...entry, name: profile.name ?? entry.name, avatarColor: profile.avatarColor ?? entry.avatarColor }
                           : entry;
                       });
-                      presenceRef.current = updated;
-                      return updated;
+                      // Add online students from API not yet in local state (except self)
+                      const newEntries = res.data!.filter(
+                        (ap) => ap.isOnline && !existingIds.has(ap.studentId) && ap.studentId !== me?.id,
+                      );
+                      const merged = [...updated, ...newEntries];
+                      presenceRef.current = merged;
+                      return merged;
                     });
                   }
                 });
@@ -360,10 +369,29 @@ export default function StudentSessionPage() {
           },
           async () => {
             if (cancelled) return;
-            // Media is already started in init() before WS connects.
-            // On reconnect, re-offer to other online students (polite peer: lower UUID initiates).
+            // Refresh presence — students who joined before us may not be in state yet
+            // if their student_presence event fired before our WS subscription was active.
+            try {
+              const freshRes = await sessionService.getPresence(info.sessionId);
+              if (!cancelled && freshRes.data) {
+                const online = freshRes.data.filter((p) => p.isOnline);
+                setPresence(online);
+                presenceRef.current = online;
+              }
+            } catch { /* ignore — use existing presence */ }
+            if (cancelled) return;
+            // Call Teacher. The backend broadcasts student_presence as soon as the REST join
+            // completes, BEFORE our WS subscription is ready. Teacher's offer was already
+            // sent and dropped. We initiate here so Teacher can do glare resolution.
+            if (teacherIdRef.current) {
+              await rtc.callPeer(teacherIdRef.current);
+            }
+            // Call ALL online students regardless of polite-peer ID order.
+            // Students who joined before us tried to call us when we weren't subscribed yet.
+            // We call them now; if they have a stale have-local-offer PC they will rollback
+            // and handle our offer via glare resolution.
             for (const p of presenceRef.current) {
-              if (p.isOnline && p.studentId !== me?.id && (me?.id ?? '') < p.studentId) {
+              if (p.isOnline && p.studentId !== me?.id) {
                 await rtc.callPeer(p.studentId);
               }
             }
