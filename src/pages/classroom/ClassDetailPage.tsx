@@ -542,12 +542,13 @@ export default function ClassDetailPage() {
           ) : (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
               {schedules.map((s) => {
-                const isPast = s.scheduledDate < today;
+                const isDone = !!s.sessionId;
+                const isFaded = isDone || s.scheduledDate < today;
                 return (
-                  <div key={s.id} style={{ background: '#fff', borderRadius: 14, border: '1px solid #e2e8f0', padding: '14px 20px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, opacity: isPast ? 0.65 : 1, borderLeft: `4px solid ${isPast ? '#e2e8f0' : '#6366f1'}` }}>
+                  <div key={s.id} style={{ background: '#fff', borderRadius: 14, border: '1px solid #e2e8f0', padding: '14px 20px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, opacity: isFaded ? 0.65 : 1, borderLeft: `4px solid ${isFaded ? '#e2e8f0' : '#6366f1'}` }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
-                      <div style={{ width: 44, height: 44, borderRadius: 10, background: isPast ? '#f8fafc' : '#eef2ff', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                        {isPast ? <CheckCircleOutlined style={{ color: '#94a3b8', fontSize: 18 }} /> : <CalendarOutlined style={{ color: '#6366f1', fontSize: 18 }} />}
+                      <div style={{ width: 44, height: 44, borderRadius: 10, background: isFaded ? '#f8fafc' : '#eef2ff', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                        {isDone ? <CheckCircleOutlined style={{ color: '#94a3b8', fontSize: 18 }} /> : <CalendarOutlined style={{ color: '#6366f1', fontSize: 18 }} />}
                       </div>
                       <div>
                         <div style={{ fontSize: 14, fontWeight: 600, color: '#0f172a', marginBottom: 3 }}>{s.title}</div>
@@ -567,26 +568,24 @@ export default function ClassDetailPage() {
                       </div>
                     </div>
                     <div style={{ flexShrink: 0, display: 'flex', alignItems: 'center', gap: 6 }}>
-                      {!isPast ? (
+                      {isDone ? (
+                        <>
+                          <Tag color="default" style={{ borderRadius: 6, margin: 0 }}>Đã xong</Tag>
+                          <Button size="small" onClick={() => navigate(isTeacher ? `/dashboard/${s.sessionId}` : `/review/${s.sessionId}`)} style={{ borderRadius: 6, fontSize: 12, color: '#6366f1', borderColor: '#c7d2fe' }}>
+                            Xem kết quả →
+                          </Button>
+                        </>
+                      ) : isTeacher ? (
                         <Button
                           type="primary"
                           size="small"
                           icon={<PlayCircleOutlined />}
-                          onClick={() => navigate(`/session/teacher/${id}`)}
+                          onClick={() => navigate(`/session/teacher/${id}`, { state: { scheduleId: s.id } })}
                           style={{ background: 'linear-gradient(135deg, #6366f1, #8b5cf6)', border: 'none', fontWeight: 600, borderRadius: 8 }}
                         >
-                          Vào học
+                          Bắt đầu
                         </Button>
-                      ) : (
-                        <>
-                          <Tag color="default" style={{ borderRadius: 6, margin: 0 }}>Đã xong</Tag>
-                          {s.sessionId && (
-                            <Button size="small" onClick={() => navigate(`/dashboard/${s.sessionId}`)} style={{ borderRadius: 6, fontSize: 12, color: '#6366f1', borderColor: '#c7d2fe' }}>
-                              Xem kết quả →
-                            </Button>
-                          )}
-                        </>
-                      )}
+                      ) : null}
                       {isTeacher && (
                         <>
                           <Tooltip title="Chỉnh sửa">

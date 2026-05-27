@@ -12,7 +12,7 @@ import {
   PoweroffOutlined, ExclamationCircleOutlined,
   AimOutlined, CloseOutlined, BarChartOutlined,
 } from '@ant-design/icons';
-import { useNavigate, useParams } from 'react-router-dom';
+import { useLocation, useNavigate, useParams } from 'react-router-dom';
 import StudentStatusList from '../../components/session/StudentStatusList';
 import StudentAnswersPanel from '../../components/session/StudentAnswersPanel';
 import CreateQuestionModal from '../../components/session/CreateQuestionModal';
@@ -64,6 +64,8 @@ function dtoToChat(msg: ChatMessageDto): ChatMessage {
 
 export default function TeacherSessionPage() {
   const navigate = useNavigate();
+  const location = useLocation();
+  const scheduleId = (location.state as { scheduleId?: string } | null)?.scheduleId;
   const { id } = useParams<{ id: string }>(); // classroomId
   const user = useAuthStore((s) => s.user);
   const { compact } = useBreakpoint();
@@ -128,7 +130,7 @@ export default function TeacherSessionPage() {
       let sess: SessionDto;
       try {
         // Backend trả về session hiện có nếu đã active (không throw SESSION_ALREADY_ACTIVE nữa)
-        sess = (await sessionService.start(id!, {})).data!;
+        sess = (await sessionService.start(id!, scheduleId ? { scheduleId } : {})).data!;
       } catch {
         if (!cancelled) setLoading(false);
         return;
