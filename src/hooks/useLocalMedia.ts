@@ -13,8 +13,11 @@ export function useLocalMedia() {
     setIsLoading(true);
     setError(null);
     try {
+      if (!navigator.mediaDevices?.getUserMedia) {
+        throw new Error('NOT_SECURE_CONTEXT');
+      }
       const mediaStream = await navigator.mediaDevices.getUserMedia({
-        video: video ? { width: 1280, height: 720, frameRate: 30 } : false,
+        video: video ? { width: { ideal: 1280 }, height: { ideal: 720 }, frameRate: { ideal: 30 } } : false,
         audio: audio ? { echoCancellation: true, noiseSuppression: true } : false,
       });
       streamRef.current = mediaStream;
@@ -66,6 +69,9 @@ export function useLocalMedia() {
 }
 
 function mapMediaError(err: unknown): string {
+  if (err instanceof Error && err.message === 'NOT_SECURE_CONTEXT') {
+    return 'Cần truy cập qua HTTPS để sử dụng camera/mic trên thiết bị di động.';
+  }
   if (err instanceof DOMException) {
     if (err.name === 'NotAllowedError') return 'Trình duyệt bị chặn quyền camera/mic. Vui lòng cấp quyền trong cài đặt.';
     if (err.name === 'NotFoundError') return 'Không tìm thấy camera hoặc microphone.';

@@ -20,6 +20,7 @@ export default defineConfig(({ mode }) => {
       global: 'globalThis',
     },
     server: {
+      host: true,
       proxy: {
         // All /api requests go through Vite → backend.
         // Cookies are always set on the browser's current origin (same-site),
