@@ -23,6 +23,7 @@ import VideoTile from '../../components/session/VideoTile';
 import type { ChatMessage } from '../../components/session/ChatPanel';
 import sessionService from '../../services/session.service';
 import questionService from '../../services/question.service';
+import breakoutService from '../../services/breakout.service';
 import chatService from '../../services/chat.service';
 import { authService } from '../../services/auth.service';
 import { createSessionWsClient } from '../../lib/websocket';
@@ -140,10 +141,11 @@ export default function TeacherSessionPage() {
       setSession(sess);
       setLoading(false);
 
-      const [qRes, pRes, cRes] = await Promise.all([
+      const [qRes, pRes, cRes, bRes] = await Promise.all([
         questionService.list(sess.id),
         sessionService.getPresence(sess.id),
         chatService.getHistory(sess.id),
+        breakoutService.getActive(sess.id),
       ]);
       if (cancelled) return;
       const loadedPresence = (pRes.data ?? []).filter((p) => p.isOnline);
@@ -154,6 +156,11 @@ export default function TeacherSessionPage() {
 
       const running = (qRes.data ?? []).find((q) => q.status === 'running');
       if (running) setRunningQuestion(running);
+
+      if (bRes.data) {
+        setBreakout(bRes.data);
+        setShowBreakoutPanel(true);
+      }
 
       // Pre-fetch stats for already-ended questions so the results drawer can show them
       const endedQs = (qRes.data ?? []).filter((q) => q.status === 'ended');
@@ -323,7 +330,10 @@ export default function TeacherSessionPage() {
             break;
           }
           case 'breakout_started': {
-            setBreakout(event.payload as BreakoutSessionDto);
+            // WS payload chỉ có studentIds (không có name/avatarColor) → fetch full DTO từ REST
+            void breakoutService.getActive(sess.id).then((res) => {
+              if (!cancelled && res.data) setBreakout(res.data);
+            });
             setShowBreakoutPanel(true);
             break;
           }
@@ -950,6 +960,10 @@ export default function TeacherSessionPage() {
                 breakout={breakout}
                 presence={presence}
                 onClose={() => { setShowBreakoutPanel(false); setBreakout(null); }}
+                onSyncActive={async () => {
+                  const bRes = await breakoutService.getActive(session.id);
+                  if (bRes.data) setBreakout(bRes.data);
+                }}
               />
             </Card>
           )}

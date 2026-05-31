@@ -14,6 +14,7 @@ import { useAuthStore } from '../../store/authStore';
 import sessionService from '../../services/session.service';
 import questionService from '../../services/question.service';
 import answerService from '../../services/answer.service';
+import breakoutService from '../../services/breakout.service';
 import chatService from '../../services/chat.service';
 import { createSessionWsClient } from '../../lib/websocket';
 import type { SessionWsClient, WsEvent } from '../../lib/websocket';
@@ -28,7 +29,7 @@ import { useLocalMedia } from '../../hooks/useLocalMedia';
 import { useWebRTC } from '../../hooks/useWebRTC';
 import { useBreakpoint } from '../../hooks/useBreakpoint';
 import type {
-  JoinSessionResponse, PresenceDto, QuestionDto, BreakoutSessionDto,
+  JoinSessionResponse, PresenceDto, QuestionDto,
   ChatMessageDto, RoomDto, ConfidenceLevel, QuestionType,
 } from '../../types/api';
 
@@ -263,22 +264,24 @@ export default function StudentSessionPage() {
               break;
             }
             case 'breakout_started': {
-              const bo = event.payload as BreakoutSessionDto;
-              const room = bo.rooms.find((r) => r.students.some((s) => s.id === me?.id));
-              setMyRoom(room ?? null);
-              if (room) {
-                wsRef.current?.subscribeRoom(room.id, handleEvent);
-                // Close main session connections; reconnect with roommates
-                rtc.closeAllPeers();
-                const myId = me?.id ?? '';
-                const roommates = room.students.filter((s) => s.id !== myId);
-                setTimeout(() => {
-                  // Polite peer: lower UUID sends offer
-                  roommates.forEach((s) => {
-                    if (myId < s.id) void rtc.callPeer(s.id);
-                  });
-                }, 500);
-              }
+              // WS payload chỉ có studentIds (không có name/avatarColor) → fetch full DTO từ REST
+              void breakoutService.getActive(info.sessionId).then((res) => {
+                if (cancelled || !res.data) return;
+                const bo = res.data;
+                const room = bo.rooms.find((r) => r.students.some((s) => s.id === me?.id));
+                setMyRoom(room ?? null);
+                if (room) {
+                  wsRef.current?.subscribeRoom(room.id, handleEvent);
+                  rtc.closeAllPeers();
+                  const myId = me?.id ?? '';
+                  const roommates = room.students.filter((s) => s.id !== myId);
+                  setTimeout(() => {
+                    roommates.forEach((s) => {
+                      if (myId < s.id) void rtc.callPeer(s.id);
+                    });
+                  }, 500);
+                }
+              });
               break;
             }
             case 'breakout_ended': {

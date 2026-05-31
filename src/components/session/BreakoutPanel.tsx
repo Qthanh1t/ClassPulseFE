@@ -24,9 +24,10 @@ interface Props {
   breakout: BreakoutSessionDto | null;
   presence: PresenceDto[];
   onClose: () => void;
+  onSyncActive?: () => Promise<void>;
 }
 
-export default function BreakoutPanel({ sessionId, breakout, presence, onClose }: Props) {
+export default function BreakoutPanel({ sessionId, breakout, presence, onClose, onSyncActive }: Props) {
   // Setup mode state
   const [rooms, setRooms] = useState<LocalRoom[]>([
     { localId: 'room-1', name: 'Phòng 1', task: '', studentIds: [] },
@@ -101,8 +102,14 @@ export default function BreakoutPanel({ sessionId, breakout, presence, onClose }
           })),
       });
       // WS event 'breakout_started' will flip parent state → breakout prop becomes non-null
-    } catch {
-      message.error('Không thể tạo phòng nhỏ');
+    } catch (err) {
+      const status = (err as { response?: { status?: number } })?.response?.status;
+      if (status === 409 && onSyncActive) {
+        // Breakout already active (e.g. after page refresh) — sync parent state from REST
+        await onSyncActive();
+      } else {
+        message.error('Không thể tạo phòng nhỏ');
+      }
     } finally {
       setStarting(false);
     }
