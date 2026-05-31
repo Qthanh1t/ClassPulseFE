@@ -233,6 +233,7 @@ export interface JoinSessionResponse {
   sessionId: string;
   classroomName: string;
   teacherName: string;
+  teacherId: string;
   wsTicket: string;
 }
 

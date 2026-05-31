@@ -206,8 +206,9 @@ export default function TeacherSessionPage() {
                 return updated;
               });
             } else {
-              // Teacher always initiates — call newly joined student
-              void rtc.callPeer(p.studentId);
+              // Do NOT call callPeer here — backend broadcasts student_presence at STOMP CONNECT,
+              // BEFORE student subscribes to /user/queue/private. Teacher's offer would be dropped.
+              // Student always initiates WebRTC to teacher in their onConnected callback.
               // Optimistically mark online (may have partial info from WS payload)
               setPresence((prev) => {
                 if (prev.some((x) => x.studentId === p.studentId)) {
@@ -221,7 +222,6 @@ export default function TeacherSessionPage() {
                   const profileMap = new Map(res.data.map((ap) => [ap.studentId, ap]));
                   setPresence((prev) => {
                     const updated = prev
-                      // Remove students explicitly marked offline in the API response
                       .filter(entry => {
                         const api = profileMap.get(entry.studentId);
                         return api === undefined || api.isOnline !== false;

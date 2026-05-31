@@ -123,12 +123,13 @@ export default function StudentSessionPage() {
         if (!joinRes.data) { setLoading(false); return; }
         const info = joinRes.data;
         setJoinInfo(info);
+        // Teacher ID is included in join response — set immediately so onConnected can call teacher.
+        teacherIdRef.current = info.teacherId;
 
-        const [presenceRes, chatHistRes, questionsRes, sessionDetailRes] = await Promise.all([
+        const [presenceRes, chatHistRes, questionsRes] = await Promise.all([
           sessionService.getPresence(info.sessionId),
           chatService.getHistory(info.sessionId, 50),
           questionService.list(info.sessionId),
-          sessionService.get(info.sessionId).catch(() => null),
         ]);
         if (cancelled) return;
 
@@ -139,11 +140,6 @@ export default function StudentSessionPage() {
         const runningQ = questionsRes.data?.find((q) => q.status === 'running');
         if (runningQ) { setRunningQuestion(runningQ); setQuestionPanelOpen(true); }
 
-        // Pre-fetch Teacher ID so we can initiate WebRTC to Teacher on WS connect.
-        // Fallback: auto-detected lazily from the first webrtc_offer received.
-        if (sessionDetailRes?.data?.teacher?.id) {
-          teacherIdRef.current = sessionDetailRes.data.teacher.id;
-        }
         setLoading(false);
 
         // Start camera/mic BEFORE connecting WS so localStreamRef is ready when

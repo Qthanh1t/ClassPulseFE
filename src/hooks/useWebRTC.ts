@@ -186,11 +186,7 @@ export function useWebRTC(
       if (!fromId) { console.warn('[RTC] handleOffer: fromId is missing — backend must include fromId in payload'); return; }
       if (fromId === myUserId) return;
 
-      const pc = createPeerConnection(fromId);
-      log(`  PC signalingState for offer:`, pc.signalingState);
-
-      try {
-        // Handle glare: if we already sent an offer, roll back before accepting remote offer
+      const tryAnswer = async (pc: RTCPeerConnection) => {
         if (pc.signalingState === 'have-local-offer') {
           log(`  glare detected — rolling back local offer for`, fromId);
           await pc.setLocalDescription({ type: 'rollback' });
@@ -201,11 +197,28 @@ export function useWebRTC(
         await pc.setLocalDescription(answer);
         log(`answer created & sent to`, fromId, '| sdp length:', answer.sdp?.length);
         wsRef.current?.sendWebRtcAnswer(fromId, pc.localDescription!.sdp);
+      };
+
+      let pc = createPeerConnection(fromId);
+      log(`  PC signalingState for offer:`, pc.signalingState);
+      try {
+        await tryAnswer(pc);
       } catch (err) {
-        console.error('[RTC] Failed to handle offer from', fromId, err);
+        console.error('[RTC] handleOffer failed for', fromId, '(signalingState:', pc.signalingState, ') —', err, '— retrying with fresh PC');
+        // Close stale PC and retry on a clean one (handles rollback failures on cold start)
+        try {
+          pc.close();
+          pcsRef.current.delete(fromId);
+          iceBuf.current.delete(fromId);
+          syncPeers();
+          pc = createPeerConnection(fromId);
+          await tryAnswer(pc);
+        } catch (err2) {
+          console.error('[RTC] handleOffer recovery also failed for', fromId, err2);
+        }
       }
     },
-    [myUserId, wsRef, createPeerConnection, drainIceBuf],
+    [myUserId, wsRef, createPeerConnection, drainIceBuf, pcsRef, iceBuf, syncPeers],
   );
 
   const handleAnswer = useCallback(async (fromId: string, sdp: string) => {
