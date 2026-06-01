@@ -75,6 +75,7 @@ export default function StudentSessionPage() {
   const [confidence, setConfidence] = useState<ConfidenceLevel | null>(null);
 
   const [myRoom, setMyRoom] = useState<RoomDto | null>(null);
+  const [teacherInRoom, setTeacherInRoom] = useState(false);
   const [broadcastMsg, setBroadcastMsg] = useState<string | null>(null);
 
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
@@ -281,6 +282,7 @@ export default function StudentSessionPage() {
               break;
             }
             case 'breakout_ended': {
+              setTeacherInRoom(false);
               setMyRoom((prev) => {
                 if (prev) wsRef.current?.unsubscribeRoom(prev.id);
                 return null;
@@ -311,11 +313,13 @@ export default function StudentSessionPage() {
               break;
             }
             case 'teacher_joined_room': {
+              setTeacherInRoom(true);
               setBroadcastMsg('Giáo viên đã vào phòng');
               if (teacherIdRef.current) void rtc.callPeer(teacherIdRef.current);
               break;
             }
             case 'teacher_left_room': {
+              setTeacherInRoom(false);
               setBroadcastMsg('Giáo viên đã rời phòng');
               if (teacherIdRef.current) rtc.closePeer(teacherIdRef.current);
               break;
@@ -774,6 +778,23 @@ export default function StudentSessionPage() {
               </div>
 
               <div style={{ flex: 1, display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))', gap: 12, alignContent: 'start', overflowY: 'auto' }}>
+                {/* Teacher tile — shown when teacher has joined this room */}
+                {teacherInRoom && (
+                  <div style={{ aspectRatio: '4/3', position: 'relative' }}>
+                    <VideoTile
+                      stream={teacherPeer?.remoteStream ?? null}
+                      name={joinInfo.teacherName}
+                      avatarColor="#6366f1"
+                      isTeacher
+                      isCameraOff={teacherPeer?.isCameraOff}
+                      borderRadius={10}
+                    >
+                      <div style={{ position: 'absolute', top: 6, left: 8, background: 'rgba(99,102,241,0.85)', borderRadius: 4, padding: '1px 8px', zIndex: 3 }}>
+                        <Text style={{ color: '#fff', fontSize: 10, fontWeight: 600 }}>GV</Text>
+                      </div>
+                    </VideoTile>
+                  </div>
+                )}
                 {myRoom.students.map((s) => {
                   const isSelf = s.id === me?.id;
                   const peer = rtc.peers.get(s.id);

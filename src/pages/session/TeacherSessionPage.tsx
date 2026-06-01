@@ -340,7 +340,9 @@ export default function TeacherSessionPage() {
           case 'breakout_ended': {
             setBreakout(null);
             setShowBreakoutPanel(false);
-            // Re-call all online students after breakout ends
+            // Close all PCs — some are stale (students closed their side during breakout).
+            // Without this, callPeer skips students whose PC still shows 'connected' on our side.
+            rtc.closeAllPeers();
             void (async () => {
               for (const p of presenceRef.current.filter((x) => x.isOnline)) {
                 await rtc.callPeer(p.studentId);
