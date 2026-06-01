@@ -11,6 +11,7 @@ import {
   MessageOutlined, TeamOutlined, ClockCircleOutlined,
   PoweroffOutlined, ExclamationCircleOutlined,
   AimOutlined, CloseOutlined, BarChartOutlined,
+  DownOutlined, UpOutlined,
 } from '@ant-design/icons';
 import { useLocation, useNavigate, useParams } from 'react-router-dom';
 import StudentStatusList from '../../components/session/StudentStatusList';
@@ -81,6 +82,10 @@ export default function TeacherSessionPage() {
   const [questionStats, setQuestionStats] = useState<QuestionStatsDto | null>(null);
   const [breakout, setBreakout] = useState<BreakoutSessionDto | null>(null);
   const [showBreakoutPanel, setShowBreakoutPanel] = useState(false);
+  // Which sub-room the teacher is currently visiting (drives the live video grid).
+  const [teacherJoinedRoomId, setTeacherJoinedRoomId] = useState<string | null>(null);
+  // Collapse the breakout management panel to make room for the student video grid.
+  const [breakoutPanelCollapsed, setBreakoutPanelCollapsed] = useState(false);
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
 
   // ── UI state ────────────────────────────────────────────────────────
@@ -340,6 +345,8 @@ export default function TeacherSessionPage() {
           case 'breakout_ended': {
             setBreakout(null);
             setShowBreakoutPanel(false);
+            setTeacherJoinedRoomId(null);
+            setBreakoutPanelCollapsed(false);
             // Close all PCs — some are stale (students closed their side during breakout).
             // Without this, callPeer skips students whose PC still shows 'connected' on our side.
             rtc.closeAllPeers();
@@ -424,6 +431,18 @@ export default function TeacherSessionPage() {
       : runningQuestion?.status === 'running' ? 'running'
       : runningQuestion?.status === 'ended' ? 'ended'
       : 'idle';
+
+  // The sub-room the teacher is currently visiting — its students get a live video grid.
+  const teacherJoinedRoom = breakout?.rooms.find((r) => r.id === teacherJoinedRoomId) ?? null;
+
+  // Students NOT assigned to any sub-room stay in the main room. While the teacher is in
+  // the main room (no sub-room joined) they keep talking to these students.
+  const assignedStudentIds = breakout
+    ? breakout.rooms.flatMap((r) => r.students.map((s) => s.id))
+    : [];
+  const mainRoomStudents = presence.filter(
+    (p) => p.isOnline && !assignedStudentIds.includes(p.studentId),
+  );
 
   const timeRemaining = runningQuestion?.endsAt
     ? Math.max(0, Math.round((new Date(runningQuestion.endsAt).getTime() - now) / 1000))
@@ -954,20 +973,168 @@ export default function TeacherSessionPage() {
             </Card>
           )}
 
-          {/* ── BREAKOUT: Teacher management view ── */}
+          {/* ── BREAKOUT: live video grid (joined room) + collapsible management panel ── */}
           {viewMode === 'breakout' && session && (
-            <Card style={{ borderRadius: 12 }}>
-              <BreakoutPanel
-                sessionId={session.id}
-                breakout={breakout}
-                presence={presence}
-                onClose={() => { setShowBreakoutPanel(false); setBreakout(null); }}
-                onSyncActive={async () => {
-                  const bRes = await breakoutService.getActive(session.id);
-                  if (bRes.data) setBreakout(bRes.data);
-                }}
-              />
-            </Card>
+            <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 10, minHeight: 0 }}>
+
+              {/* Live grid of the room the teacher is visiting — provides the audio sink so
+                  the teacher actually HEARS the students, and shows their video. */}
+              {breakout && teacherJoinedRoom && (
+                <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 10, minHeight: 180 }}>
+                  <div style={{ background: 'linear-gradient(135deg, rgba(99,102,241,0.18), rgba(79,70,229,0.18))', border: '1px solid rgba(99,102,241,0.35)', borderRadius: 12, padding: '10px 16px', display: 'flex', alignItems: 'center', gap: 12, flexShrink: 0 }}>
+                    <TeamOutlined style={{ color: '#818cf8', fontSize: 18 }} />
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <Text strong style={{ color: '#fff', fontSize: 14 }}>Bạn đang ở {teacherJoinedRoom.name}</Text>
+                      {teacherJoinedRoom.task && (
+                        <Text style={{ color: 'rgba(255,255,255,0.6)', fontSize: 12, marginLeft: 10 }}>{teacherJoinedRoom.task}</Text>
+                      )}
+                    </div>
+                    <Tag color="purple" style={{ borderRadius: 20, margin: 0 }}>{teacherJoinedRoom.students.length} HS</Tag>
+                    <Button size="small" type="text" style={{ color: 'rgba(255,255,255,0.75)' }} onClick={() => setBreakoutPanelCollapsed(false)}>
+                      Quản lý phòng
+                    </Button>
+                  </div>
+                  <div style={{ flex: 1, display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: 12, alignContent: 'start', overflowY: 'auto' }}>
+                    {/* Teacher self */}
+                    <div style={{ aspectRatio: '4/3' }}>
+                      <VideoTile
+                        stream={localMedia.stream}
+                        name={user?.name ?? 'Giáo viên'}
+                        avatarColor={user?.avatarColor ?? '#6366f1'}
+                        isTeacher
+                        isLocal
+                        isMuted={!localMedia.isMicOn}
+                        isCameraOff={!localMedia.isCameraOn}
+                        borderRadius={10}
+                      />
+                    </div>
+                    {/* Room students — stream is null until their fresh PC connects, so a stale
+                        connection shows the avatar placeholder instead of a frozen frame. */}
+                    {teacherJoinedRoom.students.map((s) => {
+                      const peer = rtc.peers.get(s.id);
+                      return (
+                        <div key={s.id} style={{ aspectRatio: '4/3' }}>
+                          <VideoTile
+                            stream={peer?.remoteStream ?? null}
+                            name={s.name}
+                            avatarColor={s.avatarColor}
+                            isCameraOff={peer?.isCameraOff}
+                            borderRadius={10}
+                          >
+                            {raisedHandIds.includes(s.id) && (
+                              <span style={{ position: 'absolute', top: 8, right: 8, fontSize: 16, zIndex: 3 }}>✋</span>
+                            )}
+                          </VideoTile>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+
+              {/* Active but not visiting any sub-room → the teacher is in the main room and
+                  stays connected to the students who weren't assigned to a breakout. */}
+              {breakout && !teacherJoinedRoom && (
+                <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 10, minHeight: 180 }}>
+                  <div style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.12)', borderRadius: 12, padding: '10px 16px', display: 'flex', alignItems: 'center', gap: 12, flexShrink: 0 }}>
+                    <TeamOutlined style={{ color: '#94a3b8', fontSize: 18 }} />
+                    <Text strong style={{ color: '#fff', fontSize: 14, flex: 1 }}>Phòng chính</Text>
+                    <Text style={{ color: 'rgba(255,255,255,0.55)', fontSize: 12 }}>
+                      Vào một phòng nhóm bên dưới để trao đổi riêng
+                    </Text>
+                  </div>
+                  {mainRoomStudents.length === 0 ? (
+                    <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'rgba(255,255,255,0.4)' }}>
+                      <Text style={{ color: 'rgba(255,255,255,0.4)' }}>Tất cả học sinh đang ở trong các phòng nhóm</Text>
+                    </div>
+                  ) : (
+                    <div style={{ flex: 1, display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: 12, alignContent: 'start', overflowY: 'auto' }}>
+                      {/* Teacher self */}
+                      <div style={{ aspectRatio: '4/3' }}>
+                        <VideoTile
+                          stream={localMedia.stream}
+                          name={user?.name ?? 'Giáo viên'}
+                          avatarColor={user?.avatarColor ?? '#6366f1'}
+                          isTeacher
+                          isLocal
+                          isMuted={!localMedia.isMicOn}
+                          isCameraOff={!localMedia.isCameraOn}
+                          borderRadius={10}
+                        />
+                      </div>
+                      {mainRoomStudents.map((p) => {
+                        const peer = rtc.peers.get(p.studentId);
+                        return (
+                          <div key={p.studentId} style={{ aspectRatio: '4/3' }}>
+                            <VideoTile
+                              stream={peer?.remoteStream ?? null}
+                              name={p.name}
+                              avatarColor={p.avatarColor}
+                              isCameraOff={peer?.isCameraOff}
+                              borderRadius={10}
+                            >
+                              {raisedHandIds.includes(p.studentId) && (
+                                <span style={{ position: 'absolute', top: 8, right: 8, fontSize: 16, zIndex: 3 }}>✋</span>
+                              )}
+                            </VideoTile>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Management panel — collapsible while a breakout is active. Kept mounted
+                  (hidden, not unmounted) so its internal room selection survives collapse. */}
+              <Card style={{ borderRadius: 12, flexShrink: 0 }} styles={{ body: { padding: 0 } }}>
+                {breakout && (
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 16px', borderBottom: breakoutPanelCollapsed ? 'none' : '1px solid #f0f0f0' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0 }}>
+                      <Badge status="processing" />
+                      <Text strong>Bảng điều khiển breakout</Text>
+                      {teacherJoinedRoom && (
+                        <Tag color="purple" style={{ borderRadius: 20, margin: 0 }}>Đang ở {teacherJoinedRoom.name}</Tag>
+                      )}
+                    </div>
+                    <Button
+                      type="text"
+                      size="small"
+                      icon={breakoutPanelCollapsed ? <DownOutlined /> : <UpOutlined />}
+                      onClick={() => setBreakoutPanelCollapsed((v) => !v)}
+                    >
+                      {breakoutPanelCollapsed ? 'Mở rộng' : 'Thu gọn để xem học sinh'}
+                    </Button>
+                  </div>
+                )}
+                <div style={{ display: breakout && breakoutPanelCollapsed ? 'none' : 'block', padding: '16px 24px' }}>
+                  <BreakoutPanel
+                    sessionId={session.id}
+                    breakout={breakout}
+                    presence={presence}
+                    onClose={() => { setShowBreakoutPanel(false); setBreakout(null); setTeacherJoinedRoomId(null); setBreakoutPanelCollapsed(false); }}
+                    onSyncActive={async () => {
+                      const bRes = await breakoutService.getActive(session.id);
+                      if (bRes.data) setBreakout(bRes.data);
+                    }}
+                    // Entering a room: drop every PC so the room students' fresh offers
+                    // (sent on teacher_joined_room) rebuild clean connections, and so the
+                    // teacher's audio no longer leaks to students outside this room. Then
+                    // reveal the live grid by collapsing the panel.
+                    onTeacherJoinRoom={(roomId) => {
+                      rtc.closeAllPeers();
+                      setTeacherJoinedRoomId(roomId);
+                      setBreakoutPanelCollapsed(true);
+                    }}
+                    onTeacherLeaveRoom={() => {
+                      rtc.closeAllPeers();
+                      setTeacherJoinedRoomId(null);
+                      setBreakoutPanelCollapsed(false);
+                    }}
+                  />
+                </div>
+              </Card>
+            </div>
           )}
         </div>
 

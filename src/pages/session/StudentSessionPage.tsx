@@ -75,7 +75,14 @@ export default function StudentSessionPage() {
   const [confidence, setConfidence] = useState<ConfidenceLevel | null>(null);
 
   const [myRoom, setMyRoom] = useState<RoomDto | null>(null);
+  // Students assigned to ANY breakout sub-room. For a main-room student these are the
+  // peers who left to another room — excluded from the main grid and their PC closed so
+  // their tile shows a placeholder instead of a frozen last frame.
+  const [breakoutMemberIds, setBreakoutMemberIds] = useState<string[]>([]);
   const [teacherInRoom, setTeacherInRoom] = useState(false);
+  // For a main-room student: true while the teacher is visiting a sub-room (so the teacher
+  // tile shows an "in breakout room" placeholder instead of a frozen frame).
+  const [teacherAway, setTeacherAway] = useState(false);
   const [broadcastMsg, setBroadcastMsg] = useState<string | null>(null);
 
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
@@ -95,8 +102,11 @@ export default function StudentSessionPage() {
   const teacherIdRef = useRef<string | null>(null);
   const presenceRef = useRef<PresenceDto[]>([]);
   const screenTrackRef = useRef<MediaStreamTrack | null>(null);
+  // Latest sub-room id (null = I'm in the main room) for the WS handler closure to read.
+  const myRoomIdRef = useRef<string | null>(null);
 
   useEffect(() => { presenceRef.current = presence; }, [presence]);
+  useEffect(() => { myRoomIdRef.current = myRoom?.id ?? null; }, [myRoom]);
 
   // ── WebRTC hooks ────────────────────────────────────────────────────
   const localMedia = useLocalMedia();
@@ -265,9 +275,14 @@ export default function StudentSessionPage() {
               void breakoutService.getActive(info.sessionId).then((res) => {
                 if (cancelled || !res.data) return;
                 const bo = res.data;
+                const assignedIds = bo.rooms.flatMap((r) => r.students.map((s) => s.id));
+                setBreakoutMemberIds(assignedIds);
                 const room = bo.rooms.find((r) => r.students.some((s) => s.id === me?.id));
                 setMyRoom(room ?? null);
+                myRoomIdRef.current = room?.id ?? null;
                 if (room) {
+                  // Assigned to a sub-room → talk only to roommates. The teacher is still in
+                  // the main room at this point, so we are not connected to them yet.
                   wsRef.current?.subscribeRoom(room.id, handleEvent);
                   rtc.closeAllPeers();
                   const myId = me?.id ?? '';
@@ -277,12 +292,22 @@ export default function StudentSessionPage() {
                       if (myId < s.id) void rtc.callPeer(s.id);
                     });
                   }, 500);
+                } else {
+                  // Staying in the main room → the students who moved into sub-rooms have
+                  // closed their side of our PC. Close ours too so their tile drops the
+                  // frozen last frame and falls back to an avatar placeholder. The teacher
+                  // starts in the main room, so our teacher connection stays live.
+                  setTeacherAway(false);
+                  assignedIds.forEach((sid) => rtc.closePeer(sid));
                 }
               });
               break;
             }
             case 'breakout_ended': {
               setTeacherInRoom(false);
+              setTeacherAway(false);
+              setBreakoutMemberIds([]);
+              myRoomIdRef.current = null;
               setMyRoom((prev) => {
                 if (prev) wsRef.current?.unsubscribeRoom(prev.id);
                 return null;
@@ -313,15 +338,33 @@ export default function StudentSessionPage() {
               break;
             }
             case 'teacher_joined_room': {
-              setTeacherInRoom(true);
-              setBroadcastMsg('Giáo viên đã vào phòng');
-              if (teacherIdRef.current) void rtc.callPeer(teacherIdRef.current);
+              // Session-wide: `roomId` is the teacher's current sub-room. Connect only if it
+              // is MY room; otherwise drop the teacher PC (main-room or other-room students).
+              const { roomId } = event.payload as { roomId: string };
+              const withMe = roomId === myRoomIdRef.current;
+              setTeacherInRoom(withMe);
+              setTeacherAway(myRoomIdRef.current === null);
+              if (withMe) {
+                setBroadcastMsg('Giáo viên đã vào phòng');
+                if (teacherIdRef.current) void rtc.callPeer(teacherIdRef.current);
+              } else if (teacherIdRef.current) {
+                // Teacher is elsewhere → close so the tile shows a placeholder, not a frozen frame.
+                rtc.closePeer(teacherIdRef.current);
+              }
               break;
             }
             case 'teacher_left_room': {
+              // Session-wide: the teacher returned to the main room.
               setTeacherInRoom(false);
-              setBroadcastMsg('Giáo viên đã rời phòng');
-              if (teacherIdRef.current) rtc.closePeer(teacherIdRef.current);
+              if (myRoomIdRef.current === null) {
+                // I'm in the main room → the teacher is back with me, reconnect.
+                setTeacherAway(false);
+                setBroadcastMsg('Giáo viên đã quay lại phòng chính');
+                if (teacherIdRef.current) void rtc.callPeer(teacherIdRef.current);
+              } else if (teacherIdRef.current) {
+                // I'm in a sub-room → the teacher is no longer here.
+                rtc.closePeer(teacherIdRef.current);
+              }
               break;
             }
             case 'webrtc_offer': {
@@ -600,6 +643,11 @@ export default function StudentSessionPage() {
         </div>
 
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          {!isBreakout && breakoutMemberIds.length > 0 && (
+            <Tag color="geekblue" icon={<TeamOutlined />} style={{ borderRadius: 20, fontSize: 11 }}>
+              {breakoutMemberIds.length} bạn đang ở phòng nhóm
+            </Tag>
+          )}
           {focusedStudentId && (
             <Tag color="purple" icon={<AimOutlined />} style={{ borderRadius: 20, fontSize: 11 }}>
               {iAmFocused
@@ -712,6 +760,12 @@ export default function StudentSessionPage() {
                         <Text style={{ color: '#fff', fontSize: 12 }}>Đang chia sẻ màn hình</Text>
                       </div>
                     )}
+                    {teacherAway && (
+                      <div style={{ position: 'absolute', top: 10, left: 12, background: 'rgba(0,0,0,0.6)', padding: '3px 10px', borderRadius: 6, display: 'flex', alignItems: 'center', gap: 6, zIndex: 3 }}>
+                        <TeamOutlined style={{ color: '#a5b4fc', fontSize: 12 }} />
+                        <Text style={{ color: '#fff', fontSize: 12 }}>Giáo viên đang ở phòng nhóm</Text>
+                      </div>
+                    )}
                     <div style={{ position: 'absolute', top: 10, right: 12, zIndex: 3 }}>
                       <Badge status={teacherPeer?.state === 'connected' ? 'processing' : 'default'} text={<Text style={{ color: 'rgba(255,255,255,0.8)', fontSize: 11 }}>LIVE</Text>} />
                     </div>
@@ -740,9 +794,9 @@ export default function StudentSessionPage() {
                   </VideoTile>
                 </div>
 
-                {/* Other online students */}
+                {/* Other online students — hide those who moved into a breakout sub-room */}
                 {presence
-                  .filter((p) => p.studentId !== me?.id && p.isOnline)
+                  .filter((p) => p.studentId !== me?.id && p.isOnline && !breakoutMemberIds.includes(p.studentId))
                   .slice(0, 5)
                   .map((p) => {
                     const peer = rtc.peers.get(p.studentId);

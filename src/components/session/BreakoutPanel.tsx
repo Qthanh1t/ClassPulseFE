@@ -25,9 +25,18 @@ interface Props {
   presence: PresenceDto[];
   onClose: () => void;
   onSyncActive?: () => Promise<void>;
+  /** Called synchronously BEFORE the teacher joins a room — used to tear down stale PCs
+   *  so the room students' fresh offers rebuild clean connections (otherwise the teacher
+   *  reuses a stale transceiver and the inbound audio track is dead). */
+  onTeacherJoinRoom?: (roomId: string) => void;
+  /** Called after the teacher leaves a room — tears down the room PCs. */
+  onTeacherLeaveRoom?: () => void;
 }
 
-export default function BreakoutPanel({ sessionId, breakout, presence, onClose, onSyncActive }: Props) {
+export default function BreakoutPanel({
+  sessionId, breakout, presence, onClose, onSyncActive,
+  onTeacherJoinRoom, onTeacherLeaveRoom,
+}: Props) {
   // Setup mode state
   const [rooms, setRooms] = useState<LocalRoom[]>([
     { localId: 'room-1', name: 'Phòng 1', task: '', studentIds: [] },
@@ -119,9 +128,12 @@ export default function BreakoutPanel({ sessionId, breakout, presence, onClose, 
   const handleJoinRoom = async (roomId: string) => {
     if (!breakout) return;
     try {
-      if (teacherRoomId && teacherRoomId !== roomId) {
-        await breakoutService.leaveRoom(sessionId, breakout.breakoutSessionId, teacherRoomId);
-      }
+      // Tear down stale PCs BEFORE the network call so they are gone before students are
+      // notified (teacher_joined_room) and send their fresh offers. Reusing a stale PC keeps
+      // a dead inbound audio track → teacher can't hear the students.
+      onTeacherJoinRoom?.(roomId);
+      // No explicit leave when switching rooms: the session-wide teacher_joined_room makes the
+      // previous room's students disconnect (their room id ≠ the new room id).
       await breakoutService.joinRoom(sessionId, breakout.breakoutSessionId, roomId);
       setTeacherRoomId(roomId);
     } catch {
@@ -132,6 +144,9 @@ export default function BreakoutPanel({ sessionId, breakout, presence, onClose, 
   const handleLeaveRoom = async (roomId: string) => {
     if (!breakout) return;
     try {
+      // Close peers BEFORE the network call so the main-room students' reconnect offers
+      // (sent on teacher_left_room) land on a clean slate instead of a PC we then close.
+      onTeacherLeaveRoom?.();
       await breakoutService.leaveRoom(sessionId, breakout.breakoutSessionId, roomId);
       setTeacherRoomId(null);
     } catch {
