@@ -86,9 +86,14 @@ export default function StudentSessionPage() {
   const [broadcastMsg, setBroadcastMsg] = useState<string | null>(null);
 
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
+  // Số tin nhắn chưa đọc — reset về 0 khi mở chat
+  const [unreadChat, setUnreadChat] = useState(0);
 
   const [screenShareOn, setScreenShareOn] = useState(false);
   const [showChat, setShowChat] = useState(false);
+  // Ref đồng bộ showChat để WS handler đọc giá trị mới nhất (tránh stale closure)
+  const showChatRef = useRef(showChat);
+  useEffect(() => { showChatRef.current = showChat; }, [showChat]);
   const [showParticipants, setShowParticipants] = useState(() => window.innerWidth >= 640);
   const [leaveOpen, setLeaveOpen] = useState(false);
   const [questionPanelOpen, setQuestionPanelOpen] = useState(false);
@@ -331,6 +336,8 @@ export default function StudentSessionPage() {
             }
             case 'chat_message':
               setChatMessages((prev) => [...prev, dtoToChat(event.payload as ChatMessageDto)]);
+              // Chat đang đóng → tăng số tin chưa đọc
+              if (!showChatRef.current) setUnreadChat((n) => n + 1);
               break;
             case 'camera_state_changed': {
               const { fromId, isCameraOff } = event.payload as { fromId: string; isCameraOff: boolean };
@@ -598,6 +605,7 @@ export default function StudentSessionPage() {
   }
   function toggleChat() {
     if (compact) setShowParticipants(false);
+    if (!showChat) setUnreadChat(0); // mở chat → coi như đã đọc
     setShowChat((v) => !v);
   }
 
@@ -1040,13 +1048,15 @@ export default function StudentSessionPage() {
         <CtrlBtn active={showParticipants} onClick={toggleParticipants} title={showParticipants ? 'Ẩn thành viên' : 'Hiện thành viên'} icon={<TeamOutlined />} />
 
         <Tooltip title="Chat">
-          <Button
-            shape="circle"
-            type={showChat ? 'primary' : 'default'}
-            icon={<MessageOutlined />}
-            style={{ background: showChat ? undefined : 'rgba(255,255,255,0.15)', borderColor: showChat ? undefined : 'transparent', color: showChat ? undefined : '#fff' }}
-            onClick={toggleChat}
-          />
+          <Badge count={showChat ? 0 : unreadChat} size="small" overflowCount={99}>
+            <Button
+              shape="circle"
+              type={showChat ? 'primary' : 'default'}
+              icon={<MessageOutlined />}
+              style={{ background: showChat ? undefined : 'rgba(255,255,255,0.15)', borderColor: showChat ? undefined : 'transparent', color: showChat ? undefined : '#fff' }}
+              onClick={toggleChat}
+            />
+          </Badge>
         </Tooltip>
 
         {runningQuestion && (

@@ -87,12 +87,17 @@ export default function TeacherSessionPage() {
   // Collapse the breakout management panel to make room for the student video grid.
   const [breakoutPanelCollapsed, setBreakoutPanelCollapsed] = useState(false);
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
+  // Số tin nhắn chưa đọc — reset về 0 khi mở chat
+  const [unreadChat, setUnreadChat] = useState(0);
 
   // ── UI state ────────────────────────────────────────────────────────
   const [screenShareOn, setScreenShareOn] = useState(false);
   const [showStudentList, setShowStudentList] = useState(() => window.innerWidth >= 640);
   const [showQuickActions, setShowQuickActions] = useState(() => window.innerWidth >= 1024);
   const [showChat, setShowChat] = useState(false);
+  // Ref đồng bộ showChat để WS handler đọc giá trị mới nhất (tránh stale closure)
+  const showChatRef = useRef(showChat);
+  useEffect(() => { showChatRef.current = showChat; }, [showChat]);
   const [createOpen, setCreateOpen] = useState(false);
   const [endSessionOpen, setEndSessionOpen] = useState(false);
   const [focusedStudentId, setFocusedStudentId] = useState<string | null>(null);
@@ -332,6 +337,8 @@ export default function TeacherSessionPage() {
           case 'chat_message': {
             const msg = event.payload as ChatMessageDto;
             setChatMessages((prev) => [...prev, dtoToChat(msg)]);
+            // Chat đang đóng → tăng số tin chưa đọc
+            if (!showChatRef.current) setUnreadChat((n) => n + 1);
             break;
           }
           case 'breakout_started': {
@@ -596,6 +603,7 @@ export default function TeacherSessionPage() {
   }
   function toggleChat() {
     if (compact) { setShowStudentList(false); setShowQuickActions(false); }
+    if (!showChat) setUnreadChat(0); // mở chat → coi như đã đọc
     setShowChat((v) => !v);
   }
 
@@ -1276,7 +1284,7 @@ export default function TeacherSessionPage() {
           icon={<PlusCircleOutlined />}
         />
         <Tooltip title="Chat">
-          <Badge count={showChat ? 0 : chatMessages.length} size="small" overflowCount={99}>
+          <Badge count={showChat ? 0 : unreadChat} size="small" overflowCount={99}>
             <Button
               shape="circle"
               type={showChat ? 'primary' : 'default'}
