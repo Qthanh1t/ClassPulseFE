@@ -6,7 +6,7 @@ import {
 import {
   CheckCircleOutlined, CloseCircleOutlined, MinusCircleOutlined,
   TrophyOutlined, ArrowLeftOutlined, TeamOutlined, QuestionCircleOutlined,
-  BarChartOutlined, TableOutlined, RiseOutlined,
+  BarChartOutlined, TableOutlined,
 } from '@ant-design/icons';
 import {
   BarChart, Bar, XAxis, YAxis, Tooltip as RechartTooltip,
@@ -357,19 +357,6 @@ export default function TeacherDashboardPage() {
                   Buổi học mới
                 </Button>
               )}
-              <Button
-                type="primary"
-                icon={<RiseOutlined />}
-                onClick={() => navigate(`/review/${sessionId}`)}
-                style={{
-                  background: '#6366f1',
-                  border: 'none',
-                  borderRadius: 8,
-                  fontWeight: 600,
-                }}
-              >
-                Góc học sinh
-              </Button>
             </div>
           </div>
         </div>
