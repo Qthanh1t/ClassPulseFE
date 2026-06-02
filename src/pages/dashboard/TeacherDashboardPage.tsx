@@ -68,6 +68,7 @@ export default function TeacherDashboardPage() {
   const { sessionId } = useParams<{ sessionId: string }>();
   const [dashboard, setDashboard] = useState<DashboardResponse | null>(null);
   const [classroomId, setClassroomId] = useState<string | null>(null);
+  const [sessionName, setSessionName] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -94,9 +95,11 @@ export default function TeacherDashboardPage() {
 
     fetchDashboard();
 
-    // Get classroomId for "Buổi học mới" button
+    // Get classroomId for "Buổi học mới" button + tên lịch học cho tiêu đề
     sessionService.get(sessionId).then((res) => {
-      if (!cancelled) setClassroomId(res.data!.classroomId);
+      if (cancelled) return;
+      setClassroomId(res.data!.classroomId);
+      setSessionName(res.data!.scheduleTitle ?? res.data!.classroomName);
     }).catch(() => null);
 
     return () => { cancelled = true; };
@@ -331,7 +334,7 @@ export default function TeacherDashboardPage() {
                 Kết quả buổi học
               </div>
               <Title level={3} style={{ color: '#fff', margin: '0 0 4px', fontSize: 22, fontWeight: 700 }}>
-                {dashboard.sessionId}
+                {sessionName ?? 'Buổi học'}
               </Title>
               <Text style={{ color: 'rgba(255,255,255,0.65)', fontSize: 13 }}>
                 {new Date(dashboard.startedAt).toLocaleDateString('vi-VN')}

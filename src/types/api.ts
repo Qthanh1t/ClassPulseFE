@@ -221,6 +221,8 @@ export interface SessionDetailDto {
   id: string;
   classroomId: string;
   classroomName: string;
+  scheduleId?: string;
+  scheduleTitle?: string;
   teacher: { id: string; name: string };
   status: SessionStatus;
   startedAt: string;
