@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import {
   Avatar, Button, Card, Col, Collapse, Row, Statistic,
-  Table, Tag, Typography, Tooltip, Tabs, Spin,
+  Table, Tag, Typography, Tooltip, Tabs,
 } from 'antd';
 import {
   CheckCircleOutlined, CloseCircleOutlined, MinusCircleOutlined,
@@ -16,6 +16,10 @@ import { useNavigate, useParams } from 'react-router-dom';
 import dashboardService from '../../services/dashboard.service';
 import sessionService from '../../services/session.service';
 import type { DashboardResponse, StudentResult, QuestionSummary } from '../../types/api';
+import PageContainer from '../../components/ui/PageContainer';
+import PageSkeleton from '../../components/ui/PageSkeleton';
+import EmptyState from '../../components/ui/EmptyState';
+import { color, radius } from '../../theme/tokens';
 
 const { Title, Text } = Typography;
 
@@ -33,30 +37,30 @@ function StatCard({ title, value, icon, accentColor, lightBg, suffix }: StatCard
     <div
       className="sq-stat-card"
       style={{
-        background: '#fff',
-        borderRadius: 16,
-        border: '1px solid #e2e8f0',
-        padding: '20px 22px',
+        background: color.surface,
+        borderRadius: radius.card,
+        border: `1px solid ${color.border}`,
+        padding: '18px 20px',
         display: 'flex',
         alignItems: 'center',
-        gap: 16,
+        gap: 14,
       }}
     >
       <div
         style={{
-          width: 48, height: 48, borderRadius: 14, background: lightBg,
+          width: 46, height: 46, borderRadius: 13, background: lightBg,
           display: 'flex', alignItems: 'center', justifyContent: 'center',
-          flexShrink: 0, fontSize: 22, color: accentColor,
+          flexShrink: 0, fontSize: 21, color: accentColor,
         }}
       >
         {icon}
       </div>
       <div style={{ flex: 1, minWidth: 0 }}>
-        <div style={{ fontSize: 12, color: '#64748b', fontWeight: 500, marginBottom: 4, textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+        <div style={{ fontSize: 11.5, color: color.textMuted, fontWeight: 600, marginBottom: 4, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
           {title}
         </div>
-        <div style={{ fontSize: 24, fontWeight: 700, color: '#0f172a', lineHeight: 1.2 }}>
-          {value}{suffix && <span style={{ fontSize: 14, fontWeight: 500, color: '#64748b', marginLeft: 2 }}>{suffix}</span>}
+        <div className="sq-nums" style={{ fontSize: 23, fontWeight: 700, color: color.text, lineHeight: 1.15 }}>
+          {value}{suffix && <span style={{ fontSize: 14, fontWeight: 500, color: color.textSecondary, marginLeft: 2 }}>{suffix}</span>}
         </div>
       </div>
     </div>
@@ -107,18 +111,22 @@ export default function TeacherDashboardPage() {
 
   if (loading) {
     return (
-      <div style={{ padding: '60px', textAlign: 'center' }}>
-        <Spin size="large" />
-        <div style={{ marginTop: 16, color: '#64748b' }}>Đang tải kết quả buổi học...</div>
-      </div>
+      <PageContainer>
+        <PageSkeleton variant="table" />
+      </PageContainer>
     );
   }
 
   if (!dashboard) {
     return (
-      <div style={{ padding: '60px', textAlign: 'center', color: '#64748b' }}>
-        Không thể tải dữ liệu. Vui lòng thử lại.
-      </div>
+      <PageContainer>
+        <EmptyState
+          icon={<BarChartOutlined />}
+          title="Không thể tải dữ liệu"
+          description="Đã xảy ra lỗi khi tải kết quả buổi học. Vui lòng thử lại."
+          action={<Button type="primary" onClick={() => navigate('/classes')}>Về danh sách lớp</Button>}
+        />
+      </PageContainer>
     );
   }
 
@@ -152,9 +160,9 @@ export default function TeacherDashboardPage() {
   });
 
   const pieData = [
-    { name: 'Đúng', value: totalCorrect, color: '#10b981' },
-    { name: 'Sai', value: totalWrong, color: '#f43f5e' },
-    { name: 'Bỏ qua', value: totalSkipped, color: '#e2e8f0' },
+    { name: 'Đúng', value: totalCorrect, color: color.emerald },
+    { name: 'Sai', value: totalWrong, color: color.rose },
+    { name: 'Bỏ qua', value: totalSkipped, color: color.border },
   ];
 
   // Student table columns
@@ -166,7 +174,7 @@ export default function TeacherDashboardPage() {
       width: 180,
       render: (_: unknown, record: StudentResult) => (
         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-          <Avatar size={30} style={{ background: record.avatarColor ?? '#6366f1', flexShrink: 0, fontWeight: 600, fontSize: 12 }}>
+          <Avatar size={30} style={{ background: record.avatarColor ?? color.primary, flexShrink: 0, fontWeight: 600, fontSize: 12 }}>
             {record.name.charAt(0)}
           </Avatar>
           <Text style={{ fontSize: 13, fontWeight: 500 }}>{record.name}</Text>
@@ -187,7 +195,7 @@ export default function TeacherDashboardPage() {
       key: 'correct',
       width: 80,
       align: 'center' as const,
-      render: (v: number) => <Text style={{ fontSize: 13, color: '#10b981', fontWeight: 600 }}>{v}</Text>,
+      render: (v: number) => <Text style={{ fontSize: 13, color: color.emerald, fontWeight: 600 }}>{v}</Text>,
     },
     {
       title: 'Bỏ qua',
@@ -195,7 +203,7 @@ export default function TeacherDashboardPage() {
       key: 'skipped',
       width: 80,
       align: 'center' as const,
-      render: (v: number) => <Text style={{ fontSize: 13, color: '#94a3b8' }}>{v}</Text>,
+      render: (v: number) => <Text style={{ fontSize: 13, color: color.textMuted }}>{v}</Text>,
     },
     {
       title: 'Điểm',
@@ -222,7 +230,7 @@ export default function TeacherDashboardPage() {
         ? Math.round((q.answeredCount / q.totalStudents) * 100)
         : Math.round((q.correctCount / q.totalStudents) * 100)
       : 0;
-    const rateColor = isEssay ? '#6366f1' : (rate >= 70 ? '#10b981' : rate >= 40 ? '#f59e0b' : '#f43f5e');
+    const rateColor = isEssay ? color.primary : (rate >= 70 ? color.emerald : rate >= 40 ? color.amber : color.rose);
     const optionChartData = (q.options ?? []).map((opt) => ({
       name: opt.label,
       count: opt.count,
@@ -235,7 +243,7 @@ export default function TeacherDashboardPage() {
       label: (
         <div style={{ display: 'flex', alignItems: 'center', gap: 10, width: '100%' }}>
           <Tag color="blue" style={{ flexShrink: 0, borderRadius: 6, fontWeight: 600 }}>C{idx + 1}</Tag>
-          <Text style={{ flex: 1, fontSize: 13, color: '#374151' }} ellipsis>
+          <Text style={{ flex: 1, fontSize: 13, color: color.text }} ellipsis>
             <span dangerouslySetInnerHTML={{ __html: q.content.replace(/<[^>]+>/g, '') }} />
           </Text>
           <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexShrink: 0 }}>
@@ -247,38 +255,38 @@ export default function TeacherDashboardPage() {
                 </Text>
               </div>
             </Tooltip>
-            <Text style={{ fontSize: 11, color: '#94a3b8' }}>{q.answeredCount}/{q.totalStudents} HS</Text>
+            <Text style={{ fontSize: 11, color: color.textMuted }}>{q.answeredCount}/{q.totalStudents} HS</Text>
           </div>
         </div>
       ),
       children: (
         <div style={{ padding: '4px 0' }}>
           <div style={{ display: 'flex', gap: 8, marginBottom: 12 }}>
-            <div style={{ flex: 1, background: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: 8, padding: '10px 14px' }}>
-              <div style={{ fontSize: 18, fontWeight: 700, color: '#10b981' }}>{q.answeredCount}</div>
+            <div style={{ flex: 1, background: color.primaryLight, border: `1px solid ${color.border}`, borderRadius: 8, padding: '10px 14px' }}>
+              <div className="sq-nums" style={{ fontSize: 18, fontWeight: 700, color: color.primary }}>{q.answeredCount}</div>
               <Text type="secondary" style={{ fontSize: 12 }}>Đã trả lời</Text>
             </div>
             {q.type !== 'essay' && (
               <>
-                <div style={{ flex: 1, background: '#f6ffed', border: '1px solid #b7eb8f', borderRadius: 8, padding: '10px 14px' }}>
-                  <div style={{ fontSize: 18, fontWeight: 700, color: '#52c41a' }}>{q.correctCount}</div>
+                <div style={{ flex: 1, background: color.emeraldLight, border: `1px solid ${color.border}`, borderRadius: 8, padding: '10px 14px' }}>
+                  <div className="sq-nums" style={{ fontSize: 18, fontWeight: 700, color: color.emerald }}>{q.correctCount}</div>
                   <Text type="secondary" style={{ fontSize: 12 }}>Đúng</Text>
                 </div>
-                <div style={{ flex: 1, background: '#fff2f0', border: '1px solid #ffccc7', borderRadius: 8, padding: '10px 14px' }}>
-                  <div style={{ fontSize: 18, fontWeight: 700, color: '#ff4d4f' }}>{q.answeredCount - q.correctCount}</div>
+                <div style={{ flex: 1, background: color.roseLight, border: `1px solid ${color.border}`, borderRadius: 8, padding: '10px 14px' }}>
+                  <div className="sq-nums" style={{ fontSize: 18, fontWeight: 700, color: color.rose }}>{q.answeredCount - q.correctCount}</div>
                   <Text type="secondary" style={{ fontSize: 12 }}>Sai</Text>
                 </div>
               </>
             )}
-            <div style={{ flex: 1, background: '#fafafa', border: '1px solid #f0f0f0', borderRadius: 8, padding: '10px 14px' }}>
-              <div style={{ fontSize: 18, fontWeight: 700, color: '#94a3b8' }}>{q.skippedCount}</div>
+            <div style={{ flex: 1, background: color.surface2, border: `1px solid ${color.border}`, borderRadius: 8, padding: '10px 14px' }}>
+              <div style={{ fontSize: 18, fontWeight: 700, color: color.textMuted }}>{q.skippedCount}</div>
               <Text type="secondary" style={{ fontSize: 12 }}>Bỏ qua</Text>
             </div>
           </div>
 
           {optionChartData.length > 0 && (
             <div>
-              <Text strong style={{ fontSize: 13, display: 'block', marginBottom: 8, color: '#374151' }}>
+              <Text strong style={{ fontSize: 13, display: 'block', marginBottom: 8, color: color.text }}>
                 Phân bố đáp án
               </Text>
               <ResponsiveContainer width="100%" height={120}>
@@ -294,7 +302,7 @@ export default function TeacherDashboardPage() {
                   />
                   <Bar dataKey="count" radius={[4, 4, 0, 0]}>
                     {optionChartData.map((opt, i) => (
-                      <Cell key={i} fill={opt.isCorrect ? '#10b981' : '#fca5a5'} />
+                      <Cell key={i} fill={opt.isCorrect ? color.emerald : color.rose} />
                     ))}
                   </Bar>
                 </BarChart>
@@ -307,20 +315,20 @@ export default function TeacherDashboardPage() {
   });
 
   return (
-    <div style={{ padding: '28px 32px', maxWidth: 1200 }}>
-      {/* Header */}
+    <PageContainer>
+      {/* Header — flat dark ink panel with accent glow */}
       <div
         style={{
-          background: 'linear-gradient(135deg, #1e1b4b 0%, #312e81 50%, #4338ca 100%)',
-          borderRadius: 20,
+          background: '#1e1b3a',
+          borderRadius: radius.page,
           padding: '24px 28px',
           marginBottom: 24,
           position: 'relative',
           overflow: 'hidden',
         }}
       >
-        <div style={{ position: 'absolute', right: -30, top: -30, width: 160, height: 160, borderRadius: '50%', background: 'rgba(255,255,255,0.04)' }} />
-        <div style={{ position: 'absolute', right: 80, bottom: -40, width: 120, height: 120, borderRadius: '50%', background: 'rgba(255,255,255,0.03)' }} />
+        <div className="sq-noise" />
+        <div style={{ position: 'absolute', right: -80, top: -100, width: 300, height: 300, borderRadius: '50%', background: 'radial-gradient(circle, rgba(79,70,229,0.35), transparent 70%)' }} />
 
         <div style={{ position: 'relative' }}>
           <Button
@@ -369,8 +377,8 @@ export default function TeacherDashboardPage() {
             title="Câu hỏi"
             value={dashboard.totalQuestions}
             icon={<QuestionCircleOutlined />}
-            accentColor="#6366f1"
-            lightBg="#eef2ff"
+            accentColor={color.primary}
+            lightBg={color.primaryLight}
           />
         </Col>
         <Col xs={12} sm={6}>
@@ -379,8 +387,8 @@ export default function TeacherDashboardPage() {
             value={avgResponseRate}
             suffix="%"
             icon={<TeamOutlined />}
-            accentColor="#10b981"
-            lightBg="#f0fdf4"
+            accentColor={color.emerald}
+            lightBg={color.emeraldLight}
           />
         </Col>
         <Col xs={12} sm={6}>
@@ -389,8 +397,8 @@ export default function TeacherDashboardPage() {
             value={dashboard.overallStats.participantCount}
             suffix={`/${dashboard.totalStudents}`}
             icon={<TrophyOutlined />}
-            accentColor="#f59e0b"
-            lightBg="#fffbeb"
+            accentColor={color.amber}
+            lightBg={color.amberLight}
           />
         </Col>
         <Col xs={12} sm={6}>
@@ -398,8 +406,8 @@ export default function TeacherDashboardPage() {
             title="Không tương tác"
             value={nonParticipants}
             icon={<MinusCircleOutlined />}
-            accentColor="#f43f5e"
-            lightBg="#fff1f2"
+            accentColor={color.rose}
+            lightBg={color.roseLight}
           />
         </Col>
       </Row>
@@ -409,39 +417,39 @@ export default function TeacherDashboardPage() {
         {/* Bar chart */}
         <Col xs={24} md={16}>
           <Card
-            style={{ borderRadius: 16, border: '1px solid #e2e8f0', height: '100%' }}
+            style={{ borderRadius: 16, border: `1px solid ${color.border}`, height: '100%' }}
             styles={{ body: { padding: '20px 20px 12px' } }}
           >
             <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 16 }}>
-              <div style={{ width: 32, height: 32, background: '#eef2ff', borderRadius: 8, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                <BarChartOutlined style={{ color: '#6366f1', fontSize: 16 }} />
+              <div style={{ width: 32, height: 32, background: color.primaryLight, borderRadius: 8, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <BarChartOutlined style={{ color: color.primary, fontSize: 16 }} />
               </div>
               <div>
-                <div style={{ fontSize: 14, fontWeight: 700, color: '#0f172a' }}>Tỉ lệ đúng / tham gia theo câu hỏi</div>
-                <div style={{ fontSize: 12, color: '#94a3b8' }}>MCQ: tỉ lệ đúng · Tự luận: tỉ lệ tham gia</div>
+                <div style={{ fontSize: 14, fontWeight: 700, color: color.text }}>Tỉ lệ đúng / tham gia theo câu hỏi</div>
+                <div style={{ fontSize: 12, color: color.textMuted }}>MCQ: tỉ lệ đúng · Tự luận: tỉ lệ tham gia</div>
               </div>
             </div>
 
             <ResponsiveContainer width="100%" height={200}>
               <BarChart data={questionChartData} margin={{ top: 4, right: 8, bottom: 0, left: -12 }}>
-                <XAxis dataKey="name" tick={{ fontSize: 12, fill: '#64748b' }} axisLine={false} tickLine={false} />
-                <YAxis domain={[0, 100]} tickFormatter={(v) => `${v}%`} tick={{ fontSize: 11, fill: '#94a3b8' }} axisLine={false} tickLine={false} />
+                <XAxis dataKey="name" tick={{ fontSize: 12, fill: color.textSecondary }} axisLine={false} tickLine={false} />
+                <YAxis domain={[0, 100]} tickFormatter={(v) => `${v}%`} tick={{ fontSize: 11, fill: color.textMuted }} axisLine={false} tickLine={false} />
                 <RechartTooltip
                   formatter={(value: unknown, _n: unknown, props: { payload?: { isEssay?: boolean } }) => [
                     `${String(value)}%`,
                     props.payload?.isEssay ? 'Tỉ lệ tham gia (tự luận)' : 'Tỉ lệ đúng',
                   ]}
-                  contentStyle={{ borderRadius: 10, border: '1px solid #e2e8f0', fontSize: 13, boxShadow: '0 4px 12px rgba(0,0,0,0.06)' }}
+                  contentStyle={{ borderRadius: 10, border: `1px solid ${color.border}`, fontSize: 13, boxShadow: '0 4px 12px rgba(0,0,0,0.06)' }}
                 />
                 <Bar dataKey="rate" radius={[6, 6, 0, 0]} maxBarSize={52}>
                   {questionChartData.map((entry, index) => (
                     <Cell
                       key={`bar-${index}`}
                       fill={
-                        entry.isEssay ? '#6366f1'
-                          : entry.rate >= 70 ? '#10b981'
-                          : entry.rate >= 40 ? '#f59e0b'
-                          : '#f43f5e'
+                        entry.isEssay ? color.primary
+                          : entry.rate >= 70 ? color.emerald
+                          : entry.rate >= 40 ? color.amber
+                          : color.rose
                       }
                     />
                   ))}
@@ -451,14 +459,14 @@ export default function TeacherDashboardPage() {
 
             <div style={{ display: 'flex', gap: 16, marginTop: 8, justifyContent: 'center', flexWrap: 'wrap' }}>
               {[
-                { label: 'Tốt (≥70%)', color: '#10b981' },
-                { label: 'Khá (40–70%)', color: '#f59e0b' },
-                { label: 'Yếu (<40%)', color: '#f43f5e' },
-                { label: 'Tự luận', color: '#6366f1' },
-              ].map(({ label, color }) => (
+                { label: 'Tốt (≥70%)', color: color.emerald },
+                { label: 'Khá (40-70%)', color: color.amber },
+                { label: 'Yếu (<40%)', color: color.rose },
+                { label: 'Tự luận', color: color.primary },
+              ].map(({ label, color: c }) => (
                 <div key={label} style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
-                  <div style={{ width: 8, height: 8, borderRadius: 2, background: color }} />
-                  <Text style={{ fontSize: 11, color: '#94a3b8' }}>{label}</Text>
+                  <div style={{ width: 8, height: 8, borderRadius: 2, background: c }} />
+                  <Text style={{ fontSize: 11, color: color.textMuted }}>{label}</Text>
                 </div>
               ))}
             </div>
@@ -468,11 +476,11 @@ export default function TeacherDashboardPage() {
         {/* Pie chart */}
         <Col xs={24} md={8}>
           <Card
-            style={{ borderRadius: 16, border: '1px solid #e2e8f0', height: '100%' }}
+            style={{ borderRadius: 16, border: `1px solid ${color.border}`, height: '100%' }}
             styles={{ body: { padding: '20px 20px 12px' } }}
           >
-            <div style={{ fontSize: 14, fontWeight: 700, color: '#0f172a', marginBottom: 4 }}>Tổng quan kết quả</div>
-            <div style={{ fontSize: 12, color: '#94a3b8', marginBottom: 8 }}>Phân bố đúng / sai / bỏ qua</div>
+            <div style={{ fontSize: 14, fontWeight: 700, color: color.text, marginBottom: 4 }}>Tổng quan kết quả</div>
+            <div style={{ fontSize: 12, color: color.textMuted, marginBottom: 8 }}>Phân bố đúng / sai / bỏ qua</div>
             <ResponsiveContainer width="100%" height={180}>
               <PieChart>
                 <Pie
@@ -491,24 +499,24 @@ export default function TeacherDashboardPage() {
                 <Legend
                   iconSize={8}
                   iconType="circle"
-                  formatter={(value) => <span style={{ fontSize: 12, color: '#64748b' }}>{value}</span>}
+                  formatter={(value) => <span style={{ fontSize: 12, color: color.textSecondary }}>{value}</span>}
                 />
                 <RechartTooltip
                   formatter={(value: unknown, name: unknown) => [String(value), String(name)]}
-                  contentStyle={{ borderRadius: 10, border: '1px solid #e2e8f0', fontSize: 13 }}
+                  contentStyle={{ borderRadius: 10, border: `1px solid ${color.border}`, fontSize: 13 }}
                 />
               </PieChart>
             </ResponsiveContainer>
 
             <div style={{ display: 'flex', justifyContent: 'center', gap: 16, paddingTop: 4 }}>
               {[
-                { label: 'Đúng', value: totalCorrect, color: '#10b981' },
-                { label: 'Sai', value: totalWrong, color: '#f43f5e' },
-                { label: 'Bỏ qua', value: totalSkipped, color: '#94a3b8' },
-              ].map(({ label, value, color }) => (
+                { label: 'Đúng', value: totalCorrect, color: color.emerald },
+                { label: 'Sai', value: totalWrong, color: color.rose },
+                { label: 'Bỏ qua', value: totalSkipped, color: color.textMuted },
+              ].map(({ label, value, color: c }) => (
                 <div key={label} style={{ textAlign: 'center' }}>
-                  <Statistic value={value} valueStyle={{ fontSize: 18, fontWeight: 700, color }} />
-                  <div style={{ fontSize: 11, color: '#94a3b8' }}>{label}</div>
+                  <Statistic value={value} valueStyle={{ fontSize: 18, fontWeight: 700, color: c, fontVariantNumeric: 'tabular-nums' }} />
+                  <div style={{ fontSize: 11, color: color.textMuted }}>{label}</div>
                 </div>
               ))}
             </div>
@@ -517,7 +525,7 @@ export default function TeacherDashboardPage() {
       </Row>
 
       {/* Detail tabs */}
-      <Card style={{ borderRadius: 16, border: '1px solid #e2e8f0' }} styles={{ body: { padding: '0 20px 20px' } }}>
+      <Card style={{ borderRadius: 16, border: `1px solid ${color.border}` }} styles={{ body: { padding: '0 20px 20px' } }}>
         <Tabs
           defaultActiveKey="questions"
           items={[
@@ -532,7 +540,7 @@ export default function TeacherDashboardPage() {
               children: (
                 <Collapse
                   size="small"
-                  style={{ borderRadius: 12, border: '1px solid #e2e8f0' }}
+                  style={{ borderRadius: 12, border: `1px solid ${color.border}` }}
                   items={questionCollapseItems}
                 />
               ),
@@ -548,15 +556,15 @@ export default function TeacherDashboardPage() {
               children: (
                 <div>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 20, marginBottom: 12, flexWrap: 'wrap' }}>
-                    <Text style={{ fontSize: 12, color: '#94a3b8', fontWeight: 500 }}>Kết quả:</Text>
+                    <Text style={{ fontSize: 12, color: color.textMuted, fontWeight: 500 }}>Kết quả:</Text>
                     {[
-                      { icon: <CheckCircleOutlined style={{ color: '#10b981', fontSize: 13 }} />, label: 'Đúng' },
-                      { icon: <CloseCircleOutlined style={{ color: '#f43f5e', fontSize: 13 }} />, label: 'Sai' },
-                      { icon: <MinusCircleOutlined style={{ color: '#cbd5e1', fontSize: 13 }} />, label: 'Bỏ qua' },
+                      { icon: <CheckCircleOutlined style={{ color: color.emerald, fontSize: 13 }} />, label: 'Đúng' },
+                      { icon: <CloseCircleOutlined style={{ color: color.rose, fontSize: 13 }} />, label: 'Sai' },
+                      { icon: <MinusCircleOutlined style={{ color: color.borderStrong, fontSize: 13 }} />, label: 'Bỏ qua' },
                     ].map(({ icon, label }) => (
                       <div key={label} style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
                         {icon}
-                        <Text style={{ fontSize: 12, color: '#64748b' }}>{label}</Text>
+                        <Text style={{ fontSize: 12, color: color.textSecondary }}>{label}</Text>
                       </div>
                     ))}
                   </div>
@@ -567,32 +575,32 @@ export default function TeacherDashboardPage() {
                     pagination={false}
                     size="small"
                     scroll={{ x: 'max-content' }}
-                    style={{ borderRadius: 12, border: '1px solid #e2e8f0', overflow: 'hidden' }}
+                    style={{ borderRadius: 12, border: `1px solid ${color.border}`, overflow: 'hidden' }}
                     summary={() => (
                       <Table.Summary fixed>
                         <Table.Summary.Row>
                           <Table.Summary.Cell index={0}>
-                            <Text strong style={{ fontSize: 12, color: '#374151' }}>Tổng cộng</Text>
+                            <Text strong style={{ fontSize: 12, color: color.text }}>Tổng cộng</Text>
                           </Table.Summary.Cell>
                           <Table.Summary.Cell index={1} align="center">
                             <Tooltip title="Tổng câu đã trả lời">
-                              <Text style={{ fontSize: 12, color: '#6366f1', fontWeight: 600 }}>
+                              <Text style={{ fontSize: 12, color: color.primary, fontWeight: 600 }}>
                                 {dashboard.students.reduce((acc, s) => acc + s.answeredCount, 0)}
                               </Text>
                             </Tooltip>
                           </Table.Summary.Cell>
                           <Table.Summary.Cell index={2} align="center">
-                            <Text style={{ fontSize: 12, color: '#10b981', fontWeight: 600 }}>
+                            <Text style={{ fontSize: 12, color: color.emerald, fontWeight: 600 }}>
                               {dashboard.students.reduce((acc, s) => acc + s.correctCount, 0)}
                             </Text>
                           </Table.Summary.Cell>
                           <Table.Summary.Cell index={3} align="center">
-                            <Text style={{ fontSize: 12, color: '#94a3b8', fontWeight: 600 }}>
+                            <Text style={{ fontSize: 12, color: color.textMuted, fontWeight: 600 }}>
                               {dashboard.students.reduce((acc, s) => acc + s.skippedCount, 0)}
                             </Text>
                           </Table.Summary.Cell>
                           <Table.Summary.Cell index={4} align="center">
-                            <Text style={{ fontSize: 12, color: '#6366f1', fontWeight: 600 }}>
+                            <Text style={{ fontSize: 12, color: color.primary, fontWeight: 600 }}>
                               {dashboard.students.length > 0
                                 ? Math.round(dashboard.students.reduce((acc, s) => acc + s.scorePercent, 0) / dashboard.students.length)
                                 : 0}%
@@ -608,6 +616,6 @@ export default function TeacherDashboardPage() {
           ]}
         />
       </Card>
-    </div>
+    </PageContainer>
   );
 }

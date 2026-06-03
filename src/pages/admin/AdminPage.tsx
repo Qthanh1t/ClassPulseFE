@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import {
   Avatar, Badge, Button, Card, Col, Row, Select, Table, Tag, Input,
-  Typography, Statistic, Popconfirm, message, Tabs, Spin,
+  Typography, Statistic, Popconfirm, message, Tabs,
 } from 'antd';
 import {
   UserOutlined, TeamOutlined, BookOutlined, PlayCircleOutlined,
@@ -10,6 +10,9 @@ import {
 import type { ColumnsType } from 'antd/es/table';
 import type { AdminStatsDto, AdminClassroomDto, UserDto } from '../../types/api';
 import adminService from '../../services/admin.service';
+import PageContainer from '../../components/ui/PageContainer';
+import PageSkeleton from '../../components/ui/PageSkeleton';
+import { color, radius } from '../../theme/tokens';
 
 const { Text, Title } = Typography;
 const { Search } = Input;
@@ -27,7 +30,7 @@ function StatCard({
 }) {
   return (
     <Card
-      style={{ borderRadius: 16 }}
+      style={{ borderRadius: radius.card }}
       styles={{ body: { padding: '16px 20px' } }}
       className="sq-stat-card"
     >
@@ -47,7 +50,7 @@ function StatCard({
           <span style={{ color, fontSize: 20 }}>{icon}</span>
         </div>
         <div>
-          <Statistic value={value} valueStyle={{ fontSize: 26, fontWeight: 700, color: '#0f172a', lineHeight: 1 }} />
+          <Statistic value={value} valueStyle={{ fontSize: 26, fontWeight: 700, color: '#1c1917', lineHeight: 1, fontVariantNumeric: 'tabular-nums' }} />
           <Text type="secondary" style={{ fontSize: 12, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
             {label}
           </Text>
@@ -147,7 +150,7 @@ export default function AdminPage() {
         <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
           <Avatar
             size={24}
-            style={{ background: record.teacher.avatarColor ?? '#6366f1', fontSize: 11 }}
+            style={{ background: record.teacher.avatarColor ?? color.primary, fontSize: 11 }}
           >
             {record.teacher.name.charAt(0)}
           </Avatar>
@@ -169,7 +172,7 @@ export default function AdminPage() {
       dataIndex: 'joinCode',
       key: 'joinCode',
       render: (code: string) => (
-        <Text code style={{ fontSize: 12, letterSpacing: 2 }}>{code}</Text>
+        <Text code className="sq-mono" style={{ fontSize: 12, letterSpacing: 1 }}>{code}</Text>
       ),
     },
     {
@@ -193,7 +196,7 @@ export default function AdminPage() {
           <Avatar
             size={32}
             src={record.avatarUrl ?? undefined}
-            style={{ background: record.avatarColor ?? '#6366f1', fontSize: 13 }}
+            style={{ background: record.avatarColor ?? color.primary, fontSize: 13 }}
           >
             {record.name.charAt(0)}
           </Avatar>
@@ -230,7 +233,7 @@ export default function AdminPage() {
         record.isActive !== false ? (
           <Badge status="success" text={<Text style={{ fontSize: 12 }}>Hoạt động</Text>} />
         ) : (
-          <Badge status="error" text={<Text style={{ fontSize: 12, color: '#ff4d4f' }}>Vô hiệu</Text>} />
+          <Badge status="error" text={<Text style={{ fontSize: 12, color: color.rose }}>Vô hiệu</Text>} />
         )
       ),
     },
@@ -269,21 +272,21 @@ export default function AdminPage() {
   ];
 
   return (
-    <div style={{ padding: 24, maxWidth: 1200, margin: '0 auto' }}>
+    <PageContainer>
       {/* Header */}
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 24 }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 24, gap: 12, flexWrap: 'wrap' }}>
         <div>
           <Title level={4} style={{ margin: 0 }}>Quản trị hệ thống</Title>
           <Text type="secondary" style={{ fontSize: 13 }}>Quản lý người dùng và lớp học trên ClassPulse</Text>
         </div>
-        <Button icon={<ReloadOutlined />} onClick={loadData} loading={loading}>
+        <Button icon={<ReloadOutlined />} onClick={loadData} loading={loading} className="sq-press">
           Làm mới
         </Button>
       </div>
 
       {/* Stats */}
       {loading && !stats ? (
-        <div style={{ textAlign: 'center', padding: 40 }}><Spin size="large" /></div>
+        <PageSkeleton variant="table" />
       ) : (
         <>
           <Row gutter={[16, 16]} style={{ marginBottom: 24 }}>
@@ -292,7 +295,7 @@ export default function AdminPage() {
                 icon={<UserOutlined />}
                 value={stats?.totalUsers ?? 0}
                 label="Tổng người dùng"
-                color="#6366f1"
+                color={color.primary}
               />
             </Col>
             <Col xs={24} sm={12} md={8} lg={4}>
@@ -300,7 +303,7 @@ export default function AdminPage() {
                 icon={<TeamOutlined />}
                 value={stats?.teacherCount ?? 0}
                 label="Giáo viên"
-                color="#0ea5e9"
+                color="#0e7faa"
               />
             </Col>
             <Col xs={24} sm={12} md={8} lg={4}>
@@ -308,7 +311,7 @@ export default function AdminPage() {
                 icon={<UserOutlined />}
                 value={stats?.studentCount ?? 0}
                 label="Học sinh"
-                color="#10b981"
+                color={color.emerald}
               />
             </Col>
             <Col xs={24} sm={12} md={8} lg={4}>
@@ -316,7 +319,7 @@ export default function AdminPage() {
                 icon={<BookOutlined />}
                 value={stats?.activeClassrooms ?? 0}
                 label="Lớp đang hoạt động"
-                color="#f59e0b"
+                color={color.amber}
               />
             </Col>
             <Col xs={24} sm={12} md={8} lg={4}>
@@ -324,7 +327,7 @@ export default function AdminPage() {
                 icon={<BookOutlined />}
                 value={stats?.archivedClassrooms ?? 0}
                 label="Lớp lưu trữ"
-                color="#94a3b8"
+                color={color.textMuted}
               />
             </Col>
             <Col xs={24} sm={12} md={8} lg={4}>
@@ -332,7 +335,7 @@ export default function AdminPage() {
                 icon={<PlayCircleOutlined />}
                 value={stats?.activeSessions ?? 0}
                 label="Phiên đang diễn ra"
-                color="#f43f5e"
+                color={color.rose}
               />
             </Col>
           </Row>
@@ -353,7 +356,7 @@ export default function AdminPage() {
                     <div style={{ marginBottom: 16 }}>
                       <Search
                         placeholder="Tìm theo tên lớp hoặc giáo viên..."
-                        prefix={<SearchOutlined style={{ color: '#94a3b8' }} />}
+                        prefix={<SearchOutlined style={{ color: color.textMuted }} />}
                         value={classSearch}
                         onChange={(e) => setClassSearch(e.target.value)}
                         style={{ maxWidth: 360 }}
@@ -365,6 +368,7 @@ export default function AdminPage() {
                       columns={classroomColumns}
                       rowKey="id"
                       size="small"
+                      scroll={{ x: 'max-content' }}
                       pagination={{ pageSize: 15, showSizeChanger: false }}
                       loading={loading}
                     />
@@ -384,7 +388,7 @@ export default function AdminPage() {
                     <div style={{ display: 'flex', gap: 12, marginBottom: 16, flexWrap: 'wrap' }}>
                       <Search
                         placeholder="Tìm theo tên hoặc email..."
-                        prefix={<SearchOutlined style={{ color: '#94a3b8' }} />}
+                        prefix={<SearchOutlined style={{ color: color.textMuted }} />}
                         value={userSearch}
                         onChange={(e) => setUserSearch(e.target.value)}
                         style={{ maxWidth: 320 }}
@@ -408,6 +412,7 @@ export default function AdminPage() {
                       columns={userColumns}
                       rowKey="id"
                       size="small"
+                      scroll={{ x: 'max-content' }}
                       pagination={{ pageSize: 15, showSizeChanger: false }}
                       loading={loading}
                     />
@@ -418,6 +423,6 @@ export default function AdminPage() {
           />
         </>
       )}
-    </div>
+    </PageContainer>
   );
 }

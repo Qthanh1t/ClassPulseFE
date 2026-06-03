@@ -11,6 +11,7 @@ import TeacherDashboardPage from './pages/dashboard/TeacherDashboardPage';
 import StudentReviewPage from './pages/dashboard/StudentReviewPage';
 import ProfilePage from './pages/ProfilePage';
 import AdminPage from './pages/admin/AdminPage';
+import NotFoundPage from './pages/NotFoundPage';
 import { useAuthStore } from './store/authStore';
 import { authService } from './services/auth.service';
 
@@ -55,28 +56,30 @@ export default function App() {
       theme={{
         token: {
           fontFamily: "'Outfit', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif",
-          colorPrimary: '#6366f1',
-          borderRadius: 10,
+          colorPrimary: '#4f46e5',
+          borderRadius: 8,
           colorBgContainer: '#ffffff',
-          colorBgLayout: '#f8fafc',
-          colorBorder: '#e2e8f0',
-          colorTextBase: '#0f172a',
-          colorTextSecondary: '#64748b',
-          colorSuccess: '#10b981',
-          colorWarning: '#f59e0b',
-          colorError: '#f43f5e',
-          boxShadow: '0 1px 3px rgba(0,0,0,0.06), 0 1px 2px rgba(0,0,0,0.04)',
+          colorBgLayout: '#f7f6f3',
+          colorBorder: '#e7e3dc',
+          colorBorderSecondary: '#efece6',
+          colorTextBase: '#1c1917',
+          colorTextSecondary: '#57534e',
+          colorSuccess: '#0ea672',
+          colorWarning: '#e08c0b',
+          colorError: '#e23d6d',
+          boxShadow: '0 1px 2px rgba(28,25,23,0.05), 0 8px 24px rgba(79,70,229,0.06)',
         },
         components: {
           Layout: { siderBg: '#ffffff', headerBg: '#ffffff' },
-          Menu: { itemBg: 'transparent', itemSelectedBg: '#eef2ff', itemSelectedColor: '#6366f1' },
-          Card: { borderRadius: 16, boxShadow: '0 1px 3px rgba(0,0,0,0.06)' },
-          Button: { borderRadius: 10 },
+          Menu: { itemBg: 'transparent', itemSelectedBg: '#eceafd', itemSelectedColor: '#4f46e5' },
+          Card: { borderRadius: 14, boxShadow: '0 1px 2px rgba(28,25,23,0.05)' },
+          Button: { borderRadius: 8, primaryShadow: 'none' },
           Tag: { borderRadius: 6 },
-          Tabs: { inkBarColor: '#6366f1', itemSelectedColor: '#6366f1' },
-          Progress: { defaultColor: '#6366f1' },
+          Tabs: { inkBarColor: '#4f46e5', itemSelectedColor: '#4f46e5' },
+          Progress: { defaultColor: '#4f46e5' },
           Statistic: { titleFontSize: 13 },
           Table: { borderRadius: 12 },
+          Modal: { borderRadius: 16 },
         },
       }}
     >
@@ -98,6 +101,7 @@ export default function App() {
               <Route path="/session/teacher/:id" element={<TeacherSessionPage />} />
               <Route path="/session/student/:id" element={<StudentSessionPage />} />
             </Route>
+            <Route path="*" element={<NotFoundPage />} />
           </Routes>
         </BrowserRouter>
       </AuthBootstrap>

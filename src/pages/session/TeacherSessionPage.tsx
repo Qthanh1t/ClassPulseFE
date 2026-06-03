@@ -57,7 +57,7 @@ function dtoToChat(msg: ChatMessageDto): ChatMessage {
     id: msg.id,
     senderId: msg.sender.id,
     senderName: msg.sender.name,
-    avatarColor: msg.sender.avatarColor ?? '#6366f1',
+    avatarColor: msg.sender.avatarColor ?? '#4f46e5',
     content: msg.content,
     time: formatTime(msg.sentAt),
     isTeacher: msg.sender.role === 'teacher',
@@ -564,7 +564,7 @@ export default function TeacherSessionPage() {
     {
       id: user?.id ?? '__teacher__',
       name: user?.name ?? 'Giáo viên',
-      avatarColor: user?.avatarColor ?? '#6366f1',
+      avatarColor: user?.avatarColor ?? '#4f46e5',
       isTeacher: true,
       isOnline: true,
     },
@@ -609,7 +609,7 @@ export default function TeacherSessionPage() {
 
   if (loading) {
     return (
-      <div style={{ height: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#1a1a2e' }}>
+      <div style={{ height: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#1e1b3a' }}>
         <Spin size="large" />
         <Text style={{ color: 'rgba(255,255,255,0.7)', marginLeft: 16, fontSize: 15 }}>Đang khởi tạo buổi học...</Text>
       </div>
@@ -617,7 +617,7 @@ export default function TeacherSessionPage() {
   }
 
   return (
-    <div style={{ height: '100vh', display: 'flex', flexDirection: 'column', background: '#1a1a2e' }}>
+    <div style={{ height: '100vh', display: 'flex', flexDirection: 'column', background: '#1e1b3a' }}>
 
       {/* ─── Top header ─── */}
       <div
@@ -645,7 +645,7 @@ export default function TeacherSessionPage() {
           <div
             style={{
               width: 26, height: 26,
-              background: 'linear-gradient(135deg, #6366f1, #4f46e5)',
+              background: '#4f46e5',
               borderRadius: 6,
               display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
             }}
@@ -684,7 +684,7 @@ export default function TeacherSessionPage() {
               {formatElapsed(elapsedSeconds)}
             </Text>
           </div>
-          <Avatar size={26} style={{ background: 'linear-gradient(135deg, #6366f1, #8b5cf6)', fontSize: 12 }}>
+          <Avatar size={26} style={{ background: '#4f46e5', fontSize: 12 }}>
             {user?.name?.charAt(0) ?? 'G'}
           </Avatar>
           {!compact && <Text style={{ fontSize: 13, color: '#fff' }}>{user?.name ?? 'Giáo viên'}</Text>}
@@ -705,18 +705,18 @@ export default function TeacherSessionPage() {
                   {i > 0 ? ', ' : ''}
                   <Avatar
                     size={18}
-                    style={{ background: s.avatarColor ?? '#6366f1', fontSize: 10, marginRight: 3, verticalAlign: 'middle' }}
+                    style={{ background: s.avatarColor ?? '#4f46e5', fontSize: 10, marginRight: 3, verticalAlign: 'middle' }}
                   >
                     {s.name.charAt(0)}
                   </Avatar>
                   {s.name.split(' ').pop()}
                 </span>
               ))}
-              {' '}— hãy nhắc nhở các bạn này!
+              {' '}· hãy nhắc nhở các bạn này!
             </span>
           }
           closable
-          style={{ borderRadius: 0, border: 'none', borderBottom: '1px solid #ffd591', flexShrink: 0 }}
+          style={{ borderRadius: 0, border: 'none', borderBottom: '1px solid #f3d49b', flexShrink: 0 }}
         />
       )}
 
@@ -751,11 +751,11 @@ export default function TeacherSessionPage() {
                 /* ── Focus / Spotlight mode: 2-column grid ── */
                 <div style={{ flex: 1, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, minHeight: 0 }}>
                   {/* Teacher's own tile */}
-                  <div style={{ borderRadius: 12, overflow: 'hidden', position: 'relative', border: '2px solid rgba(99,102,241,0.4)' }}>
+                  <div style={{ borderRadius: 12, overflow: 'hidden', position: 'relative', border: '2px solid rgba(79,70,229,0.4)' }}>
                     <VideoTile
                       stream={localMedia.stream}
                       name={user?.name ?? 'Giáo viên'}
-                      avatarColor={user?.avatarColor ?? '#6366f1'}
+                      avatarColor={user?.avatarColor ?? '#4f46e5'}
                       isTeacher
                       isLocal
                       isMuted={!localMedia.isMicOn}
@@ -764,7 +764,7 @@ export default function TeacherSessionPage() {
                     >
                       {screenShareOn && (
                         <div style={{ position: 'absolute', top: 8, left: 8, background: 'rgba(0,0,0,0.6)', padding: '2px 8px', borderRadius: 5, display: 'flex', alignItems: 'center', gap: 5, zIndex: 3 }}>
-                          <DesktopOutlined style={{ color: '#52c41a', fontSize: 11 }} />
+                          <DesktopOutlined style={{ color: '#0ea672', fontSize: 11 }} />
                           <Text style={{ color: '#fff', fontSize: 11 }}>Đang chia sẻ màn hình</Text>
                         </div>
                       )}
@@ -772,7 +772,7 @@ export default function TeacherSessionPage() {
                   </div>
 
                   {/* Focused student tile */}
-                  <div style={{ borderRadius: 12, overflow: 'hidden', border: '2px solid #6366f1', position: 'relative' }}>
+                  <div style={{ borderRadius: 12, overflow: 'hidden', border: '2px solid #4f46e5', position: 'relative' }}>
                     <VideoTile
                       stream={rtc.peers.get(focusedStudent.studentId)?.remoteStream ?? null}
                       name={focusedStudent.name}
@@ -796,7 +796,7 @@ export default function TeacherSessionPage() {
                   <VideoTile
                     stream={localMedia.stream}
                     name={user?.name ?? 'Giáo viên'}
-                    avatarColor="#6366f1"
+                    avatarColor="#4f46e5"
                     isTeacher
                     isLocal
                     isMuted={!localMedia.isMicOn}
@@ -805,7 +805,7 @@ export default function TeacherSessionPage() {
                   >
                     {screenShareOn && (
                       <div style={{ position: 'absolute', top: 10, left: 12, background: 'rgba(0,0,0,0.6)', padding: '3px 10px', borderRadius: 6, display: 'flex', alignItems: 'center', gap: 6, zIndex: 3 }}>
-                        <DesktopOutlined style={{ color: '#52c41a', fontSize: 12 }} />
+                        <DesktopOutlined style={{ color: '#0ea672', fontSize: 12 }} />
                         <Text style={{ color: '#fff', fontSize: 12 }}>Đang chia sẻ màn hình</Text>
                       </div>
                     )}
@@ -896,9 +896,9 @@ export default function TeacherSessionPage() {
                         size={44}
                         percent={Math.round((timeRemaining / runningQuestion.timerSeconds) * 100)}
                         strokeColor={
-                          timeRemaining / runningQuestion.timerSeconds > 0.5 ? '#52c41a'
-                            : timeRemaining / runningQuestion.timerSeconds > 0.2 ? '#fa8c16'
-                              : '#ff4d4f'
+                          timeRemaining / runningQuestion.timerSeconds > 0.5 ? '#0ea672'
+                            : timeRemaining / runningQuestion.timerSeconds > 0.2 ? '#e08c0b'
+                              : '#e23d6d'
                         }
                         format={() => (
                           <span style={{ fontSize: 11, fontWeight: 600 }}>
@@ -925,9 +925,9 @@ export default function TeacherSessionPage() {
                         key={opt.id}
                         style={{
                           padding: '10px 14px',
-                          border: `1px solid ${opt.isCorrect ? '#b7eb8f' : '#d9d9d9'}`,
+                          border: `1px solid ${opt.isCorrect ? '#a7e3cd' : '#e7e3dc'}`,
                           borderRadius: 8,
-                          background: opt.isCorrect ? '#f6ffed' : '#fafafa',
+                          background: opt.isCorrect ? '#e7f6ef' : '#f3f1ec',
                           display: 'flex', gap: 10, alignItems: 'center',
                         }}
                       >
@@ -935,7 +935,7 @@ export default function TeacherSessionPage() {
                           {opt.label}
                         </Tag>
                         <Text>{opt.text}</Text>
-                        {opt.isCorrect && <CheckCircleOutlined style={{ color: '#52c41a', marginLeft: 'auto' }} />}
+                        {opt.isCorrect && <CheckCircleOutlined style={{ color: '#0ea672', marginLeft: 'auto' }} />}
                       </div>
                     ))}
                   </div>
@@ -959,7 +959,7 @@ export default function TeacherSessionPage() {
             <Card style={{ borderRadius: 12 }}>
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                  <CheckCircleOutlined style={{ color: '#52c41a', fontSize: 18 }} />
+                  <CheckCircleOutlined style={{ color: '#0ea672', fontSize: 18 }} />
                   <Text strong style={{ fontSize: 15 }}>Kết quả câu {runningQuestion.questionOrder}</Text>
                 </div>
                 <Button type="primary" onClick={() => { setRunningQuestion(null); setQuestionStats(null); }}>
@@ -989,7 +989,7 @@ export default function TeacherSessionPage() {
                   the teacher actually HEARS the students, and shows their video. */}
               {breakout && teacherJoinedRoom && (
                 <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 10, minHeight: 180 }}>
-                  <div style={{ background: 'linear-gradient(135deg, rgba(99,102,241,0.18), rgba(79,70,229,0.18))', border: '1px solid rgba(99,102,241,0.35)', borderRadius: 12, padding: '10px 16px', display: 'flex', alignItems: 'center', gap: 12, flexShrink: 0 }}>
+                  <div style={{ background: 'rgba(79,70,229,0.18)', border: '1px solid rgba(79,70,229,0.35)', borderRadius: 12, padding: '10px 16px', display: 'flex', alignItems: 'center', gap: 12, flexShrink: 0 }}>
                     <TeamOutlined style={{ color: '#818cf8', fontSize: 18 }} />
                     <div style={{ flex: 1, minWidth: 0 }}>
                       <Text strong style={{ color: '#fff', fontSize: 14 }}>Bạn đang ở {teacherJoinedRoom.name}</Text>
@@ -1008,7 +1008,7 @@ export default function TeacherSessionPage() {
                       <VideoTile
                         stream={localMedia.stream}
                         name={user?.name ?? 'Giáo viên'}
-                        avatarColor={user?.avatarColor ?? '#6366f1'}
+                        avatarColor={user?.avatarColor ?? '#4f46e5'}
                         isTeacher
                         isLocal
                         isMuted={!localMedia.isMicOn}
@@ -1045,7 +1045,7 @@ export default function TeacherSessionPage() {
               {breakout && !teacherJoinedRoom && (
                 <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 10, minHeight: 180 }}>
                   <div style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.12)', borderRadius: 12, padding: '10px 16px', display: 'flex', alignItems: 'center', gap: 12, flexShrink: 0 }}>
-                    <TeamOutlined style={{ color: '#94a3b8', fontSize: 18 }} />
+                    <TeamOutlined style={{ color: '#a8a29e', fontSize: 18 }} />
                     <Text strong style={{ color: '#fff', fontSize: 14, flex: 1 }}>Phòng chính</Text>
                     <Text style={{ color: 'rgba(255,255,255,0.55)', fontSize: 12 }}>
                       Vào một phòng nhóm bên dưới để trao đổi riêng
@@ -1062,7 +1062,7 @@ export default function TeacherSessionPage() {
                         <VideoTile
                           stream={localMedia.stream}
                           name={user?.name ?? 'Giáo viên'}
-                          avatarColor={user?.avatarColor ?? '#6366f1'}
+                          avatarColor={user?.avatarColor ?? '#4f46e5'}
                           isTeacher
                           isLocal
                           isMuted={!localMedia.isMicOn}
@@ -1097,7 +1097,7 @@ export default function TeacherSessionPage() {
                   (hidden, not unmounted) so its internal room selection survives collapse. */}
               <Card style={{ borderRadius: 12, flexShrink: 0 }} styles={{ body: { padding: 0 } }}>
                 {breakout && (
-                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 16px', borderBottom: breakoutPanelCollapsed ? 'none' : '1px solid #f0f0f0' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 16px', borderBottom: breakoutPanelCollapsed ? 'none' : '1px solid #e7e3dc' }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0 }}>
                       <Badge status="processing" />
                       <Text strong>Bảng điều khiển breakout</Text>
@@ -1180,17 +1180,17 @@ export default function TeacherSessionPage() {
                   key={q.id}
                   style={{
                     padding: '6px 10px', borderRadius: 6,
-                    background: runningQuestion?.id === q.id ? '#e6f4ff' : '#fafafa',
-                    border: `1px solid ${runningQuestion?.id === q.id ? '#91caff' : '#f0f0f0'}`,
+                    background: runningQuestion?.id === q.id ? '#eceafd' : '#f3f1ec',
+                    border: `1px solid ${runningQuestion?.id === q.id ? '#c7d2fe' : '#e7e3dc'}`,
                     display: 'flex', alignItems: 'center', gap: 6,
                   }}
                 >
-                  <Text style={{ fontSize: 12, color: '#8c8c8c', minWidth: 16 }}>{q.questionOrder}.</Text>
+                  <Text style={{ fontSize: 12, color: '#57534e', minWidth: 16 }}>{q.questionOrder}.</Text>
                   <Text style={{ fontSize: 12 }} ellipsis>
                     {q.type === 'single' ? '●' : q.type === 'multiple' ? '☑' : '✏'} Câu {q.questionOrder}
                   </Text>
                   {q.status === 'ended' && (
-                    <CheckCircleOutlined style={{ color: '#52c41a', fontSize: 11, marginLeft: 'auto' }} />
+                    <CheckCircleOutlined style={{ color: '#0ea672', fontSize: 11, marginLeft: 'auto' }} />
                   )}
                 </div>
               ))}
@@ -1221,7 +1221,7 @@ export default function TeacherSessionPage() {
               currentUser={{
                 id: user?.id ?? '__teacher__',
                 name: user?.name ?? 'Giáo viên',
-                avatarColor: user?.avatarColor ?? '#6366f1',
+                avatarColor: user?.avatarColor ?? '#4f46e5',
                 isTeacher: true,
               }}
               onSend={handleSendChat}
@@ -1320,7 +1320,7 @@ export default function TeacherSessionPage() {
       <Drawer
         title={
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <BarChartOutlined style={{ color: '#6366f1' }} />
+            <BarChartOutlined style={{ color: '#4f46e5' }} />
             <span>Kết quả phiên học</span>
           </div>
         }
@@ -1331,20 +1331,20 @@ export default function TeacherSessionPage() {
         mask={false}
       >
         {questions.length === 0 ? (
-          <div style={{ textAlign: 'center', color: '#8c8c8c', padding: 40 }}>
+          <div style={{ textAlign: 'center', color: '#57534e', padding: 40 }}>
             Chưa có câu hỏi nào trong phiên này.
           </div>
         ) : (
           <>
             <div style={{ display: 'flex', gap: 12, marginBottom: 20 }}>
-              <div style={{ flex: 1, background: '#f0f5ff', borderRadius: 10, padding: '10px 14px', textAlign: 'center' }}>
-                <Text strong style={{ fontSize: 22, color: '#6366f1' }}>
+              <div style={{ flex: 1, background: '#eceafd', borderRadius: 10, padding: '10px 14px', textAlign: 'center' }}>
+                <Text strong style={{ fontSize: 22, color: '#4f46e5' }}>
                   {questions.filter((q) => q.status === 'ended').length}
                 </Text>
                 <div><Text type="secondary" style={{ fontSize: 12 }}>Câu đã kết thúc</Text></div>
               </div>
-              <div style={{ flex: 1, background: '#f6ffed', borderRadius: 10, padding: '10px 14px', textAlign: 'center' }}>
-                <Text strong style={{ fontSize: 22, color: '#52c41a' }}>
+              <div style={{ flex: 1, background: '#e7f6ef', borderRadius: 10, padding: '10px 14px', textAlign: 'center' }}>
+                <Text strong style={{ fontSize: 22, color: '#0ea672' }}>
                   {presence.filter((p) => p.isOnline).length}
                 </Text>
                 <div><Text type="secondary" style={{ fontSize: 12 }}>Học sinh online</Text></div>
@@ -1384,8 +1384,8 @@ export default function TeacherSessionPage() {
                         dangerouslySetInnerHTML={{ __html: q.content }}
                         style={{
                           fontSize: 14, fontWeight: 500, lineHeight: 1.6, marginBottom: 12,
-                          padding: '10px 12px', background: '#f8fafc', borderRadius: 8,
-                          border: '1px solid #e2e8f0',
+                          padding: '10px 12px', background: '#f3f1ec', borderRadius: 8,
+                          border: '1px solid #e7e3dc',
                         }}
                       />
                       {/* Options (MCQ) */}
@@ -1397,15 +1397,15 @@ export default function TeacherSessionPage() {
                               style={{
                                 display: 'flex', gap: 8, alignItems: 'center',
                                 padding: '6px 10px', borderRadius: 6,
-                                background: opt.isCorrect ? '#f6ffed' : '#fafafa',
-                                border: `1px solid ${opt.isCorrect ? '#b7eb8f' : '#f0f0f0'}`,
+                                background: opt.isCorrect ? '#e7f6ef' : '#f3f1ec',
+                                border: `1px solid ${opt.isCorrect ? '#a7e3cd' : '#e7e3dc'}`,
                               }}
                             >
                               <Tag color={opt.isCorrect ? 'success' : 'default'} style={{ minWidth: 24, textAlign: 'center', margin: 0, fontSize: 11 }}>
                                 {opt.label}
                               </Tag>
                               <Text style={{ fontSize: 13 }}>{opt.text}</Text>
-                              {opt.isCorrect && <CheckCircleOutlined style={{ color: '#52c41a', marginLeft: 'auto', fontSize: 13 }} />}
+                              {opt.isCorrect && <CheckCircleOutlined style={{ color: '#0ea672', marginLeft: 'auto', fontSize: 13 }} />}
                             </div>
                           ))}
                         </div>
@@ -1419,7 +1419,7 @@ export default function TeacherSessionPage() {
                           presence={presence}
                         />
                       ) : (
-                        <div style={{ color: '#8c8c8c', fontSize: 13, textAlign: 'center', padding: '12px 0' }}>
+                        <div style={{ color: '#57534e', fontSize: 13, textAlign: 'center', padding: '12px 0' }}>
                           {q.status === 'draft' ? 'Câu hỏi chưa bắt đầu' : 'Đang tải kết quả...'}
                         </div>
                       )}
@@ -1442,7 +1442,7 @@ export default function TeacherSessionPage() {
       <Modal
         title={
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <ExclamationCircleOutlined style={{ color: '#faad14', fontSize: 18 }} />
+            <ExclamationCircleOutlined style={{ color: '#e08c0b', fontSize: 18 }} />
             <span>Kết thúc buổi học?</span>
           </div>
         }
@@ -1456,10 +1456,10 @@ export default function TeacherSessionPage() {
         width={420}
       >
         <div style={{ padding: '8px 0' }}>
-          <p style={{ marginBottom: 12, color: '#595959' }}>
+          <p style={{ marginBottom: 12, color: '#57534e' }}>
             Buổi học sẽ kết thúc và tất cả học sinh sẽ nhận được kết quả.
           </p>
-          <div style={{ background: '#f5f5f5', borderRadius: 8, padding: '10px 16px', display: 'flex', gap: 24 }}>
+          <div style={{ background: '#f3f1ec', borderRadius: 8, padding: '10px 16px', display: 'flex', gap: 24 }}>
             <div>
               <Text type="secondary" style={{ fontSize: 12 }}>Thời gian học</Text>
               <div><Text strong style={{ fontFamily: 'monospace', fontSize: 16 }}>{formatElapsed(elapsedSeconds)}</Text></div>

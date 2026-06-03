@@ -32,7 +32,7 @@ export const MOCK_CHAT_MESSAGES: ChatMessage[] = [
     id: 'c1',
     senderId: 't1',
     senderName: 'Nguyễn Thị Lan',
-    avatarColor: '#6366f1',
+    avatarColor: '#4f46e5',
     content: 'Chào cả lớp! Hôm nay chúng ta sẽ ôn tập React Hooks nhé.',
     time: '14:00',
     isTeacher: true,
@@ -41,7 +41,7 @@ export const MOCK_CHAT_MESSAGES: ChatMessage[] = [
     id: 'c2',
     senderId: 's2',
     senderName: 'Trần Thị Bình',
-    avatarColor: '#52c41a',
+    avatarColor: '#0ea672',
     content: 'Thầy ơi, useEffect chạy mấy lần ạ?',
     time: '14:02',
   },
@@ -49,7 +49,7 @@ export const MOCK_CHAT_MESSAGES: ChatMessage[] = [
     id: 'c3',
     senderId: 't1',
     senderName: 'Nguyễn Thị Lan',
-    avatarColor: '#6366f1',
+    avatarColor: '#4f46e5',
     content: 'useEffect chạy sau mỗi render, điều khiển bằng dependency array nhé!',
     time: '14:03',
     isTeacher: true,
@@ -58,7 +58,7 @@ export const MOCK_CHAT_MESSAGES: ChatMessage[] = [
     id: 'c4',
     senderId: 's4',
     senderName: 'Phạm Thị Dung',
-    avatarColor: '#eb2f96',
+    avatarColor: '#e23d6d',
     content: '👍 Em hiểu rồi ạ, cảm ơn thầy!',
     time: '14:04',
   },
@@ -66,7 +66,7 @@ export const MOCK_CHAT_MESSAGES: ChatMessage[] = [
     id: 'c5',
     senderId: 's1',
     senderName: 'Nguyễn Văn An',
-    avatarColor: '#6366f1',
+    avatarColor: '#4f46e5',
     content: 'Thầy ơi, custom hook khác component ở chỗ nào vậy ạ?',
     time: '14:06',
   },
@@ -98,7 +98,7 @@ export default function ChatPanel({ messages, currentUser, onSend, onClose, heig
         height,
         display: 'flex',
         flexDirection: 'column',
-        borderLeft: '1px solid #f0f0f0',
+        borderLeft: '1px solid #e7e3dc',
         background: '#fff',
       }}
     >
@@ -106,7 +106,7 @@ export default function ChatPanel({ messages, currentUser, onSend, onClose, heig
       <div
         style={{
           padding: '10px 14px',
-          borderBottom: '1px solid #f0f0f0',
+          borderBottom: '1px solid #e7e3dc',
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'space-between',
@@ -144,7 +144,7 @@ export default function ChatPanel({ messages, currentUser, onSend, onClose, heig
                   <Text
                     style={{
                       fontSize: 11,
-                      color: msg.isTeacher ? '#6366f1' : '#8c8c8c',
+                      color: msg.isTeacher ? '#4f46e5' : '#57534e',
                       display: 'block',
                       marginBottom: 2,
                       fontWeight: msg.isTeacher ? 600 : 400,
@@ -156,8 +156,8 @@ export default function ChatPanel({ messages, currentUser, onSend, onClose, heig
                 )}
                 <div
                   style={{
-                    background: isSelf ? '#6366f1' : msg.isTeacher ? '#e6f4ff' : '#f5f5f5',
-                    color: isSelf ? '#fff' : '#262626',
+                    background: isSelf ? '#4f46e5' : msg.isTeacher ? '#eceafd' : '#f3f1ec',
+                    color: isSelf ? '#fff' : '#1c1917',
                     padding: '7px 11px',
                     borderRadius: isSelf ? '12px 12px 2px 12px' : '12px 12px 12px 2px',
                     fontSize: 13,
@@ -170,7 +170,7 @@ export default function ChatPanel({ messages, currentUser, onSend, onClose, heig
                 <Text
                   style={{
                     fontSize: 10,
-                    color: '#bfbfbf',
+                    color: '#a8a29e',
                     display: 'block',
                     marginTop: 2,
                     textAlign: isSelf ? 'right' : 'left',
@@ -189,7 +189,7 @@ export default function ChatPanel({ messages, currentUser, onSend, onClose, heig
       <div
         style={{
           padding: '8px 10px',
-          borderTop: '1px solid #f0f0f0',
+          borderTop: '1px solid #e7e3dc',
           display: 'flex',
           gap: 6,
           flexShrink: 0,

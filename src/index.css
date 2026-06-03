@@ -1,23 +1,53 @@
-@import url('https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;600&display=swap');
 @import "tailwindcss";
 
 :root {
-  --sq-primary: #6366f1;
-  --sq-primary-dark: #4f46e5;
-  --sq-primary-light: #eef2ff;
-  --sq-bg: #f8fafc;
+  /* ── Accent — single, desaturated ink-indigo (no AI gradient) ── */
+  --sq-primary: #4f46e5;
+  --sq-primary-dark: #4338ca;
+  --sq-primary-light: #eceafd;
+  --sq-primary-ring: rgba(79, 70, 229, 0.35);
+
+  /* ── Warm-neutral surfaces ── */
+  --sq-bg: #f7f6f3;
   --sq-surface: #ffffff;
-  --sq-border: #e2e8f0;
-  --sq-text: #0f172a;
-  --sq-text-secondary: #64748b;
-  --sq-text-muted: #94a3b8;
-  --sq-emerald: #10b981;
-  --sq-amber: #f59e0b;
-  --sq-rose: #f43f5e;
+  --sq-surface-2: #f3f1ec;
+  --sq-border: #e7e3dc;
+  --sq-border-strong: #d8d3c9;
+
+  /* ── Warm text ramp (stone) ── */
+  --sq-text: #1c1917;
+  --sq-text-secondary: #57534e;
+  --sq-text-muted: #a8a29e;
+
+  /* ── Semantic (slightly desaturated) ── */
+  --sq-emerald: #0ea672;
+  --sq-emerald-light: #e7f6ef;
+  --sq-amber: #e08c0b;
+  --sq-amber-light: #fbf0db;
+  --sq-rose: #e23d6d;
+  --sq-rose-light: #fceaef;
+
+  /* ── Tinted shadows (carry accent / warm hue, never pure black) ── */
+  --sq-shadow-sm: 0 1px 2px rgba(28, 25, 23, 0.05);
+  --sq-shadow-md: 0 1px 2px rgba(28, 25, 23, 0.05), 0 8px 24px rgba(79, 70, 229, 0.06);
+  --sq-shadow-lg: 0 4px 12px rgba(28, 25, 23, 0.06), 0 16px 40px rgba(79, 70, 229, 0.09);
+
+  /* ── Radius scale (less "AI-round") ── */
+  --sq-r-page: 16px;
+  --sq-r-card: 14px;
+  --sq-r-control: 8px;
+  --sq-r-tag: 6px;
+
+  --sq-mono: 'JetBrains Mono', ui-monospace, 'SFMono-Regular', Menlo, monospace;
 }
 
 * {
   box-sizing: border-box;
+}
+
+html {
+  scroll-behavior: smooth;
 }
 
 body {
@@ -26,15 +56,47 @@ body {
   background: var(--sq-bg);
   color: var(--sq-text);
   -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+/* ── Typography helpers ── */
+h1, h2, h3, h4, h5 { letter-spacing: -0.02em; text-wrap: balance; }
+p { text-wrap: pretty; }
+
+.sq-mono { font-family: var(--sq-mono); }
+.sq-nums { font-variant-numeric: tabular-nums; font-feature-settings: 'tnum'; }
+
+/* ── Visible focus ring (keyboard accessibility) ── */
+.sq-focus:focus-visible,
+button:focus-visible,
+a:focus-visible,
+input:focus-visible,
+textarea:focus-visible,
+select:focus-visible,
+[tabindex]:focus-visible {
+  outline: 2px solid var(--sq-primary);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+/* ── Subtle grain overlay (breaks digital flatness on hero surfaces) ── */
+.sq-noise {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  opacity: 0.5;
+  mix-blend-mode: soft-light;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
 }
 
 /* ── Course card hover lift ── */
 .sq-card-hover {
-  transition: transform 0.2s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  transition: transform 0.2s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.2s cubic-bezier(0.16, 1, 0.3, 1), border-color 0.2s ease;
 }
 .sq-card-hover:hover {
   transform: translateY(-3px);
-  box-shadow: 0 12px 32px rgba(15, 23, 42, 0.10);
+  box-shadow: var(--sq-shadow-lg);
+  border-color: var(--sq-border-strong);
 }
 
 /* ── Nav item transitions ── */
@@ -42,8 +104,8 @@ body {
   transition: background 0.15s ease, color 0.15s ease;
 }
 .sq-nav-item:hover {
-  background: #f1f5f9 !important;
-  color: #0f172a !important;
+  background: var(--sq-surface-2) !important;
+  color: var(--sq-text) !important;
 }
 .sq-nav-item.active {
   background: var(--sq-primary-light) !important;
@@ -52,10 +114,32 @@ body {
 
 /* ── Stat card ── */
 .sq-stat-card {
-  transition: box-shadow 0.15s ease;
+  transition: box-shadow 0.18s ease, border-color 0.18s ease, transform 0.18s ease;
 }
 .sq-stat-card:hover {
-  box-shadow: 0 4px 16px rgba(15, 23, 42, 0.08);
+  box-shadow: var(--sq-shadow-md);
+  border-color: var(--sq-border-strong);
+}
+
+/* ── Primary button press feedback ── */
+.sq-press { transition: transform 0.12s ease, box-shadow 0.18s ease, background 0.18s ease; }
+.sq-press:active:not(:disabled) { transform: scale(0.98); }
+
+/* ── Skeleton shimmer ── */
+.sq-skeleton {
+  position: relative;
+  overflow: hidden;
+}
+.sq-skeleton::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  transform: translateX(-100%);
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.65), transparent);
+  animation: sq-shimmer 1.4s ease-in-out infinite;
+}
+@keyframes sq-shimmer {
+  100% { transform: translateX(100%); }
 }
 
 /* ── Tiptap rich text editor ── */
@@ -78,9 +162,9 @@ body {
 .sq-editor .ProseMirror u { text-decoration: underline; }
 .sq-editor .ProseMirror s { text-decoration: line-through; }
 .sq-editor .ProseMirror blockquote {
-  border-left: 3px solid #e2e8f0;
+  border-left: 3px solid var(--sq-border);
   padding-left: 12px;
-  color: #64748b;
+  color: var(--sq-text-secondary);
   margin: 0.4em 0;
 }
 
@@ -126,4 +210,20 @@ body {
 @keyframes panel-in-up {
   from { opacity: 0; transform: translateY(12px); }
   to   { opacity: 1; transform: translateY(0); }
+}
+
+/* ── Reduced motion: kill perpetual loops (LIVE pulse, skeleton shimmer)
+   and collapse entrance/hover motion to instant. Accessibility (a11y). ── */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+    scroll-behavior: auto !important;
+  }
+  .sq-live-dot { animation: none !important; opacity: 1 !important; transform: none !important; }
+  .sq-skeleton::after { animation: none !important; }
+  .sq-card-hover:hover { transform: none !important; }
 }

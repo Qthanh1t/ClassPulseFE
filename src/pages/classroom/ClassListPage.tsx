@@ -1,8 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import {
-  Button, Col, Row, Typography, Modal, Form,
-  Input, Badge, message, Spin,
-} from 'antd';
+import { Button, Modal, Form, Input, message } from 'antd';
 import {
   PlusOutlined, TeamOutlined, CalendarOutlined,
   PlayCircleOutlined, UserOutlined,
@@ -13,42 +10,28 @@ import { useNavigate } from 'react-router-dom';
 import { classroomService } from '../../services/classroom.service';
 import { useAuthStore } from '../../store/authStore';
 import type { ClassroomDto } from '../../types/api';
-
-const { Title, Text, Paragraph } = Typography;
+import PageContainer from '../../components/ui/PageContainer';
+import SectionHeader from '../../components/ui/SectionHeader';
+import EmptyState from '../../components/ui/EmptyState';
+import PageSkeleton from '../../components/ui/PageSkeleton';
+import { color, radius, shadow } from '../../theme/tokens';
 
 interface SubjectConfig {
-  gradient: string;
-  lightBg: string;
-  textColor: string;
+  accent: string;
+  tint: string;
   icon: React.ReactNode;
 }
 
 const SUBJECT_CONFIG: Record<string, SubjectConfig> = {
-  Frontend: {
-    gradient: 'linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%)',
-    lightBg: '#eef2ff',
-    textColor: '#6366f1',
-    icon: <CodeOutlined style={{ fontSize: 28, color: '#fff' }} />,
-  },
-  Database: {
-    gradient: 'linear-gradient(135deg, #0ea5e9 0%, #0369a1 100%)',
-    lightBg: '#f0f9ff',
-    textColor: '#0ea5e9',
-    icon: <DatabaseOutlined style={{ fontSize: 28, color: '#fff' }} />,
-  },
-  Architecture: {
-    gradient: 'linear-gradient(135deg, #f59e0b 0%, #dc2626 100%)',
-    lightBg: '#fff7ed',
-    textColor: '#f59e0b',
-    icon: <ApartmentOutlined style={{ fontSize: 28, color: '#fff' }} />,
-  },
+  Frontend: { accent: color.primary, tint: color.primaryLight, icon: <CodeOutlined /> },
+  Database: { accent: '#0e7faa', tint: '#e3f1f8', icon: <DatabaseOutlined /> },
+  Architecture: { accent: color.amber, tint: color.amberLight, icon: <ApartmentOutlined /> },
 };
 
 const DEFAULT_SUBJECT: SubjectConfig = {
-  gradient: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
-  lightBg: '#f0fdf4',
-  textColor: '#10b981',
-  icon: <BookOutlined style={{ fontSize: 28, color: '#fff' }} />,
+  accent: color.emerald,
+  tint: color.emeraldLight,
+  icon: <BookOutlined />,
 };
 
 function CourseCard({ cls, onStart, onJoinAsStudent, onCardClick, isTeacher }: {
@@ -64,77 +47,81 @@ function CourseCard({ cls, onStart, onJoinAsStudent, onCardClick, isTeacher }: {
     <div
       className="sq-card-hover"
       style={{
-        background: '#fff', borderRadius: 16, border: '1px solid #e2e8f0',
+        background: color.surface, borderRadius: radius.card, border: `1px solid ${color.border}`,
         overflow: 'hidden', cursor: 'pointer', display: 'flex', flexDirection: 'column',
+        boxShadow: shadow.sm,
       }}
       onClick={onCardClick}
     >
+      {/* Header: tinted strip, flat (no gradient) */}
       <div
         style={{
-          background: config.gradient, height: 88,
-          display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-          padding: '0 20px', position: 'relative', overflow: 'hidden',
+          background: config.tint, padding: '18px 20px',
+          display: 'flex', alignItems: 'center', gap: 12,
+          borderBottom: `1px solid ${color.border}`,
         }}
       >
-        <div style={{ position: 'absolute', right: -20, top: -20, width: 100, height: 100, borderRadius: '50%', background: 'rgba(255,255,255,0.08)' }} />
-        <div style={{ position: 'absolute', right: 30, bottom: -30, width: 80, height: 80, borderRadius: '50%', background: 'rgba(255,255,255,0.06)' }} />
-        <div style={{ display: 'flex', alignItems: 'center', gap: 12, position: 'relative' }}>
-          <div style={{ width: 46, height: 46, background: 'rgba(255,255,255,0.18)', borderRadius: 12, display: 'flex', alignItems: 'center', justifyContent: 'center', backdropFilter: 'blur(4px)' }}>
-            {config.icon}
-          </div>
-          {cls.subject && (
-            <span style={{ color: '#fff', fontWeight: 600, fontSize: 13, background: 'rgba(255,255,255,0.2)', padding: '3px 10px', borderRadius: 20, letterSpacing: '0.02em' }}>
-              {cls.subject}
-            </span>
-          )}
+        <div
+          style={{
+            width: 46, height: 46, background: color.surface, borderRadius: 12,
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            color: config.accent, fontSize: 22, flexShrink: 0,
+            border: `1px solid ${color.border}`,
+          }}
+        >
+          {config.icon}
         </div>
+        {cls.subject && (
+          <span style={{ color: config.accent, fontWeight: 600, fontSize: 12.5, background: color.surface, padding: '4px 11px', borderRadius: 999, border: `1px solid ${color.border}` }}>
+            {cls.subject}
+          </span>
+        )}
       </div>
 
       <div style={{ padding: '16px 20px', flex: 1, display: 'flex', flexDirection: 'column' }}>
-        <Title level={5} style={{ margin: '0 0 6px', fontSize: 15, fontWeight: 700, color: '#0f172a', lineHeight: 1.35 }} ellipsis={{ rows: 2 }}>
+        <div style={{ fontSize: 15.5, fontWeight: 700, color: color.text, lineHeight: 1.35, marginBottom: 6, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>
           {cls.name}
-        </Title>
-        <Paragraph type="secondary" style={{ fontSize: 13, margin: '0 0 14px', lineHeight: 1.5, flex: 1 }} ellipsis={{ rows: 2 }}>
+        </div>
+        <div style={{ fontSize: 13, color: color.textSecondary, lineHeight: 1.5, marginBottom: 14, flex: 1, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>
           {cls.description ?? 'Chưa có mô tả'}
-        </Paragraph>
+        </div>
 
         <div style={{ display: 'flex', gap: 14, marginBottom: 14 }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
-            <TeamOutlined style={{ color: '#94a3b8', fontSize: 13 }} />
-            <Text style={{ fontSize: 12, color: '#64748b' }}>{cls.studentCount} học sinh</Text>
-          </div>
+          <span style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 12, color: color.textSecondary }}>
+            <TeamOutlined style={{ color: color.textMuted, fontSize: 13 }} />
+            <span className="sq-nums">{cls.studentCount}</span> học sinh
+          </span>
           {cls.nextSchedule && (
-            <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
-              <CalendarOutlined style={{ color: '#94a3b8', fontSize: 13 }} />
-              <Text style={{ fontSize: 12, color: '#64748b' }}>{cls.nextSchedule.scheduledDate}</Text>
-            </div>
+            <span style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 12, color: color.textSecondary }}>
+              <CalendarOutlined style={{ color: color.textMuted, fontSize: 13 }} />
+              <span className="sq-nums">{cls.nextSchedule.scheduledDate}</span>
+            </span>
           )}
         </div>
 
-        <div style={{ height: 1, background: '#f1f5f9', margin: '0 0 14px' }} />
+        <div style={{ height: 1, background: color.border, marginBottom: 14 }} />
 
-        <div style={{ display: 'flex', gap: 8 }}>
-          {isTeacher ? (
-            <Button
-              type="primary"
-              size="small"
-              icon={<PlayCircleOutlined />}
-              onClick={(e) => { e.stopPropagation(); onStart(); }}
-              style={{ flex: 1, background: 'linear-gradient(135deg, #6366f1, #8b5cf6)', border: 'none', fontWeight: 600, fontSize: 13, height: 34 }}
-            >
-              Bắt đầu buổi học
-            </Button>
-          ) : (
-            <Button
-              size="small"
-              icon={<UserOutlined />}
-              onClick={(e) => { e.stopPropagation(); onJoinAsStudent(); }}
-              style={{ flex: 1, height: 34, fontSize: 13, fontWeight: 600, border: '1.5px solid #6366f1', color: '#6366f1' }}
-            >
-              Vào học
-            </Button>
-          )}
-        </div>
+        {/* CTA pinned to bottom */}
+        {isTeacher ? (
+          <Button
+            type="primary"
+            icon={<PlayCircleOutlined />}
+            onClick={(e) => { e.stopPropagation(); onStart(); }}
+            className="sq-press"
+            style={{ width: '100%', fontWeight: 600, fontSize: 13.5, height: 38, borderRadius: radius.control }}
+          >
+            Bắt đầu buổi học
+          </Button>
+        ) : (
+          <Button
+            icon={<UserOutlined />}
+            onClick={(e) => { e.stopPropagation(); onJoinAsStudent(); }}
+            className="sq-press"
+            style={{ width: '100%', height: 38, fontSize: 13.5, fontWeight: 600, borderRadius: radius.control, borderColor: color.primary, color: color.primary }}
+          >
+            Vào học
+          </Button>
+        )}
       </div>
     </div>
   );
@@ -142,23 +129,24 @@ function CourseCard({ cls, onStart, onJoinAsStudent, onCardClick, isTeacher }: {
 
 function AddClassCard({ onClick }: { onClick: () => void }) {
   return (
-    <div
-      className="sq-card-hover"
+    <button
+      className="sq-card-hover sq-focus"
       onClick={onClick}
       style={{
-        background: '#fff', borderRadius: 16, border: '2px dashed #e2e8f0',
+        background: color.surface, borderRadius: radius.card, border: `2px dashed ${color.border}`,
         cursor: 'pointer', display: 'flex', flexDirection: 'column',
-        alignItems: 'center', justifyContent: 'center', minHeight: 240, gap: 10, padding: 24,
+        alignItems: 'center', justifyContent: 'center', minHeight: 232, gap: 10, padding: 24,
+        fontFamily: 'inherit',
       }}
     >
-      <div style={{ width: 48, height: 48, borderRadius: 12, background: '#f8fafc', border: '1.5px dashed #cbd5e1', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-        <PlusOutlined style={{ color: '#94a3b8', fontSize: 20 }} />
+      <div style={{ width: 48, height: 48, borderRadius: 12, background: color.primaryLight, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+        <PlusOutlined style={{ color: color.primary, fontSize: 20 }} />
       </div>
       <div style={{ textAlign: 'center' }}>
-        <div style={{ fontSize: 14, fontWeight: 600, color: '#64748b', marginBottom: 2 }}>Tạo lớp mới</div>
-        <div style={{ fontSize: 12, color: '#94a3b8' }}>Thêm môn học của bạn</div>
+        <div style={{ fontSize: 14, fontWeight: 600, color: color.text, marginBottom: 2 }}>Tạo lớp mới</div>
+        <div style={{ fontSize: 12, color: color.textMuted }}>Thêm môn học của bạn</div>
       </div>
-    </div>
+    </button>
   );
 }
 
@@ -196,7 +184,7 @@ export default function ClassListPage() {
       setClasses((prev) => [created, ...prev]);
       setCreateOpen(false);
       form.resetFields();
-      messageApi.success('Tạo lớp thành công!');
+      messageApi.success('Đã tạo lớp');
     } catch {
       messageApi.error('Tạo lớp thất bại');
     } finally {
@@ -209,7 +197,7 @@ export default function ClassListPage() {
     setJoining(true);
     try {
       const result = await classroomService.join(joinCode.trim().toUpperCase());
-      messageApi.success(`Đã tham gia lớp ${result.classroomName}!`);
+      messageApi.success(`Đã tham gia lớp ${result.classroomName}`);
       setJoinCode('');
       fetchClasses();
     } catch (err: unknown) {
@@ -228,44 +216,41 @@ export default function ClassListPage() {
   const isTeacher = user?.role === 'teacher';
 
   return (
-    <div style={{ padding: '28px 32px', maxWidth: 1200 }}>
+    <PageContainer>
       {contextHolder}
 
-      {/* Hero banner */}
-      <div style={{ background: 'linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%)', borderRadius: 20, padding: '28px 32px', marginBottom: 28, position: 'relative', overflow: 'hidden' }}>
-        <div style={{ position: 'absolute', right: -40, top: -40, width: 180, height: 180, borderRadius: '50%', background: 'rgba(255,255,255,0.07)' }} />
-        <div style={{ position: 'absolute', right: 60, bottom: -50, width: 140, height: 140, borderRadius: '50%', background: 'rgba(255,255,255,0.05)' }} />
+      {/* Hero — dark ink panel, flat with ambient glow + grain (no AI gradient) */}
+      <div
+        style={{
+          background: '#1e1b3a', borderRadius: radius.page, padding: '28px 32px',
+          marginBottom: 28, position: 'relative', overflow: 'hidden',
+        }}
+      >
+        <div className="sq-noise" />
+        <div style={{ position: 'absolute', right: -100, top: -100, width: 320, height: 320, borderRadius: '50%', background: 'radial-gradient(circle, rgba(79,70,229,0.4), transparent 70%)' }} />
 
         <div style={{ position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 16 }}>
           <div>
-            <div style={{ fontSize: 13, color: 'rgba(255,255,255,0.7)', marginBottom: 4, fontWeight: 500 }}>Xin chào,</div>
-            <Title level={3} style={{ color: '#fff', margin: '0 0 6px', fontSize: 24, fontWeight: 700 }}>
+            <div style={{ fontSize: 13, color: 'rgba(255,255,255,0.6)', marginBottom: 4, fontWeight: 500 }}>Xin chào,</div>
+            <h1 style={{ color: '#fff', margin: '0 0 10px', fontSize: 26, fontWeight: 700, letterSpacing: '-0.03em' }}>
               {displayName || 'Người dùng'}
-            </Title>
-            <div style={{ display: 'flex', gap: 20, flexWrap: 'wrap' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                <BookOutlined style={{ color: 'rgba(255,255,255,0.75)', fontSize: 14 }} />
-                <span style={{ color: 'rgba(255,255,255,0.85)', fontSize: 13 }}>{classes.length} lớp học</span>
-              </div>
-              {isTeacher && (
-                <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                  <TeamOutlined style={{ color: 'rgba(255,255,255,0.75)', fontSize: 14 }} />
-                  <span style={{ color: 'rgba(255,255,255,0.85)', fontSize: 13 }}>{totalStudents} học sinh</span>
-                </div>
-              )}
-              <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                <Badge status="processing" color="#34d399" />
-                <span style={{ color: 'rgba(255,255,255,0.85)', fontSize: 13 }}>Đang hoạt động</span>
-              </div>
+            </h1>
+            <div style={{ display: 'flex', gap: 18, flexWrap: 'wrap' }}>
+              <HeroStat icon={<BookOutlined />} value={classes.length} label="lớp học" />
+              {isTeacher && <HeroStat icon={<TeamOutlined />} value={totalStudents} label="học sinh" />}
+              <span style={{ display: 'flex', alignItems: 'center', gap: 7, color: 'rgba(255,255,255,0.82)', fontSize: 13 }}>
+                <span className="sq-live-dot" style={{ width: 8, height: 8, borderRadius: '50%', background: '#34d399', display: 'inline-block' }} />
+                Đang hoạt động
+              </span>
             </div>
           </div>
 
           {isTeacher && (
             <Button
-              type="default"
               icon={<PlusOutlined />}
               onClick={() => setCreateOpen(true)}
-              style={{ background: 'rgba(255,255,255,0.15)', border: '1.5px solid rgba(255,255,255,0.35)', color: '#fff', fontWeight: 600, fontSize: 14, height: 40, backdropFilter: 'blur(8px)', borderRadius: 10 }}
+              className="sq-press"
+              style={{ background: 'rgba(255,255,255,0.12)', border: '1px solid rgba(255,255,255,0.25)', color: '#fff', fontWeight: 600, fontSize: 14, height: 40, borderRadius: radius.control }}
             >
               Tạo lớp mới
             </Button>
@@ -273,72 +258,75 @@ export default function ClassListPage() {
         </div>
       </div>
 
-      {/* Section title */}
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 18 }}>
-        <div>
-          <Title level={5} style={{ margin: 0, fontSize: 16, fontWeight: 700, color: '#0f172a' }}>Lớp học của tôi</Title>
-          <Text type="secondary" style={{ fontSize: 13 }}>Quản lý và tham gia các lớp học của bạn</Text>
-        </div>
-      </div>
+      <SectionHeader title="Lớp học của tôi" subtitle="Quản lý và tham gia các lớp học của bạn" />
 
       {/* Course grid */}
       {loading ? (
-        <div style={{ textAlign: 'center', padding: '60px 0' }}>
-          <Spin size="large" />
-        </div>
+        <PageSkeleton variant="cards" />
+      ) : classes.length === 0 && !isTeacher ? (
+        <EmptyState
+          icon={<BookOutlined />}
+          title="Bạn chưa tham gia lớp nào"
+          description="Nhập mã lớp do giáo viên cung cấp ở ô bên dưới để tham gia lớp học đầu tiên."
+        />
       ) : (
-        <Row gutter={[20, 20]}>
+        <div
+          style={{
+            display: 'grid',
+            gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))',
+            gap: 20,
+          }}
+        >
           {classes.map((cls) => (
-            <Col key={cls.id} xs={24} sm={12} lg={8}>
-              <CourseCard
-                cls={cls}
-                isTeacher={isTeacher}
-                onCardClick={() => navigate(`/classes/${cls.id}`)}
-                onStart={() => navigate(`/session/teacher/${cls.id}`)}
-                onJoinAsStudent={() => navigate(`/session/student/${cls.id}`)}
-              />
-            </Col>
+            <CourseCard
+              key={cls.id}
+              cls={cls}
+              isTeacher={isTeacher}
+              onCardClick={() => navigate(`/classes/${cls.id}`)}
+              onStart={() => navigate(`/session/teacher/${cls.id}`)}
+              onJoinAsStudent={() => navigate(`/session/student/${cls.id}`)}
+            />
           ))}
-          {isTeacher && (
-            <Col xs={24} sm={12} lg={8}>
-              <AddClassCard onClick={() => setCreateOpen(true)} />
-            </Col>
-          )}
-        </Row>
+          {isTeacher && <AddClassCard onClick={() => setCreateOpen(true)} />}
+        </div>
       )}
 
-      {/* Join with code — chỉ hiện cho student */}
-      {!isTeacher && <div style={{ marginTop: 28, padding: '20px 24px', background: '#fff', borderRadius: 16, border: '1px solid #e2e8f0', display: 'flex', alignItems: 'center', gap: 16, flexWrap: 'wrap' }}>
-        <div style={{ flex: 1, minWidth: 200 }}>
-          <div style={{ fontSize: 14, fontWeight: 600, color: '#0f172a', marginBottom: 2 }}>Tham gia bằng mã lớp</div>
-          <div style={{ fontSize: 13, color: '#64748b' }}>Nhập mã do giáo viên cung cấp để tham gia lớp học</div>
+      {/* Join with code — students only */}
+      {!isTeacher && (
+        <div style={{ marginTop: 28, padding: '20px 24px', background: color.surface, borderRadius: radius.card, border: `1px solid ${color.border}`, display: 'flex', alignItems: 'center', gap: 16, flexWrap: 'wrap' }}>
+          <div style={{ flex: 1, minWidth: 200 }}>
+            <div style={{ fontSize: 14, fontWeight: 600, color: color.text, marginBottom: 2 }}>Tham gia bằng mã lớp</div>
+            <div style={{ fontSize: 13, color: color.textSecondary }}>Nhập mã do giáo viên cung cấp để tham gia lớp học</div>
+          </div>
+          <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+            <Input
+              className="sq-mono"
+              prefix={<SearchOutlined style={{ color: color.textMuted }} />}
+              placeholder="VD: ABC123"
+              value={joinCode}
+              onChange={(e) => setJoinCode(e.target.value.toUpperCase())}
+              onPressEnter={handleJoin}
+              style={{ width: 200, borderRadius: radius.control, height: 38, letterSpacing: '0.08em' }}
+            />
+            <Button
+              type="primary"
+              loading={joining}
+              onClick={handleJoin}
+              className="sq-press"
+              style={{ height: 38, borderRadius: radius.control, fontWeight: 600 }}
+            >
+              Tham gia
+            </Button>
+          </div>
         </div>
-        <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-          <Input
-            prefix={<SearchOutlined style={{ color: '#94a3b8' }} />}
-            placeholder="Nhập mã lớp (VD: ABC123)"
-            value={joinCode}
-            onChange={(e) => setJoinCode(e.target.value.toUpperCase())}
-            onPressEnter={handleJoin}
-            style={{ width: 240, borderRadius: 10, height: 38, borderColor: '#e2e8f0' }}
-          />
-          <Button
-            type="primary"
-            loading={joining}
-            onClick={handleJoin}
-            style={{ height: 38, borderRadius: 10, fontWeight: 600, background: 'linear-gradient(135deg, #6366f1, #8b5cf6)', border: 'none' }}
-          >
-            Tham gia
-          </Button>
-        </div>
-      </div>}
+      )}
 
       {/* Create class modal */}
       <Modal
         title={
           <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-            <div style={{ width: 32, height: 32, background: 'linear-gradient(135deg, #6366f1, #8b5cf6)', borderRadius: 8, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-              <PlusOutlined style={{ color: '#fff', fontSize: 14 }} />
+            <div style={{ width: 32, height: 32, background: color.primaryLight, color: color.primary, borderRadius: 8, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <PlusOutlined style={{ fontSize: 14 }} />
             </div>
             <span style={{ fontSize: 16, fontWeight: 700 }}>Tạo lớp học mới</span>
           </div>
@@ -347,7 +335,7 @@ export default function ClassListPage() {
         onCancel={() => { setCreateOpen(false); form.resetFields(); }}
         footer={null}
         width={480}
-        styles={{ header: { borderBottom: '1px solid #f1f5f9', paddingBottom: 16 } }}
+        styles={{ header: { borderBottom: `1px solid ${color.border}`, paddingBottom: 16 } }}
       >
         <Form form={form} layout="vertical" style={{ marginTop: 16 }} onFinish={handleCreate}>
           <Form.Item
@@ -355,27 +343,31 @@ export default function ClassListPage() {
             label={<span style={{ fontWeight: 600, fontSize: 13 }}>Tên lớp học</span>}
             rules={[{ required: true, message: 'Vui lòng nhập tên lớp' }]}
           >
-            <Input placeholder="VD: Lập trình Web nâng cao" style={{ height: 40, borderRadius: 10 }} />
+            <Input placeholder="VD: Lập trình Web nâng cao" style={{ height: 40, borderRadius: radius.control }} />
           </Form.Item>
           <Form.Item name="description" label={<span style={{ fontWeight: 600, fontSize: 13 }}>Mô tả</span>}>
-            <Input.TextArea rows={3} placeholder="Mô tả ngắn về khóa học..." style={{ borderRadius: 10 }} />
+            <Input.TextArea rows={3} placeholder="Mô tả ngắn về khóa học" style={{ borderRadius: radius.control }} />
           </Form.Item>
           <Form.Item name="subject" label={<span style={{ fontWeight: 600, fontSize: 13 }}>Môn học</span>}>
-            <Input placeholder="VD: Frontend, Database, ..." style={{ height: 40, borderRadius: 10 }} />
+            <Input placeholder="VD: Frontend, Database, Architecture" style={{ height: 40, borderRadius: radius.control }} />
           </Form.Item>
           <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 4 }}>
-            <Button onClick={() => { setCreateOpen(false); form.resetFields(); }} style={{ borderRadius: 10 }}>Hủy</Button>
-            <Button
-              type="primary"
-              htmlType="submit"
-              loading={creating}
-              style={{ borderRadius: 10, background: 'linear-gradient(135deg, #6366f1, #8b5cf6)', border: 'none', fontWeight: 600 }}
-            >
+            <Button onClick={() => { setCreateOpen(false); form.resetFields(); }} style={{ borderRadius: radius.control }}>Hủy</Button>
+            <Button type="primary" htmlType="submit" loading={creating} className="sq-press" style={{ borderRadius: radius.control, fontWeight: 600 }}>
               Tạo lớp
             </Button>
           </div>
         </Form>
       </Modal>
-    </div>
+    </PageContainer>
+  );
+}
+
+function HeroStat({ icon, value, label }: { icon: React.ReactNode; value: number; label: string }) {
+  return (
+    <span style={{ display: 'flex', alignItems: 'center', gap: 7, color: 'rgba(255,255,255,0.82)', fontSize: 13 }}>
+      <span style={{ color: 'rgba(255,255,255,0.6)', fontSize: 14 }}>{icon}</span>
+      <span className="sq-nums" style={{ fontWeight: 600 }}>{value}</span> {label}
+    </span>
   );
 }

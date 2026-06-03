@@ -8,9 +8,9 @@ import type { QuestionDto, QuestionStatsDto, PresenceDto, StudentAnswerDto } fro
 const { Text } = Typography;
 
 const CONFIDENCE_CONFIG = {
-  high: { bg: '#f0fdf4', border: '#86efac', color: '#16a34a', label: 'Tự tin cao' },
-  medium: { bg: '#fffbeb', border: '#fcd34d', color: '#d97706', label: 'Trung bình' },
-  low: { bg: '#fef2f2', border: '#fca5a5', color: '#dc2626', label: 'Chưa chắc' },
+  high: { bg: '#e7f6ef', border: '#a7e3cd', color: '#0ea672', label: 'Tự tin cao' },
+  medium: { bg: '#fbf0db', border: '#ecc15f', color: '#b87309', label: 'Trung bình' },
+  low: { bg: '#fceaef', border: '#f1a8bd', color: '#be123c', label: 'Chưa chắc' },
 };
 
 function formatAt(iso: string) {
@@ -30,12 +30,12 @@ function StudentAnswerCard({ name, avatarColor, answer, question }: CardProps) {
   const answered = !!answer;
   const conf = answer?.confidence ? CONFIDENCE_CONFIG[answer.confidence] : null;
 
-  let borderColor = '#e5e7eb';
-  let bgColor = '#f9fafb';
+  let borderColor = '#e7e3dc';
+  let bgColor = '#f3f1ec';
   if (answered) {
-    if (answer.isCorrect === true) { borderColor = '#b7eb8f'; bgColor = '#f6ffed'; }
-    else if (answer.isCorrect === false) { borderColor = '#ffccc7'; bgColor = '#fff2f0'; }
-    else { borderColor = '#c7d2fe'; bgColor = '#eef2ff'; }
+    if (answer.isCorrect === true) { borderColor = '#a7e3cd'; bgColor = '#e7f6ef'; }
+    else if (answer.isCorrect === false) { borderColor = '#f6c6d4'; bgColor = '#fceaef'; }
+    else { borderColor = '#c7d2fe'; bgColor = '#eceafd'; }
   }
 
   return (
@@ -50,7 +50,7 @@ function StudentAnswerCard({ name, avatarColor, answer, question }: CardProps) {
     >
       {/* Header row */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-        <Avatar size={26} style={{ background: avatarColor ?? '#6366f1', fontSize: 11, flexShrink: 0 }}>
+        <Avatar size={26} style={{ background: avatarColor ?? '#4f46e5', fontSize: 11, flexShrink: 0 }}>
           {name.charAt(0).toUpperCase()}
         </Avatar>
         <Text strong style={{ fontSize: 13, flex: 1, minWidth: 80 }}>
@@ -69,10 +69,10 @@ function StudentAnswerCard({ name, avatarColor, answer, question }: CardProps) {
         )}
 
         {answered && answer.isCorrect === true && (
-          <CheckCircleOutlined style={{ color: '#52c41a', fontSize: 15, flexShrink: 0 }} />
+          <CheckCircleOutlined style={{ color: '#0ea672', fontSize: 15, flexShrink: 0 }} />
         )}
         {answered && answer.isCorrect === false && (
-          <CloseCircleOutlined style={{ color: '#ff4d4f', fontSize: 15, flexShrink: 0 }} />
+          <CloseCircleOutlined style={{ color: '#e23d6d', fontSize: 15, flexShrink: 0 }} />
         )}
 
         {!answered && (
@@ -80,7 +80,7 @@ function StudentAnswerCard({ name, avatarColor, answer, question }: CardProps) {
         )}
 
         {answered && (
-          <Text style={{ fontSize: 11, color: '#9ca3af', flexShrink: 0 }}>
+          <Text style={{ fontSize: 11, color: '#a8a29e', flexShrink: 0 }}>
             {formatAt(answer.answeredAt)}
           </Text>
         )}
@@ -106,9 +106,9 @@ function StudentAnswerCard({ name, avatarColor, answer, question }: CardProps) {
         <div style={{ paddingLeft: 34, marginTop: 7 }}>
           <div
             style={{
-              fontSize: 13, lineHeight: 1.6, color: '#374151',
+              fontSize: 13, lineHeight: 1.6, color: '#1c1917',
               background: 'rgba(255,255,255,0.8)',
-              border: '1px solid #e5e7eb',
+              border: '1px solid #e7e3dc',
               borderRadius: 6,
               padding: '7px 10px',
               maxHeight: 220,
@@ -172,7 +172,7 @@ export default function StudentAnswersPanel({ sessionId, question, stats, presen
   const silentColorMap = new Map(stats.silentStudents.map((s) => [s.id, s.avatarColor]));
 
   const getColor = (id: string) =>
-    presenceColorMap.get(id) ?? silentColorMap.get(id) ?? '#6366f1';
+    presenceColorMap.get(id) ?? silentColorMap.get(id) ?? '#4f46e5';
 
   // Merge all known students: presence + answers + silentStudents
   const studentMap = new Map<string, { id: string; name: string; avatarColor?: string }>();
@@ -213,7 +213,7 @@ export default function StudentAnswersPanel({ sessionId, question, stats, presen
         <span
           style={{
             marginLeft: 6, fontSize: 11,
-            background: '#6366f1', color: '#fff',
+            background: '#4f46e5', color: '#fff',
             borderRadius: 10, padding: '1px 6px',
             fontWeight: 600,
           }}
@@ -253,11 +253,11 @@ export default function StudentAnswersPanel({ sessionId, question, stats, presen
                   {/* Summary + refresh */}
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
                     <Text type="secondary" style={{ fontSize: 12 }}>
-                      <span style={{ color: '#52c41a', fontWeight: 600 }}>{answeredStudents.length}</span>
+                      <span style={{ color: '#0ea672', fontWeight: 600 }}>{answeredStudents.length}</span>
                       /{allStudents.length} học sinh đã trả lời
                     </Text>
                     <Text
-                      style={{ fontSize: 12, color: '#6366f1', cursor: 'pointer' }}
+                      style={{ fontSize: 12, color: '#4f46e5', cursor: 'pointer' }}
                       onClick={() => void fetchAnswers()}
                     >
                       Làm mới
@@ -268,8 +268,8 @@ export default function StudentAnswersPanel({ sessionId, question, stats, presen
                   {answeredStudents.length > 0 && (
                     <div style={{ marginBottom: 10 }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 6 }}>
-                        <div style={{ width: 3, height: 13, borderRadius: 2, background: '#52c41a' }} />
-                        <Text style={{ fontSize: 11, color: '#52c41a', fontWeight: 700, letterSpacing: 0.3 }}>
+                        <div style={{ width: 3, height: 13, borderRadius: 2, background: '#0ea672' }} />
+                        <Text style={{ fontSize: 11, color: '#0ea672', fontWeight: 700, letterSpacing: 0.3 }}>
                           ĐÃ TRẢ LỜI ({answeredStudents.length})
                         </Text>
                       </div>
@@ -292,8 +292,8 @@ export default function StudentAnswersPanel({ sessionId, question, stats, presen
                     <div>
                       {answeredStudents.length > 0 && <Divider style={{ margin: '8px 0' }} />}
                       <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 6 }}>
-                        <div style={{ width: 3, height: 13, borderRadius: 2, background: '#d1d5db' }} />
-                        <Text style={{ fontSize: 11, color: '#9ca3af', fontWeight: 700, letterSpacing: 0.3 }}>
+                        <div style={{ width: 3, height: 13, borderRadius: 2, background: '#d8d3c9' }} />
+                        <Text style={{ fontSize: 11, color: '#a8a29e', fontWeight: 700, letterSpacing: 0.3 }}>
                           CHƯA TRẢ LỜI ({unansweredStudents.length})
                         </Text>
                       </div>

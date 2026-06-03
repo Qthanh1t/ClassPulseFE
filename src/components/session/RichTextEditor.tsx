@@ -401,7 +401,7 @@ export default function RichTextEditor({
       <style>{`
         /* ── Container chrome ── */
         #${scopeId} .ck.ck-editor      { border:none; box-shadow:none !important; border-radius:0; }
-        #${scopeId} .ck.ck-toolbar     { border:none !important; border-radius:0 !important; background:#fafafa; border-bottom:1px solid #f0f0f0 !important; }
+        #${scopeId} .ck.ck-toolbar     { border:none !important; border-radius:0 !important; background:#f3f1ec; border-bottom:1px solid #e7e3dc !important; }
         #${scopeId} .ck-editor__main > .ck-editor__editable {
           min-height:${minHeight}px;
           border:none !important;
@@ -428,7 +428,7 @@ export default function RichTextEditor({
 
         /* ── Math widget: give the widget a hover outline so users know it's selectable ── */
         #${scopeId} .ck-editor__editable .sq-math.ck-widget { outline:none; cursor:default; }
-        #${scopeId} .ck-editor__editable .sq-math.ck-widget.ck-widget_selected { outline:2px solid #6366f1; border-radius:3px; }
+        #${scopeId} .ck-editor__editable .sq-math.ck-widget.ck-widget_selected { outline:2px solid #4f46e5; border-radius:3px; }
       `}</style>
 
       {/* Math modal */}
@@ -441,15 +441,15 @@ export default function RichTextEditor({
         cancelText="Huỷ"
         okButtonProps={{
           disabled: !latex.trim() || !!mathError,
-          style: { background: 'linear-gradient(135deg, #6366f1, #8b5cf6)', border: 'none' },
+          style: { background: '#4f46e5', border: 'none' },
         }}
         width={520}
         destroyOnHidden
       >
         <div style={{ marginBottom: 10, display: 'flex', alignItems: 'center', gap: 8 }}>
-          <span style={{ fontSize: 13, color: '#64748b' }}>Inline</span>
+          <span style={{ fontSize: 13, color: '#57534e' }}>Inline</span>
           <Switch size="small" checked={isBlock} onChange={setIsBlock} />
-          <span style={{ fontSize: 13, color: '#64748b' }}>Block (dòng riêng)</span>
+          <span style={{ fontSize: 13, color: '#57534e' }}>Block (dòng riêng)</span>
         </div>
 
         <Input.TextArea
@@ -465,16 +465,16 @@ export default function RichTextEditor({
         <div style={{
           minHeight: 52,
           padding: '10px 14px',
-          border: `1px solid ${mathError ? '#fca5a5' : '#e2e8f0'}`,
+          border: `1px solid ${mathError ? '#f1a8bd' : '#e7e3dc'}`,
           borderRadius: 8,
-          background: mathError ? '#fff5f5' : '#f8fafc',
+          background: mathError ? '#fceaef' : '#f3f1ec',
           overflowX: 'auto',
           transition: 'border-color 0.2s, background 0.2s',
         }}>
           {mathError
             ? (
               <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-                <span style={{ color: '#f43f5e', fontSize: 12, fontWeight: 600 }}>
+                <span style={{ color: '#e23d6d', fontSize: 12, fontWeight: 600 }}>
                   Lỗi cú pháp LaTeX
                 </span>
                 <code style={{
@@ -491,7 +491,7 @@ export default function RichTextEditor({
             )
             : mathPreview
               ? <span dangerouslySetInnerHTML={{ __html: mathPreview }} />
-              : <span style={{ color: '#94a3b8', fontSize: 13 }}>Xem trước công thức...</span>
+              : <span style={{ color: '#a8a29e', fontSize: 13 }}>Xem trước công thức...</span>
           }
         </div>
       </Modal>
@@ -513,20 +513,20 @@ export default function RichTextEditor({
       <div
         id={scopeId}
         style={{
-          border: '1px solid #d9d9d9',
+          border: '1px solid #e7e3dc',
           borderRadius: 8,
           overflow: 'clip',
           transition: 'border-color 0.2s, box-shadow 0.2s',
         }}
         onFocus={e => {
           const el = e.currentTarget as HTMLDivElement;
-          el.style.borderColor = '#6366f1';
-          el.style.boxShadow   = '0 0 0 2px rgba(99,102,241,0.15)';
+          el.style.borderColor = '#4f46e5';
+          el.style.boxShadow   = '0 0 0 2px rgba(79,70,229,0.15)';
         }}
         onBlur={e => {
           if (!e.currentTarget.contains(e.relatedTarget as Node)) {
             const el = e.currentTarget as HTMLDivElement;
-            el.style.borderColor = '#d9d9d9';
+            el.style.borderColor = '#e7e3dc';
             el.style.boxShadow   = 'none';
           }
         }}
@@ -536,8 +536,8 @@ export default function RichTextEditor({
           display: 'flex',
           gap: 4,
           padding: '4px 8px',
-          background: '#fafafa',
-          borderBottom: '1px solid #f0f0f0',
+          background: '#f3f1ec',
+          borderBottom: '1px solid #e7e3dc',
         }}>
           <Tooltip title="Chèn công thức LaTeX / KaTeX" mouseEnterDelay={0.5}>
             <Button
@@ -545,7 +545,7 @@ export default function RichTextEditor({
               type="text"
               icon={<FunctionOutlined />}
               onClick={handleOpenMath}
-              style={{ borderRadius: 4, fontSize: 12, color: '#64748b' }}
+              style={{ borderRadius: 4, fontSize: 12, color: '#57534e' }}
             >
               Math
             </Button>
@@ -556,7 +556,7 @@ export default function RichTextEditor({
               type="text"
               icon={<PaperClipOutlined />}
               onClick={() => fileInputRef.current?.click()}
-              style={{ borderRadius: 4, fontSize: 12, color: '#64748b' }}
+              style={{ borderRadius: 4, fontSize: 12, color: '#57534e' }}
             >
               Đính kèm
             </Button>
@@ -600,7 +600,7 @@ export default function RichTextEditor({
         {/* Attachment list — outside editor, non-editable */}
         {attachments.length > 0 && (
           <div style={{
-            borderTop: '1px solid #f0f0f0',
+            borderTop: '1px solid #e7e3dc',
             padding: '8px 10px',
             display: 'flex',
             flexWrap: 'wrap',
@@ -620,9 +620,9 @@ export default function RichTextEditor({
                     alignItems: 'center',
                     gap: 5,
                     padding: '4px 8px 4px 6px',
-                    border: '1px solid #e2e8f0',
+                    border: '1px solid #e7e3dc',
                     borderRadius: 6,
-                    background: '#f8fafc',
+                    background: '#f3f1ec',
                     fontSize: 12,
                     maxWidth: 260,
                   }}
@@ -633,7 +633,7 @@ export default function RichTextEditor({
                     target="_blank"
                     rel="noopener noreferrer"
                     style={{
-                      color: '#6366f1',
+                      color: '#4f46e5',
                       fontWeight: 500,
                       textDecoration: 'none',
                       overflow: 'hidden',
@@ -645,7 +645,7 @@ export default function RichTextEditor({
                   >
                     {att.name}
                   </a>
-                  <span style={{ color: '#94a3b8', whiteSpace: 'nowrap', flexShrink: 0 }}>
+                  <span style={{ color: '#a8a29e', whiteSpace: 'nowrap', flexShrink: 0 }}>
                     {att.size}
                   </span>
                   <button
@@ -655,7 +655,7 @@ export default function RichTextEditor({
                       border: 'none',
                       background: 'none',
                       cursor: 'pointer',
-                      color: '#94a3b8',
+                      color: '#a8a29e',
                       padding: '0 0 0 2px',
                       fontSize: 14,
                       lineHeight: 1,

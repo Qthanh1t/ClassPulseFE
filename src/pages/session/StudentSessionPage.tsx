@@ -42,7 +42,7 @@ function dtoToChat(dto: ChatMessageDto): ChatMessage {
     id: dto.id,
     senderId: dto.sender.id,
     senderName: dto.sender.name,
-    avatarColor: dto.sender.avatarColor ?? '#6366f1',
+    avatarColor: dto.sender.avatarColor ?? '#4f46e5',
     content: dto.content,
     time,
     isTeacher: dto.sender.role === 'teacher',
@@ -481,7 +481,7 @@ export default function StudentSessionPage() {
   const essayHasContent = essayText.replace(/<[^>]*>/g, '').trim().length > 0;
   const canSubmit = selectedOptions.length > 0 || essayHasContent;
   const myRaisedHand = raisedHandIds.includes(me?.id ?? '');
-  const myAvatarColor = me?.avatarColor ?? '#6366f1';
+  const myAvatarColor = me?.avatarColor ?? '#4f46e5';
   const iAmFocused = focusedStudentId === me?.id;
 
   const teacherPeer = teacherIdRef.current ? rtc.peers.get(teacherIdRef.current) : undefined;
@@ -577,7 +577,7 @@ export default function StudentSessionPage() {
   // Always include self from authStore — getPresence may not return the current student's own entry
   const participants = [
     { id: 'teacher', name: joinInfo?.teacherName ?? 'Giáo viên', isTeacher: true as const, isOnline: true },
-    ...(me ? [{ id: me.id, name: me.name ?? 'Học sinh', avatarColor: me.avatarColor ?? '#6366f1', isOnline: true }] : []),
+    ...(me ? [{ id: me.id, name: me.name ?? 'Học sinh', avatarColor: me.avatarColor ?? '#4f46e5', isOnline: true }] : []),
     ...presence
       .filter((p) => p.isOnline && p.studentId !== me?.id)
       .map((p) => ({
@@ -617,7 +617,7 @@ export default function StudentSessionPage() {
 
   if (loading) {
     return (
-      <div style={{ height: '100vh', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', background: '#1a1a2e', gap: 16 }}>
+      <div style={{ height: '100vh', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', background: '#1e1b3a', gap: 16 }}>
         <Spin size="large" />
         <Text style={{ color: 'rgba(255,255,255,0.7)', fontSize: 14 }}>Đang tham gia buổi học...</Text>
       </div>
@@ -626,7 +626,7 @@ export default function StudentSessionPage() {
 
   if (!joinInfo) {
     return (
-      <div style={{ height: '100vh', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', background: '#1a1a2e', gap: 16 }}>
+      <div style={{ height: '100vh', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', background: '#1e1b3a', gap: 16 }}>
         <Text style={{ color: 'rgba(255,255,255,0.7)', fontSize: 16 }}>Không có buổi học đang diễn ra.</Text>
         <Button onClick={() => navigate('/classes')}>Về trang chủ</Button>
       </div>
@@ -635,7 +635,7 @@ export default function StudentSessionPage() {
 
   // ── Render ────────────────────────────────────────────────────────
   return (
-    <div style={{ height: '100vh', display: 'flex', flexDirection: 'column', background: '#1a1a2e', overflow: 'hidden' }}>
+    <div style={{ height: '100vh', display: 'flex', flexDirection: 'column', background: '#1e1b3a', overflow: 'hidden' }}>
 
       {/* ─── Top header ─── */}
       <div style={{ height: 52, background: 'rgba(0,0,0,0.5)', backdropFilter: 'blur(8px)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 16px', flexShrink: 0, gap: 12, zIndex: 10 }}>
@@ -664,7 +664,7 @@ export default function StudentSessionPage() {
             </Tag>
           )}
           {runningQuestion && !questionPanelOpen && (
-            <Button size="small" type="primary" style={{ background: '#6366f1', borderColor: '#6366f1', fontSize: 12 }} onClick={() => setQuestionPanelOpen(true)}>
+            <Button size="small" type="primary" style={{ background: '#4f46e5', borderColor: '#4f46e5', fontSize: 12 }} onClick={() => setQuestionPanelOpen(true)}>
               📝 Câu hỏi đang chờ
             </Button>
           )}
@@ -715,11 +715,11 @@ export default function StudentSessionPage() {
                 /* ── Focus / Spotlight mode: 2-column grid teacher | focused student ── */
                 <div style={{ flex: 1, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, minHeight: 0 }}>
                   {/* Teacher tile */}
-                  <div style={{ borderRadius: 12, overflow: 'hidden', position: 'relative', border: '2px solid rgba(99,102,241,0.4)' }}>
+                  <div style={{ borderRadius: 12, overflow: 'hidden', position: 'relative', border: '2px solid rgba(79,70,229,0.4)' }}>
                     <VideoTile
                       stream={teacherPeer?.remoteStream ?? null}
                       name={joinInfo.teacherName}
-                      avatarColor="#6366f1"
+                      avatarColor="#4f46e5"
                       isTeacher
                       isCameraOff={teacherPeer?.isCameraOff}
                       borderRadius={10}
@@ -731,7 +731,7 @@ export default function StudentSessionPage() {
                   </div>
 
                   {/* Focused student tile */}
-                  <div style={{ borderRadius: 12, overflow: 'hidden', border: '2px solid #6366f1', position: 'relative' }}>
+                  <div style={{ borderRadius: 12, overflow: 'hidden', border: '2px solid #4f46e5', position: 'relative' }}>
                     <VideoTile
                       stream={focusedStudentId === me?.id ? localMedia.stream : (rtc.peers.get(focusedStudentId)?.remoteStream ?? null)}
                       name={focusedStudentId === me?.id ? (me?.name ?? 'Bạn') : (presence.find((p) => p.studentId === focusedStudentId)?.name ?? 'Học sinh')}
@@ -757,14 +757,14 @@ export default function StudentSessionPage() {
                   <VideoTile
                     stream={teacherPeer?.remoteStream ?? null}
                     name={joinInfo.teacherName}
-                    avatarColor="#6366f1"
+                    avatarColor="#4f46e5"
                     isTeacher
                     isCameraOff={teacherPeer?.isCameraOff}
                     borderRadius={12}
                   >
                     {screenShareOn && (
                       <div style={{ position: 'absolute', top: 10, left: 12, background: 'rgba(0,0,0,0.6)', padding: '3px 10px', borderRadius: 6, display: 'flex', alignItems: 'center', gap: 6, zIndex: 3 }}>
-                        <DesktopOutlined style={{ color: '#52c41a', fontSize: 12 }} />
+                        <DesktopOutlined style={{ color: '#0ea672', fontSize: 12 }} />
                         <Text style={{ color: '#fff', fontSize: 12 }}>Đang chia sẻ màn hình</Text>
                       </div>
                     )}
@@ -829,8 +829,8 @@ export default function StudentSessionPage() {
           {/* ── Breakout: group member grid ── */}
           {isBreakout && myRoom && (
             <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 10, overflow: 'hidden' }}>
-              <div style={{ background: 'linear-gradient(135deg, #6366f122, #4f46e522)', border: '1px solid #6366f144', borderRadius: 10, padding: '8px 16px', display: 'flex', alignItems: 'center', gap: 12, flexShrink: 0 }}>
-                <TeamOutlined style={{ color: '#6366f1', fontSize: 16 }} />
+              <div style={{ background: '#4f46e522', border: '1px solid #4f46e544', borderRadius: 10, padding: '8px 16px', display: 'flex', alignItems: 'center', gap: 12, flexShrink: 0 }}>
+                <TeamOutlined style={{ color: '#4f46e5', fontSize: 16 }} />
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <Text strong style={{ color: '#a5b4fc', fontSize: 13 }}>{myRoom.name}</Text>
                   {myRoom.task && (
@@ -846,12 +846,12 @@ export default function StudentSessionPage() {
                     <VideoTile
                       stream={teacherPeer?.remoteStream ?? null}
                       name={joinInfo.teacherName}
-                      avatarColor="#6366f1"
+                      avatarColor="#4f46e5"
                       isTeacher
                       isCameraOff={teacherPeer?.isCameraOff}
                       borderRadius={10}
                     >
-                      <div style={{ position: 'absolute', top: 6, left: 8, background: 'rgba(99,102,241,0.85)', borderRadius: 4, padding: '1px 8px', zIndex: 3 }}>
+                      <div style={{ position: 'absolute', top: 6, left: 8, background: 'rgba(79,70,229,0.85)', borderRadius: 4, padding: '1px 8px', zIndex: 3 }}>
                         <Text style={{ color: '#fff', fontSize: 10, fontWeight: 600 }}>GV</Text>
                       </div>
                     </VideoTile>
@@ -893,7 +893,7 @@ export default function StudentSessionPage() {
           {runningQuestion && questionPanelOpen && (
             <div className={compact ? 'sq-panel-overlay-up' : undefined} style={questionPanelStyle}>
               {/* Header */}
-              <div style={{ padding: '10px 14px', background: 'linear-gradient(135deg, #6366f1, #4f46e5)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexShrink: 0 }}>
+              <div style={{ padding: '10px 14px', background: '#4f46e5', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexShrink: 0 }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0 }}>
                   <Text strong style={{ color: '#fff', fontSize: 13, whiteSpace: 'nowrap' }}>📝 Câu hỏi</Text>
                   <Tag color="gold" style={{ fontSize: 11, padding: '0 6px', flexShrink: 0 }}>
@@ -944,7 +944,7 @@ export default function StudentSessionPage() {
                         <div
                           key={opt.id}
                           onClick={() => handleSelectSingle(opt.id)}
-                          style={{ padding: '10px 12px', border: `2px solid ${selectedOptions.includes(opt.id) ? '#6366f1' : '#e8e8e8'}`, borderRadius: 8, cursor: questionSubmitted ? 'default' : 'pointer', background: selectedOptions.includes(opt.id) ? '#eef2ff' : '#fafafa', display: 'flex', alignItems: 'center', gap: 8, transition: 'all 0.15s' }}
+                          style={{ padding: '10px 12px', border: `2px solid ${selectedOptions.includes(opt.id) ? '#4f46e5' : '#e7e3dc'}`, borderRadius: 8, cursor: questionSubmitted ? 'default' : 'pointer', background: selectedOptions.includes(opt.id) ? '#eceafd' : '#f3f1ec', display: 'flex', alignItems: 'center', gap: 8, transition: 'all 0.15s' }}
                         >
                           <Radio value={opt.id} />
                           <Tag style={{ minWidth: 24, textAlign: 'center', margin: 0, fontSize: 11 }}>{opt.label}</Tag>
@@ -961,7 +961,7 @@ export default function StudentSessionPage() {
                       <div
                         key={opt.id}
                         onClick={() => handleSelectMultiple(opt.id)}
-                        style={{ padding: '10px 12px', border: `2px solid ${selectedOptions.includes(opt.id) ? '#6366f1' : '#e8e8e8'}`, borderRadius: 8, cursor: questionSubmitted ? 'default' : 'pointer', background: selectedOptions.includes(opt.id) ? '#eef2ff' : '#fafafa', display: 'flex', alignItems: 'center', gap: 8 }}
+                        style={{ padding: '10px 12px', border: `2px solid ${selectedOptions.includes(opt.id) ? '#4f46e5' : '#e7e3dc'}`, borderRadius: 8, cursor: questionSubmitted ? 'default' : 'pointer', background: selectedOptions.includes(opt.id) ? '#eceafd' : '#f3f1ec', display: 'flex', alignItems: 'center', gap: 8 }}
                       >
                         <Checkbox checked={selectedOptions.includes(opt.id)} />
                         <Tag style={{ minWidth: 24, textAlign: 'center', margin: 0, fontSize: 11 }}>{opt.label}</Tag>
@@ -975,8 +975,8 @@ export default function StudentSessionPage() {
                   questionSubmitted ? (
                     <div
                       className="ck-content"
-                      style={{ fontSize: 13, lineHeight: 1.6, padding: '8px 12px', background: '#f8fafc', borderRadius: 8, border: '1px solid #e2e8f0', minHeight: 64 }}
-                      dangerouslySetInnerHTML={{ __html: essayText || '<span style="color:#94a3b8">Không có câu trả lời</span>' }}
+                      style={{ fontSize: 13, lineHeight: 1.6, padding: '8px 12px', background: '#f3f1ec', borderRadius: 8, border: '1px solid #e7e3dc', minHeight: 64 }}
+                      dangerouslySetInnerHTML={{ __html: essayText || '<span style="color:#a8a29e">Không có câu trả lời</span>' }}
                     />
                   ) : (
                     <RichTextEditor onChange={setEssayText} placeholder="Nhập câu trả lời của bạn..." minHeight={panelExpanded ? 180 : 100} />
@@ -991,7 +991,7 @@ export default function StudentSessionPage() {
               </div>
 
               {/* Footer */}
-              <div style={{ padding: '12px 14px', borderTop: '1px solid #f0f0f0', flexShrink: 0 }}>
+              <div style={{ padding: '12px 14px', borderTop: '1px solid #e7e3dc', flexShrink: 0 }}>
                 {!questionSubmitted ? (
                   <Button type="primary" icon={<SendOutlined />} block onClick={handleSubmit} disabled={!canSubmit} style={{ borderRadius: 8, fontWeight: 600 }}>
                     Gửi câu trả lời
@@ -999,8 +999,8 @@ export default function StudentSessionPage() {
                 ) : (
                   <div style={{ textAlign: 'center' }}>
                     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, marginBottom: 4 }}>
-                      <CheckCircleOutlined style={{ color: '#52c41a', fontSize: 18 }} />
-                      <Text strong style={{ color: '#52c41a' }}>Đã gửi câu trả lời!</Text>
+                      <CheckCircleOutlined style={{ color: '#0ea672', fontSize: 18 }} />
+                      <Text strong style={{ color: '#0ea672' }}>Đã gửi câu trả lời!</Text>
                     </div>
                     <Text type="secondary" style={{ fontSize: 12 }}>
                       <ClockCircleOutlined style={{ marginRight: 4 }} />
@@ -1086,7 +1086,7 @@ export default function StudentSessionPage() {
 
       {/* ── Leave confirm modal ── */}
       <Modal
-        title={<div style={{ display: 'flex', alignItems: 'center', gap: 8 }}><ExclamationCircleOutlined style={{ color: '#faad14', fontSize: 18 }} /><span>Rời khỏi lớp học?</span></div>}
+        title={<div style={{ display: 'flex', alignItems: 'center', gap: 8 }}><ExclamationCircleOutlined style={{ color: '#e08c0b', fontSize: 18 }} /><span>Rời khỏi lớp học?</span></div>}
         open={leaveOpen}
         onOk={handleLeave}
         onCancel={() => setLeaveOpen(false)}
@@ -1096,7 +1096,7 @@ export default function StudentSessionPage() {
         centered
         width={400}
       >
-        <p style={{ color: '#595959', margin: '8px 0' }}>Bạn sẽ rời buổi học và xem lại kết quả của mình.</p>
+        <p style={{ color: '#57534e', margin: '8px 0' }}>Bạn sẽ rời buổi học và xem lại kết quả của mình.</p>
       </Modal>
 
       {/* ── New question notification ── */}

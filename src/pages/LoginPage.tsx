@@ -1,15 +1,15 @@
 import { useState } from 'react';
-import { Button, Input, Typography, Tag, message } from 'antd';
+import { Button, Input, message } from 'antd';
 import {
   BookOutlined, UserOutlined, TeamOutlined,
   CheckCircleFilled, BarChartOutlined, ClockCircleOutlined,
-  SafetyCertificateOutlined, LockOutlined,
+  SafetyCertificateOutlined, LockOutlined, ArrowRightOutlined,
 } from '@ant-design/icons';
 import { useNavigate } from 'react-router-dom';
 import { authService } from '../services/auth.service';
 import { useAuthStore } from '../store/authStore';
-
-const { Title, Text } = Typography;
+import { useBreakpoint } from '../hooks/useBreakpoint';
+import { color } from '../theme/tokens';
 
 type RoleChoice = 'teacher' | 'student' | null;
 
@@ -17,7 +17,7 @@ const FEATURES = [
   { icon: <BarChartOutlined />, text: 'Dashboard thời gian thực theo từng câu hỏi' },
   { icon: <ClockCircleOutlined />, text: 'Phát hiện học sinh không trả lời câu hỏi' },
   { icon: <TeamOutlined />, text: 'Breakout room & micro task cho nhóm nhỏ' },
-  { icon: <SafetyCertificateOutlined />, text: 'Trả lời kèm mức độ tự tin (Thấp / Trung bình / Cao)' },
+  { icon: <SafetyCertificateOutlined />, text: 'Trả lời kèm mức độ tự tin (thấp / trung bình / cao)' },
 ];
 
 const DEMO_CREDENTIALS = {
@@ -28,28 +28,31 @@ const DEMO_CREDENTIALS = {
 export default function LoginPage() {
   const navigate = useNavigate();
   const setAuth = useAuthStore((s) => s.setAuth);
+  const { isMobile, isTablet } = useBreakpoint();
+  const showBrandPanel = !isMobile && !isTablet;
 
   const [role, setRole] = useState<RoleChoice>(null);
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [errors, setErrors] = useState<{ role?: string; email?: string; password?: string }>({});
   const [loading, setLoading] = useState(false);
   const [messageApi, contextHolder] = message.useMessage();
 
-  const getEmail = () =>
-    (document.getElementById('login-email') as HTMLInputElement | null)?.value ?? '';
-  const getPassword = () =>
-    (document.getElementById('login-password') as HTMLInputElement | null)?.value ?? '';
+  function validate(): boolean {
+    const next: typeof errors = {};
+    if (!role) next.role = 'Vui lòng chọn vai trò';
+    if (!email.trim()) next.email = 'Nhập email của bạn';
+    else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) next.email = 'Email không hợp lệ';
+    if (!password) next.password = 'Nhập mật khẩu';
+    setErrors(next);
+    return Object.keys(next).length === 0;
+  }
 
   async function handleLogin() {
-    if (!role) return;
-    const email = getEmail().trim();
-    const password = getPassword().trim();
-    if (!email || !password) {
-      messageApi.warning('Vui lòng nhập email và mật khẩu');
-      return;
-    }
-
+    if (!validate()) return;
     setLoading(true);
     try {
-      const result = await authService.login({ email, password });
+      const result = await authService.login({ email: email.trim(), password });
       setAuth(result.user, result.accessToken);
       navigate('/classes');
     } catch (err: unknown) {
@@ -64,140 +67,165 @@ export default function LoginPage() {
   function fillDemo() {
     if (!role) return;
     const creds = DEMO_CREDENTIALS[role];
-    const emailEl = document.getElementById('login-email') as HTMLInputElement | null;
-    const pwEl = document.getElementById('login-password') as HTMLInputElement | null;
-    if (emailEl) emailEl.value = creds.email;
-    if (pwEl) pwEl.value = creds.password;
+    setEmail(creds.email);
+    setPassword(creds.password);
+    setErrors({});
   }
 
   return (
-    <div style={{ display: 'flex', minHeight: '100vh', fontFamily: "'Outfit', sans-serif" }}>
+    <div style={{ display: 'flex', minHeight: '100dvh', background: color.bg }}>
       {contextHolder}
 
-      {/* ── Left: Brand panel ── */}
-      <div
-        style={{
-          flex: '0 0 480px',
-          background: 'linear-gradient(145deg, #4338ca 0%, #6366f1 50%, #8b5cf6 100%)',
-          display: 'flex',
-          flexDirection: 'column',
-          padding: '48px 44px',
-          position: 'relative',
-          overflow: 'hidden',
-        }}
-      >
-        <div style={{ position: 'absolute', right: -60, top: -60, width: 240, height: 240, borderRadius: '50%', background: 'rgba(255,255,255,0.06)' }} />
-        <div style={{ position: 'absolute', left: -40, bottom: -80, width: 280, height: 280, borderRadius: '50%', background: 'rgba(255,255,255,0.05)' }} />
-        <div style={{ position: 'absolute', right: 40, bottom: 120, width: 120, height: 120, borderRadius: '50%', background: 'rgba(255,255,255,0.07)' }} />
+      {/* ── Left: Brand panel (desktop only) ── */}
+      {showBrandPanel && (
+        <div
+          style={{
+            flex: '0 0 460px',
+            background: '#1e1b3a',
+            display: 'flex',
+            flexDirection: 'column',
+            padding: '48px 44px',
+            position: 'relative',
+            overflow: 'hidden',
+          }}
+        >
+          <div className="sq-noise" />
+          {/* soft ambient accent glow, not a 45° gradient */}
+          <div
+            style={{
+              position: 'absolute', right: -120, top: -80, width: 360, height: 360,
+              borderRadius: '50%', background: 'radial-gradient(circle, rgba(79,70,229,0.45), transparent 70%)',
+            }}
+          />
+          <div
+            style={{
+              position: 'absolute', left: -100, bottom: -60, width: 320, height: 320,
+              borderRadius: '50%', background: 'radial-gradient(circle, rgba(79,70,229,0.18), transparent 70%)',
+            }}
+          />
 
-        <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 56, position: 'relative' }}>
-          <div style={{ width: 44, height: 44, background: 'rgba(255,255,255,0.2)', borderRadius: 12, display: 'flex', alignItems: 'center', justifyContent: 'center', backdropFilter: 'blur(8px)', border: '1px solid rgba(255,255,255,0.3)' }}>
-            <BookOutlined style={{ color: '#fff', fontSize: 20 }} />
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 56, position: 'relative' }}>
+            <div style={{ width: 44, height: 44, background: 'rgba(255,255,255,0.12)', borderRadius: 12, display: 'flex', alignItems: 'center', justifyContent: 'center', border: '1px solid rgba(255,255,255,0.18)' }}>
+              <BookOutlined style={{ color: '#fff', fontSize: 20 }} />
+            </div>
+            <span style={{ fontSize: 22, fontWeight: 700, color: '#fff', letterSpacing: '-0.03em' }}>ClassPulse</span>
           </div>
-          <span style={{ fontSize: 22, fontWeight: 700, color: '#fff', letterSpacing: '-0.3px' }}>ClassPulse</span>
-        </div>
 
-        <div style={{ flex: 1, position: 'relative' }}>
-          <Title level={2} style={{ color: '#fff', margin: '0 0 12px', fontSize: 32, fontWeight: 700, lineHeight: 1.25, letterSpacing: '-0.5px' }}>
-            Lớp học thông minh<br />dành cho nhóm nhỏ
-          </Title>
-          <Text style={{ color: 'rgba(255,255,255,0.75)', fontSize: 15, lineHeight: 1.6, display: 'block', marginBottom: 36 }}>
-            Mô hình <strong style={{ color: '#e0e7ff' }}>Closed Feedback Loop</strong> — giáo viên đặt câu hỏi, học sinh trả lời kèm mức độ tự tin, hệ thống phân tích realtime.
-          </Text>
+          <div style={{ flex: 1, position: 'relative' }}>
+            <h1 style={{ color: '#fff', margin: '0 0 14px', fontSize: 34, fontWeight: 700, lineHeight: 1.2, letterSpacing: '-0.03em' }}>
+              Lớp học thông minh<br />dành cho nhóm nhỏ
+            </h1>
+            <p style={{ color: 'rgba(255,255,255,0.66)', fontSize: 15, lineHeight: 1.6, margin: '0 0 36px', maxWidth: 360 }}>
+              Mô hình <strong style={{ color: '#cfcafe', fontWeight: 600 }}>Closed Feedback Loop</strong>: giáo viên đặt câu hỏi, học sinh trả lời kèm mức độ tự tin, hệ thống phân tích realtime.
+            </p>
 
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-            {FEATURES.map((f, i) => (
-              <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                <div style={{ width: 32, height: 32, borderRadius: 8, background: 'rgba(255,255,255,0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#e0e7ff', fontSize: 14, flexShrink: 0 }}>
-                  {f.icon}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+              {FEATURES.map((f, i) => (
+                <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                  <div style={{ width: 34, height: 34, borderRadius: 9, background: 'rgba(255,255,255,0.10)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#cfcafe', fontSize: 15, flexShrink: 0 }}>
+                    {f.icon}
+                  </div>
+                  <span style={{ color: 'rgba(255,255,255,0.82)', fontSize: 13.5 }}>{f.text}</span>
                 </div>
-                <Text style={{ color: 'rgba(255,255,255,0.85)', fontSize: 13.5 }}>{f.text}</Text>
-              </div>
-            ))}
+              ))}
+            </div>
+          </div>
+
+          <div style={{ position: 'relative', color: 'rgba(255,255,255,0.4)', fontSize: 12 }}>
+            Đồ án tốt nghiệp · Nền tảng tương tác realtime
           </div>
         </div>
-      </div>
+      )}
 
       {/* ── Right: Login form ── */}
-      <div style={{ flex: 1, background: '#f8fafc', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '40px 32px' }}>
+      <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: isMobile ? '32px 20px' : '40px 32px' }}>
         <div style={{ width: '100%', maxWidth: 400 }}>
+          {/* Mobile brand mark */}
+          {!showBrandPanel && (
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, justifyContent: 'center', marginBottom: 24 }}>
+              <div style={{ width: 38, height: 38, background: color.primary, borderRadius: 10, display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 2px 8px rgba(79,70,229,0.3)' }}>
+                <BookOutlined style={{ color: '#fff', fontSize: 18 }} />
+              </div>
+              <span style={{ fontSize: 20, fontWeight: 700, color: color.text, letterSpacing: '-0.03em' }}>ClassPulse</span>
+            </div>
+          )}
 
-          <Title level={3} style={{ margin: '0 0 6px', fontSize: 24, fontWeight: 700, color: '#0f172a', textAlign: 'center' }}>
+          <h2 style={{ margin: '0 0 6px', fontSize: 24, fontWeight: 700, color: color.text, textAlign: 'center' }}>
             Chào mừng trở lại
-          </Title>
-          <Text type="secondary" style={{ display: 'block', textAlign: 'center', marginBottom: 28, fontSize: 14 }}>
-            Đăng nhập để bắt đầu
-          </Text>
+          </h2>
+          <p style={{ textAlign: 'center', margin: '0 0 28px', fontSize: 14, color: color.textSecondary }}>
+            Chọn vai trò và đăng nhập để bắt đầu
+          </p>
 
           {/* Role cards */}
-          <div style={{ display: 'flex', gap: 12, marginBottom: 24 }}>
-            <button
-              onClick={() => { setRole('teacher'); }}
-              style={{
-                flex: 1, padding: '16px 12px', borderRadius: 12,
-                border: `2px solid ${role === 'teacher' ? '#6366f1' : '#e2e8f0'}`,
-                background: role === 'teacher' ? '#eef2ff' : '#fff',
-                cursor: 'pointer', textAlign: 'center', transition: 'all 0.15s', fontFamily: 'inherit',
-              }}
-            >
-              <div style={{ fontSize: 28, marginBottom: 6 }}>👩‍🏫</div>
-              <div style={{ fontSize: 14, fontWeight: 600, color: role === 'teacher' ? '#6366f1' : '#0f172a', marginBottom: 3 }}>Giáo viên</div>
-              <div style={{ fontSize: 11, color: '#94a3b8' }}>Quản lý lớp & câu hỏi</div>
-              {role === 'teacher' && <CheckCircleFilled style={{ color: '#6366f1', fontSize: 14, marginTop: 6, display: 'block' }} />}
-            </button>
-
-            <button
-              onClick={() => { setRole('student'); }}
-              style={{
-                flex: 1, padding: '16px 12px', borderRadius: 12,
-                border: `2px solid ${role === 'student' ? '#10b981' : '#e2e8f0'}`,
-                background: role === 'student' ? '#f0fdf4' : '#fff',
-                cursor: 'pointer', textAlign: 'center', transition: 'all 0.15s', fontFamily: 'inherit',
-              }}
-            >
-              <div style={{ fontSize: 28, marginBottom: 6 }}>🧑‍💻</div>
-              <div style={{ fontSize: 14, fontWeight: 600, color: role === 'student' ? '#10b981' : '#0f172a', marginBottom: 3 }}>Học sinh</div>
-              <div style={{ fontSize: 11, color: '#94a3b8' }}>Tham gia & trả lời</div>
-              {role === 'student' && <CheckCircleFilled style={{ color: '#10b981', fontSize: 14, marginTop: 6, display: 'block' }} />}
-            </button>
+          <div style={{ display: 'flex', gap: 12, marginBottom: errors.role ? 6 : 24 }}>
+            <RoleCard
+              emoji="👩‍🏫"
+              title="Giáo viên"
+              subtitle="Quản lý lớp & câu hỏi"
+              active={role === 'teacher'}
+              accent={color.primary}
+              activeBg={color.primaryLight}
+              onClick={() => { setRole('teacher'); setErrors((e) => ({ ...e, role: undefined })); }}
+            />
+            <RoleCard
+              emoji="🧑‍💻"
+              title="Học sinh"
+              subtitle="Tham gia & trả lời"
+              active={role === 'student'}
+              accent={color.emerald}
+              activeBg={color.emeraldLight}
+              onClick={() => { setRole('student'); setErrors((e) => ({ ...e, role: undefined })); }}
+            />
           </div>
+          {errors.role && <FieldError msg={errors.role} center />}
 
           {/* Fill demo creds */}
           {role && (
-            <div style={{ marginBottom: 12, textAlign: 'right' }}>
-              <Tag
-                color="orange"
-                style={{ cursor: 'pointer', borderRadius: 20, padding: '2px 10px', fontSize: 11, fontWeight: 600 }}
+            <div style={{ margin: '12px 0', textAlign: 'right' }}>
+              <button
                 onClick={fillDemo}
+                className="sq-press sq-focus"
+                style={{
+                  cursor: 'pointer', border: `1px solid ${color.amber}`, background: color.amberLight,
+                  color: '#9a6207', borderRadius: 999, padding: '4px 12px', fontSize: 12, fontWeight: 600,
+                  fontFamily: 'inherit',
+                }}
               >
                 ⚡ Điền tài khoản demo
-              </Tag>
+              </button>
             </div>
           )}
 
           {/* Form fields */}
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 12, marginBottom: 20 }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 14, marginBottom: 22 }}>
             <div>
-              <div style={{ fontSize: 13, fontWeight: 600, color: '#374151', marginBottom: 5 }}>Email</div>
+              <Label>Email</Label>
               <Input
-                id="login-email"
                 size="large"
-                prefix={<UserOutlined style={{ color: '#94a3b8' }} />}
+                value={email}
+                status={errors.email ? 'error' : undefined}
+                onChange={(e) => { setEmail(e.target.value); if (errors.email) setErrors((x) => ({ ...x, email: undefined })); }}
+                prefix={<UserOutlined style={{ color: color.textMuted }} />}
                 placeholder={role === 'teacher' ? 'giaovien@truong.edu.vn' : 'hocsinh@truong.edu.vn'}
-                style={{ borderRadius: 10, borderColor: '#e2e8f0', height: 44 }}
+                style={{ borderRadius: 8, height: 44 }}
                 onPressEnter={handleLogin}
               />
+              {errors.email && <FieldError msg={errors.email} />}
             </div>
             <div>
-              <div style={{ fontSize: 13, fontWeight: 600, color: '#374151', marginBottom: 5 }}>Mật khẩu</div>
+              <Label>Mật khẩu</Label>
               <Input.Password
-                id="login-password"
                 size="large"
-                prefix={<LockOutlined style={{ color: '#94a3b8' }} />}
+                value={password}
+                status={errors.password ? 'error' : undefined}
+                onChange={(e) => { setPassword(e.target.value); if (errors.password) setErrors((x) => ({ ...x, password: undefined })); }}
+                prefix={<LockOutlined style={{ color: color.textMuted }} />}
                 placeholder="••••••••"
-                style={{ borderRadius: 10, borderColor: '#e2e8f0', height: 44 }}
+                style={{ borderRadius: 8, height: 44 }}
                 onPressEnter={handleLogin}
               />
+              {errors.password && <FieldError msg={errors.password} />}
             </div>
           </div>
 
@@ -206,23 +234,61 @@ export default function LoginPage() {
             block
             size="large"
             loading={loading}
-            disabled={!role}
             onClick={handleLogin}
+            className="sq-press"
+            icon={!loading && role ? <ArrowRightOutlined /> : undefined}
+            iconPosition="end"
             style={{
-              height: 48, borderRadius: 12, fontWeight: 700, fontSize: 15,
-              background: 'linear-gradient(135deg, #6366f1, #8b5cf6)',
-              border: 'none',
-              boxShadow: role ? '0 4px 14px rgba(99,102,241,0.35)' : undefined,
+              height: 48, borderRadius: 10, fontWeight: 600, fontSize: 15,
+              boxShadow: '0 4px 14px rgba(79,70,229,0.28)',
             }}
           >
-            {loading ? 'Đang đăng nhập...' : role ? 'Vào ClassPulse →' : 'Chọn vai trò để tiếp tục'}
+            {loading ? 'Đang đăng nhập' : 'Vào ClassPulse'}
           </Button>
 
-          <Text type="secondary" style={{ display: 'block', textAlign: 'center', marginTop: 16, fontSize: 12 }}>
-            Nhấn "Điền tài khoản demo" để tự động điền thông tin thử nghiệm
-          </Text>
+          <p style={{ textAlign: 'center', marginTop: 16, fontSize: 12, color: color.textMuted }}>
+            Nhấn "Điền tài khoản demo" để dùng thông tin thử nghiệm
+          </p>
         </div>
       </div>
+    </div>
+  );
+}
+
+function RoleCard({
+  emoji, title, subtitle, active, accent, activeBg, onClick,
+}: {
+  emoji: string; title: string; subtitle: string; active: boolean;
+  accent: string; activeBg: string; onClick: () => void;
+}) {
+  return (
+    <button
+      onClick={onClick}
+      className="sq-press sq-focus"
+      aria-pressed={active}
+      style={{
+        flex: 1, padding: '16px 12px', borderRadius: 12,
+        border: `1.5px solid ${active ? accent : color.border}`,
+        background: active ? activeBg : color.surface,
+        cursor: 'pointer', textAlign: 'center', transition: 'all 0.15s', fontFamily: 'inherit',
+      }}
+    >
+      <div style={{ fontSize: 28, marginBottom: 6 }}>{emoji}</div>
+      <div style={{ fontSize: 14, fontWeight: 600, color: active ? accent : color.text, marginBottom: 3 }}>{title}</div>
+      <div style={{ fontSize: 11, color: color.textMuted }}>{subtitle}</div>
+      {active && <CheckCircleFilled style={{ color: accent, fontSize: 14, marginTop: 6, display: 'block' }} />}
+    </button>
+  );
+}
+
+function Label({ children }: { children: React.ReactNode }) {
+  return <div style={{ fontSize: 13, fontWeight: 600, color: color.text, marginBottom: 5 }}>{children}</div>;
+}
+
+function FieldError({ msg, center }: { msg: string; center?: boolean }) {
+  return (
+    <div style={{ fontSize: 12, color: color.rose, marginTop: 5, textAlign: center ? 'center' : 'left' }}>
+      {msg}
     </div>
   );
 }

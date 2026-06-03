@@ -9,9 +9,9 @@ interface Props {
 }
 
 const OPTIONS: { value: ConfidenceLevel; label: string; color: string; activeColor: string; activeBg: string }[] = [
-  { value: 'low', label: 'Thấp', color: '#ff4d4f', activeColor: '#fff', activeBg: '#ff4d4f' },
-  { value: 'medium', label: 'Trung bình', color: '#fa8c16', activeColor: '#fff', activeBg: '#fa8c16' },
-  { value: 'high', label: 'Cao', color: '#52c41a', activeColor: '#fff', activeBg: '#52c41a' },
+  { value: 'low', label: 'Thấp', color: '#e23d6d', activeColor: '#fff', activeBg: '#e23d6d' },
+  { value: 'medium', label: 'Trung bình', color: '#e08c0b', activeColor: '#fff', activeBg: '#e08c0b' },
+  { value: 'high', label: 'Cao', color: '#0ea672', activeColor: '#fff', activeBg: '#0ea672' },
 ];
 
 export default function ConfidenceSelector({ value, onChange }: Props) {
@@ -30,7 +30,7 @@ export default function ConfidenceSelector({ value, onChange }: Props) {
               style={{
                 flex: 1,
                 height: 40,
-                background: active ? opt.activeBg : '#fafafa',
+                background: active ? opt.activeBg : '#f3f1ec',
                 borderColor: active ? opt.activeBg : opt.color + '66',
                 color: active ? opt.activeColor : opt.color,
                 fontWeight: active ? 600 : 400,

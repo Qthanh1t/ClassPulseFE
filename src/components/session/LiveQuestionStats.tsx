@@ -25,9 +25,9 @@ export default function LiveQuestionStats({ stats, questionType }: Props) {
   }));
 
   const confidenceData = [
-    { name: 'Cao', count: stats.confidenceBreakdown.high, color: '#52c41a' },
-    { name: 'TB', count: stats.confidenceBreakdown.medium, color: '#fa8c16' },
-    { name: 'Thấp', count: stats.confidenceBreakdown.low, color: '#ff4d4f' },
+    { name: 'Cao', count: stats.confidenceBreakdown.high, color: '#0ea672' },
+    { name: 'TB', count: stats.confidenceBreakdown.medium, color: '#e08c0b' },
+    { name: 'Thấp', count: stats.confidenceBreakdown.low, color: '#e23d6d' },
   ];
 
   return (
@@ -37,13 +37,13 @@ export default function LiveQuestionStats({ stats, questionType }: Props) {
         <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6 }}>
           <Text strong style={{ fontSize: 13 }}>Tiến độ trả lời</Text>
           <Text style={{ fontSize: 13 }}>
-            <span style={{ color: '#6366f1', fontWeight: 600 }}>{answeredCount}</span>
-            <span style={{ color: '#8c8c8c' }}>/{totalStudents} học sinh</span>
+            <span style={{ color: '#4f46e5', fontWeight: 600 }}>{answeredCount}</span>
+            <span style={{ color: '#57534e' }}>/{totalStudents} học sinh</span>
           </Text>
         </div>
         <Progress
           percent={totalStudents > 0 ? Math.round((answeredCount / totalStudents) * 100) : 0}
-          strokeColor="#6366f1"
+          strokeColor="#4f46e5"
           size="small"
         />
       </div>
@@ -54,8 +54,8 @@ export default function LiveQuestionStats({ stats, questionType }: Props) {
           <div
             style={{
               flex: 1,
-              background: '#f6ffed',
-              border: '1px solid #b7eb8f',
+              background: '#e7f6ef',
+              border: '1px solid #a7e3cd',
               borderRadius: 8,
               padding: '10px 14px',
               display: 'flex',
@@ -63,7 +63,7 @@ export default function LiveQuestionStats({ stats, questionType }: Props) {
               gap: 8,
             }}
           >
-            <CheckCircleOutlined style={{ color: '#52c41a', fontSize: 18 }} />
+            <CheckCircleOutlined style={{ color: '#0ea672', fontSize: 18 }} />
             <div>
               <div style={{ fontWeight: 600, fontSize: 20, lineHeight: 1 }}>{correctCount}</div>
               <Text type="secondary" style={{ fontSize: 12 }}>
@@ -74,8 +74,8 @@ export default function LiveQuestionStats({ stats, questionType }: Props) {
           <div
             style={{
               flex: 1,
-              background: '#fff2f0',
-              border: '1px solid #ffccc7',
+              background: '#fceaef',
+              border: '1px solid #f6c6d4',
               borderRadius: 8,
               padding: '10px 14px',
               display: 'flex',
@@ -83,7 +83,7 @@ export default function LiveQuestionStats({ stats, questionType }: Props) {
               gap: 8,
             }}
           >
-            <CloseCircleOutlined style={{ color: '#ff4d4f', fontSize: 18 }} />
+            <CloseCircleOutlined style={{ color: '#e23d6d', fontSize: 18 }} />
             <div>
               <div style={{ fontWeight: 600, fontSize: 20, lineHeight: 1 }}>{wrongCount}</div>
               <Text type="secondary" style={{ fontSize: 12 }}>
@@ -115,7 +115,7 @@ export default function LiveQuestionStats({ stats, questionType }: Props) {
                 {optionChartData.map((entry, index) => (
                   <Cell
                     key={`cell-${index}`}
-                    fill={entry.isCorrect ? '#52c41a' : '#ff7875'}
+                    fill={entry.isCorrect ? '#0ea672' : '#ef6c8d'}
                   />
                 ))}
               </Bar>
@@ -131,16 +131,16 @@ export default function LiveQuestionStats({ stats, questionType }: Props) {
                   <div
                     style={{
                       width: 12, height: 12, borderRadius: 2,
-                      background: opt.isCorrect ? '#52c41a' : '#d9d9d9',
+                      background: opt.isCorrect ? '#0ea672' : '#e7e3dc',
                       border: '1px solid',
-                      borderColor: opt.isCorrect ? '#b7eb8f' : '#d9d9d9',
+                      borderColor: opt.isCorrect ? '#a7e3cd' : '#e7e3dc',
                       fontSize: 10,
                       display: 'flex', alignItems: 'center', justifyContent: 'center',
-                      color: opt.isCorrect ? '#52c41a' : '#595959',
+                      color: opt.isCorrect ? '#0ea672' : '#57534e',
                       fontWeight: 600,
                     }}
                   />
-                  <Text style={{ fontSize: 11, color: '#8c8c8c' }}>
+                  <Text style={{ fontSize: 11, color: '#57534e' }}>
                     {opt.name}: {opt.count} ({pct}%)
                   </Text>
                 </div>

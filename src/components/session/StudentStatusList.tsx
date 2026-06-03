@@ -32,7 +32,7 @@ export default function StudentStatusList({
 
   return (
     <div style={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
-      <div style={{ padding: '12px 16px', borderBottom: '1px solid #f0f0f0' }}>
+      <div style={{ padding: '12px 16px', borderBottom: '1px solid #e7e3dc' }}>
         <Text strong style={{ fontSize: 14 }}>Thành viên</Text>
         <div>
           <Text type="secondary" style={{ fontSize: 12 }}>
@@ -43,7 +43,7 @@ export default function StudentStatusList({
         </div>
         {raisedHandIds.length > 0 && (
           <div style={{ marginTop: 2 }}>
-            <Text style={{ fontSize: 11, color: '#fa8c16' }}>
+            <Text style={{ fontSize: 11, color: '#e08c0b' }}>
               ✋ {raisedHandIds.length} đang giơ tay
             </Text>
           </div>
@@ -56,7 +56,7 @@ export default function StudentStatusList({
           const isSilent = !p.isTeacher && silentStudentIds.includes(p.id);
           const hasRaisedHand = !p.isTeacher && raisedHandIds.includes(p.id);
           const answered = !p.isTeacher && answeredIds.includes(p.id);
-          const displayName = p.name || '—';
+          const displayName = p.name || 'Ẩn danh';
           const initial = (p.name || '?').charAt(0).toUpperCase();
 
           return (
@@ -67,13 +67,13 @@ export default function StudentStatusList({
                 alignItems: 'center',
                 gap: 10,
                 padding: '7px 16px',
-                background: hasRaisedHand ? '#fff7e6' : isSilent ? '#fff2f0' : 'transparent',
+                background: hasRaisedHand ? '#fbf0db' : isSilent ? '#fceaef' : 'transparent',
                 opacity: online ? 1 : 0.45,
                 transition: 'background 0.2s, opacity 0.2s',
               }}
             >
               <div style={{ position: 'relative' }}>
-                <Avatar size={32} style={{ background: p.avatarColor ?? '#6366f1', fontSize: 13 }}>
+                <Avatar size={32} style={{ background: p.avatarColor ?? '#4f46e5', fontSize: 13 }}>
                   {initial}
                 </Avatar>
                 <div
@@ -85,7 +85,7 @@ export default function StudentStatusList({
                     height: 10,
                     borderRadius: '50%',
                     border: '2px solid #fff',
-                    background: online ? '#52c41a' : '#bfbfbf',
+                    background: online ? '#0ea672' : '#a8a29e',
                   }}
                 />
               </div>
@@ -113,14 +113,14 @@ export default function StudentStatusList({
                   )}
                   {isSilent && !hasRaisedHand && (
                     <Tooltip title="Không tương tác">
-                      <WarningOutlined style={{ color: '#ff4d4f', fontSize: 13 }} />
+                      <WarningOutlined style={{ color: '#e23d6d', fontSize: 13 }} />
                     </Tooltip>
                   )}
                   {questionActive && (
                     <Badge
                       status={answered ? 'success' : 'default'}
                       text={
-                        <Text style={{ fontSize: 11, color: answered ? '#52c41a' : '#bfbfbf' }}>
+                        <Text style={{ fontSize: 11, color: answered ? '#0ea672' : '#a8a29e' }}>
                           {answered ? '✓' : '○'}
                         </Text>
                       }
@@ -137,21 +137,21 @@ export default function StudentStatusList({
         <div
           style={{
             padding: '8px 16px',
-            borderTop: '1px solid #f0f0f0',
+            borderTop: '1px solid #e7e3dc',
             display: 'flex',
             flexDirection: 'column',
             gap: 4,
           }}
         >
           {raisedHandIds.length > 0 && (
-            <Text style={{ fontSize: 12, color: '#fa8c16' }}>
+            <Text style={{ fontSize: 12, color: '#e08c0b' }}>
               ✋ {raisedHandIds.length} HS đang giơ tay
             </Text>
           )}
           {silentStudentIds.length > 0 && (
             <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-              <WarningOutlined style={{ color: '#ff4d4f', fontSize: 12 }} />
-              <Text style={{ fontSize: 12, color: '#cf1322' }}>
+              <WarningOutlined style={{ color: '#e23d6d', fontSize: 12 }} />
+              <Text style={{ fontSize: 12, color: '#be123c' }}>
                 {silentStudentIds.length} HS không tương tác
               </Text>
             </div>

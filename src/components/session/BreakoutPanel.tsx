@@ -194,7 +194,7 @@ export default function BreakoutPanel({
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
             <Badge status="processing" />
             <Title level={5} style={{ margin: 0 }}>Breakout đang hoạt động</Title>
-            <Badge count={sortedRooms.length} color="#6366f1" />
+            <Badge count={sortedRooms.length} color="#4f46e5" />
           </div>
           <div style={{ display: 'flex', gap: 8 }}>
             <Button size="small" icon={<MessageOutlined />} onClick={() => setBroadcastOpen(true)}>
@@ -219,7 +219,7 @@ export default function BreakoutPanel({
                   <Tag color="blue" style={{ borderRadius: 20 }}>{room.students.length} HS</Tag>
                   <Badge
                     status="processing"
-                    text={<Text style={{ fontSize: 12, color: '#52c41a' }}>Đang thảo luận</Text>}
+                    text={<Text style={{ fontSize: 12, color: '#0ea672' }}>Đang thảo luận</Text>}
                   />
                   {isTeacherHere && (
                     <Tag color="purple" style={{ borderRadius: 20, fontSize: 11 }}>
@@ -234,7 +234,7 @@ export default function BreakoutPanel({
                   <div style={{ display: 'flex', gap: 8, marginBottom: 10, flexWrap: 'wrap', alignItems: 'center' }}>
                     {room.students.map((s) => (
                       <div key={s.id} style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-                        <Avatar size={24} style={{ background: s.avatarColor ?? '#6366f1', fontSize: 11 }}>
+                        <Avatar size={24} style={{ background: s.avatarColor ?? '#4f46e5', fontSize: 11 }}>
                           {s.name.charAt(0)}
                         </Avatar>
                         <Text style={{ fontSize: 12 }}>{s.name.split(' ').pop()}</Text>
@@ -246,14 +246,14 @@ export default function BreakoutPanel({
                           <Avatar
                             size={24}
                             style={{
-                              background: 'linear-gradient(135deg, #6366f1, #8b5cf6)',
+                              background: '#4f46e5',
                               fontSize: 11,
-                              border: '2px solid #6366f1',
+                              border: '2px solid #4f46e5',
                             }}
                           >
                             G
                           </Avatar>
-                          <Text style={{ fontSize: 12, color: '#6366f1', fontWeight: 600 }}>GV</Text>
+                          <Text style={{ fontSize: 12, color: '#4f46e5', fontWeight: 600 }}>GV</Text>
                         </div>
                       </Tooltip>
                     )}
@@ -262,11 +262,11 @@ export default function BreakoutPanel({
                   {room.task && (
                     <Card
                       size="small"
-                      style={{ background: '#f0f5ff', border: '1px solid #adc6ff', borderRadius: 8, marginBottom: 10 }}
+                      style={{ background: '#eceafd', border: '1px solid #c7d2fe', borderRadius: 8, marginBottom: 10 }}
                       styles={{ body: { padding: '8px 12px' } }}
                     >
                       <Text style={{ fontSize: 12 }}>
-                        <span style={{ color: '#6366f1', fontWeight: 600 }}>Nhiệm vụ: </span>
+                        <span style={{ color: '#4f46e5', fontWeight: 600 }}>Nhiệm vụ: </span>
                         {room.task}
                       </Text>
                     </Card>
@@ -278,7 +278,7 @@ export default function BreakoutPanel({
                       type={isTeacherHere ? 'default' : 'primary'}
                       ghost={!isTeacherHere}
                       icon={isTeacherHere ? <LogoutOutlined /> : <LoginOutlined />}
-                      style={!isTeacherHere ? { borderColor: '#6366f1', color: '#6366f1' } : {}}
+                      style={!isTeacherHere ? { borderColor: '#4f46e5', color: '#4f46e5' } : {}}
                       onClick={() => (isTeacherHere ? handleLeaveRoom(room.id) : handleJoinRoom(room.id))}
                     >
                       {isTeacherHere ? 'Rời phòng' : 'Vào phòng'}
@@ -296,7 +296,7 @@ export default function BreakoutPanel({
         />
 
         <Modal
-          title={<><MessageOutlined style={{ color: '#6366f1', marginRight: 8 }} />Thông báo đến tất cả nhóm</>}
+          title={<><MessageOutlined style={{ color: '#4f46e5', marginRight: 8 }} />Thông báo đến tất cả nhóm</>}
           open={broadcastOpen}
           onCancel={() => setBroadcastOpen(false)}
           onOk={handleBroadcast}
@@ -321,7 +321,7 @@ export default function BreakoutPanel({
     <div style={{ padding: '0 0 16px' }}>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <TeamOutlined style={{ color: '#6366f1', fontSize: 16 }} />
+          <TeamOutlined style={{ color: '#4f46e5', fontSize: 16 }} />
           <Title level={5} style={{ margin: 0 }}>Thiết lập phòng nhỏ</Title>
         </div>
         <div style={{ display: 'flex', gap: 8 }}>
@@ -335,14 +335,14 @@ export default function BreakoutPanel({
       {/* Main room — unassigned students */}
       <Card
         size="small"
-        style={{ marginBottom: 14, border: '1.5px dashed #c7d2fe', borderRadius: 10, background: '#fafbff' }}
+        style={{ marginBottom: 14, border: '1.5px dashed #c7d2fe', borderRadius: 10, background: '#f7f6fd' }}
         styles={{ body: { padding: '12px 14px' } }}
       >
         <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 10 }}>
-          <Text style={{ fontSize: 13, fontWeight: 600, color: '#6366f1' }}>Phòng chính</Text>
+          <Text style={{ fontSize: 13, fontWeight: 600, color: '#4f46e5' }}>Phòng chính</Text>
           <Tag style={{ borderRadius: 20, fontSize: 11 }}>{mainRoomStudents.length} học sinh</Tag>
           {allStudents.length > 0 && (
-            <Text type="secondary" style={{ fontSize: 11 }}>— chọn phòng để phân công từng HS</Text>
+            <Text type="secondary" style={{ fontSize: 11 }}>Chọn phòng để phân công từng HS</Text>
           )}
         </div>
         {allStudents.length === 0 ? (
@@ -360,11 +360,11 @@ export default function BreakoutPanel({
                 key={s.id}
                 style={{
                   display: 'flex', alignItems: 'center', gap: 5,
-                  background: '#f1f5f9', borderRadius: 20,
-                  padding: '3px 6px 3px 4px', border: '1px solid #e2e8f0',
+                  background: '#f3f1ec', borderRadius: 20,
+                  padding: '3px 6px 3px 4px', border: '1px solid #e7e3dc',
                 }}
               >
-                <Avatar size={20} style={{ background: s.avatarColor ?? '#6366f1', fontSize: 10, flexShrink: 0 }}>
+                <Avatar size={20} style={{ background: s.avatarColor ?? '#4f46e5', fontSize: 10, flexShrink: 0 }}>
                   {s.name.charAt(0)}
                 </Avatar>
                 <Text style={{ fontSize: 12 }}>{s.name.split(' ').pop()}</Text>
@@ -389,7 +389,7 @@ export default function BreakoutPanel({
           <Card
             key={room.localId}
             size="small"
-            style={{ borderRadius: 10, border: '1px solid #e2e8f0' }}
+            style={{ borderRadius: 10, border: '1px solid #e7e3dc' }}
             styles={{ body: { padding: '10px 14px' } }}
             title={
               <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
@@ -424,7 +424,7 @@ export default function BreakoutPanel({
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 10 }}>
               {room.studentIds.length === 0 ? (
                 <Text type="secondary" style={{ fontSize: 12, fontStyle: 'italic' }}>
-                  Chưa có học sinh — phân công từ phòng chính
+                  Chưa có học sinh, phân công từ phòng chính
                 </Text>
               ) : (
                 room.studentIds.map((sid) => {
@@ -434,16 +434,16 @@ export default function BreakoutPanel({
                       key={sid}
                       style={{
                         display: 'flex', alignItems: 'center', gap: 3,
-                        background: '#eef2ff', borderRadius: 20,
+                        background: '#eceafd', borderRadius: 20,
                         padding: '2px 8px 2px 4px', border: '1px solid #c7d2fe',
                       }}
                     >
-                      <Avatar size={18} style={{ background: s.avatarColor ?? '#6366f1', fontSize: 10 }}>
+                      <Avatar size={18} style={{ background: s.avatarColor ?? '#4f46e5', fontSize: 10 }}>
                         {s.name.charAt(0)}
                       </Avatar>
                       <Text style={{ fontSize: 12 }}>{s.name.split(' ').pop()}</Text>
                       <CloseOutlined
-                        style={{ fontSize: 10, color: '#94a3b8', cursor: 'pointer', marginLeft: 2 }}
+                        style={{ fontSize: 10, color: '#a8a29e', cursor: 'pointer', marginLeft: 2 }}
                         onClick={() => removeStudentFromRoom(sid, room.localId)}
                       />
                     </div>
@@ -478,7 +478,7 @@ export default function BreakoutPanel({
           loading={starting}
           disabled={rooms.every((r) => r.studentIds.length === 0)}
           style={{
-            background: 'linear-gradient(135deg, #6366f1, #8b5cf6)',
+            background: '#4f46e5',
             border: 'none', fontWeight: 600, borderRadius: 10,
           }}
           onClick={handleStartBreakout}

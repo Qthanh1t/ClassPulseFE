@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Avatar, Button, Card, Col, Row, Tag, Typography, Modal, Form, Input, message, Spin, Upload } from 'antd';
+import { Avatar, Button, Card, Col, Row, Tag, Typography, Modal, Form, Input, message, Upload } from 'antd';
 import {
   BookOutlined, TeamOutlined, QuestionCircleOutlined,
   CalendarOutlined, EditOutlined, SafetyCertificateOutlined,
@@ -8,6 +8,9 @@ import {
 import { userService } from '../services/user.service';
 import { useAuthStore } from '../store/authStore';
 import type { UserDto } from '../types/api';
+import PageContainer from '../components/ui/PageContainer';
+import PageSkeleton from '../components/ui/PageSkeleton';
+import { color, radius } from '../theme/tokens';
 
 const { Title, Text } = Typography;
 
@@ -66,10 +69,10 @@ export default function ProfilePage() {
   }
 
   const stats = [
-    { icon: <BookOutlined />, label: 'Lớp học', value: profile?.stats?.classroomsCount ?? 0, color: '#6366f1', bg: '#eef2ff' },
-    { icon: <CalendarOutlined />, label: 'Buổi học', value: profile?.stats?.sessionsCount ?? 0, color: '#0ea5e9', bg: '#f0f9ff' },
-    { icon: <QuestionCircleOutlined />, label: 'Câu hỏi đã tạo', value: profile?.stats?.questionsAsked ?? 0, color: '#f59e0b', bg: '#fffbeb' },
-    { icon: <TeamOutlined />, label: 'Học sinh', value: profile?.stats?.studentsReached ?? 0, color: '#10b981', bg: '#f0fdf4' },
+    { icon: <BookOutlined />, label: 'Lớp học', value: profile?.stats?.classroomsCount ?? 0, color: color.primary, bg: color.primaryLight },
+    { icon: <CalendarOutlined />, label: 'Buổi học', value: profile?.stats?.sessionsCount ?? 0, color: '#0e7faa', bg: '#e3f1f8' },
+    { icon: <QuestionCircleOutlined />, label: 'Câu hỏi đã tạo', value: profile?.stats?.questionsAsked ?? 0, color: color.amber, bg: color.amberLight },
+    { icon: <TeamOutlined />, label: 'Học sinh', value: profile?.stats?.studentsReached ?? 0, color: color.emerald, bg: color.emeraldLight },
   ];
 
   const displayName = profile?.name ?? storeUser?.name ?? '';
@@ -78,25 +81,25 @@ export default function ProfilePage() {
 
   if (loading) {
     return (
-      <div style={{ padding: '28px 32px', display: 'flex', justifyContent: 'center', paddingTop: 80 }}>
-        <Spin size="large" />
-      </div>
+      <PageContainer maxWidth={800}>
+        <PageSkeleton variant="detail" />
+      </PageContainer>
     );
   }
 
   return (
-    <div style={{ padding: '28px 32px', maxWidth: 800 }}>
+    <PageContainer maxWidth={800}>
       {contextHolder}
 
       {/* Profile card */}
-      <Card style={{ borderRadius: 16, border: '1px solid #e2e8f0', marginBottom: 20 }}>
+      <Card style={{ borderRadius: radius.card, border: `1px solid ${color.border}`, marginBottom: 20 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 24, flexWrap: 'wrap' }}>
           <div style={{ position: 'relative' }}>
             <Avatar
               size={80}
               src={profile?.avatarUrl ?? undefined}
               style={{
-                background: profile?.avatarColor ?? 'linear-gradient(135deg, #6366f1, #8b5cf6)',
+                background: profile?.avatarColor ?? color.primary,
                 fontSize: 30,
                 fontWeight: 700,
                 flexShrink: 0,
@@ -124,7 +127,7 @@ export default function ProfilePage() {
                   padding: 0,
                   fontSize: 11,
                   border: '2px solid #fff',
-                  background: '#6366f1',
+                  background: color.primary,
                   color: '#fff',
                   display: 'flex',
                   alignItems: 'center',
@@ -136,7 +139,7 @@ export default function ProfilePage() {
 
           <div style={{ flex: 1, minWidth: 200 }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 6, flexWrap: 'wrap' }}>
-              <Title level={4} style={{ margin: 0, fontSize: 20, fontWeight: 700, color: '#0f172a' }}>
+              <Title level={4} style={{ margin: 0, fontSize: 20, fontWeight: 700, color: color.text }}>
                 {displayName}
               </Title>
               <Tag
@@ -161,7 +164,8 @@ export default function ProfilePage() {
               form.setFieldsValue({ name: profile?.name, avatarColor: profile?.avatarColor ?? '' });
               setEditOpen(true);
             }}
-            style={{ borderRadius: 10, border: '1px solid #e2e8f0', color: '#64748b' }}
+            className="sq-press"
+            style={{ borderRadius: 10, border: `1px solid ${color.border}`, color: color.textSecondary }}
           >
             Chỉnh sửa
           </Button>
@@ -172,11 +176,11 @@ export default function ProfilePage() {
       <Row gutter={[16, 16]}>
         {stats.map((s, i) => (
           <Col key={i} xs={12} sm={6}>
-            <Card className="sq-stat-card" style={{ borderRadius: 14, border: '1px solid #e2e8f0', textAlign: 'center' }}>
+            <Card className="sq-stat-card" style={{ borderRadius: radius.card, border: `1px solid ${color.border}`, textAlign: 'center' }}>
               <div style={{ width: 44, height: 44, borderRadius: 12, background: s.bg, color: s.color, fontSize: 20, display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 10px' }}>
                 {s.icon}
               </div>
-              <div style={{ fontSize: 26, fontWeight: 700, color: '#0f172a', lineHeight: 1.2 }}>{s.value}</div>
+              <div className="sq-nums" style={{ fontSize: 26, fontWeight: 700, color: color.text, lineHeight: 1.2 }}>{s.value}</div>
               <Text type="secondary" style={{ fontSize: 12 }}>{s.label}</Text>
             </Card>
           </Col>
@@ -203,7 +207,7 @@ export default function ProfilePage() {
             name="avatarColor"
             label={<span style={{ fontWeight: 600, fontSize: 13 }}>Màu avatar (hex)</span>}
           >
-            <Input placeholder="#6366f1" style={{ borderRadius: 10, height: 40 }} />
+            <Input placeholder="#4f46e5" style={{ borderRadius: 10, height: 40 }} />
           </Form.Item>
           <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
             <Button onClick={() => setEditOpen(false)} style={{ borderRadius: 10 }}>Hủy</Button>
@@ -211,13 +215,14 @@ export default function ProfilePage() {
               type="primary"
               htmlType="submit"
               loading={saving}
-              style={{ borderRadius: 10, background: 'linear-gradient(135deg, #6366f1, #8b5cf6)', border: 'none', fontWeight: 600 }}
+              className="sq-press"
+              style={{ borderRadius: 10, fontWeight: 600 }}
             >
               Lưu
             </Button>
           </div>
         </Form>
       </Modal>
-    </div>
+    </PageContainer>
   );
 }

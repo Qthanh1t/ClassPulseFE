@@ -23,19 +23,23 @@ import { documentService } from '../../services/document.service';
 import { useAuthStore } from '../../store/authStore';
 import type { ClassroomDto, PostDto, ScheduleDto, MemberDto, DocumentDto } from '../../types/api';
 import RichTextEditor from '../../components/session/RichTextEditor';
+import PageContainer from '../../components/ui/PageContainer';
+import EmptyState from '../../components/ui/EmptyState';
+import PageSkeleton from '../../components/ui/PageSkeleton';
+import { color, radius } from '../../theme/tokens';
 
 const { Title, Text } = Typography;
 
-interface SubjectStyle { gradient: string; icon: React.ReactNode }
+interface SubjectStyle { accent: string; icon: React.ReactNode }
 
 const SUBJECT_STYLE: Record<string, SubjectStyle> = {
-  Frontend: { gradient: 'linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%)', icon: <CodeOutlined style={{ fontSize: 28, color: '#fff' }} /> },
-  Database: { gradient: 'linear-gradient(135deg, #0ea5e9 0%, #0369a1 100%)', icon: <DatabaseOutlined style={{ fontSize: 28, color: '#fff' }} /> },
-  Architecture: { gradient: 'linear-gradient(135deg, #f59e0b 0%, #dc2626 100%)', icon: <ApartmentOutlined style={{ fontSize: 28, color: '#fff' }} /> },
+  Frontend: { accent: '#7c79ff', icon: <CodeOutlined style={{ fontSize: 26, color: '#fff' }} /> },
+  Database: { accent: '#3eb0e0', icon: <DatabaseOutlined style={{ fontSize: 26, color: '#fff' }} /> },
+  Architecture: { accent: '#f0a93a', icon: <ApartmentOutlined style={{ fontSize: 26, color: '#fff' }} /> },
 };
 const DEFAULT_STYLE: SubjectStyle = {
-  gradient: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
-  icon: <BookOutlined style={{ fontSize: 28, color: '#fff' }} />,
+  accent: '#34d399',
+  icon: <BookOutlined style={{ fontSize: 26, color: '#fff' }} />,
 };
 
 const FILE_ICON: Record<string, string> = {
@@ -354,13 +358,13 @@ export default function ClassDetailPage() {
       children: (
         <div style={{ maxWidth: 640, paddingTop: 4 }}>
           {/* Compose box */}
-          <div style={{ background: '#fff', borderRadius: 14, border: '1px solid #e2e8f0', padding: '14px 16px', marginBottom: 16 }}>
+          <div style={{ background: '#fff', borderRadius: 14, border: `1px solid ${color.border}`, padding: '14px 16px', marginBottom: 16 }}>
             {!composing ? (
               <div onClick={() => setComposing(true)} style={{ display: 'flex', alignItems: 'center', gap: 10, cursor: 'text' }}>
-                <Avatar size={36} src={user?.avatarUrl ?? undefined} style={{ background: user?.avatarColor ?? 'linear-gradient(135deg, #6366f1, #8b5cf6)', flexShrink: 0, fontSize: 14, fontWeight: 600 }}>
+                <Avatar size={36} src={user?.avatarUrl ?? undefined} style={{ background: user?.avatarColor ?? color.primary, flexShrink: 0, fontSize: 14, fontWeight: 600 }}>
                   {user?.name?.charAt(0).toUpperCase()}
                 </Avatar>
-                <div style={{ flex: 1, padding: '8px 14px', borderRadius: 10, background: '#f8fafc', border: '1px solid #e2e8f0', color: '#94a3b8', fontSize: 14, userSelect: 'none' }}>
+                <div style={{ flex: 1, padding: '8px 14px', borderRadius: 10, background: color.surface2, border: `1px solid ${color.border}`, color: color.textMuted, fontSize: 14, userSelect: 'none' }}>
                   Thông báo gì đó cho lớp...
                 </div>
               </div>
@@ -376,7 +380,7 @@ export default function ClassDetailPage() {
                     accept=".pdf,.docx,.doc,.xlsx,.xls,.pptx,.ppt,.txt,.zip"
                     showUploadList={{ showPreviewIcon: false, showDownloadIcon: false, showRemoveIcon: true }}
                   >
-                    <Button icon={<PaperClipOutlined />} size="small" style={{ borderRadius: 6, color: '#6366f1', borderColor: '#c7d2fe' }}>
+                    <Button icon={<PaperClipOutlined />} size="small" style={{ borderRadius: 6, color: color.primary, borderColor: color.border }}>
                       Đính kèm file
                     </Button>
                   </Upload>
@@ -388,7 +392,7 @@ export default function ClassDetailPage() {
                     icon={<SendOutlined />}
                     loading={posting}
                     onClick={handlePostSubmit}
-                    style={{ background: 'linear-gradient(135deg, #6366f1, #8b5cf6)', border: 'none', fontWeight: 600, borderRadius: 8 }}
+                    style={{ fontWeight: 600, borderRadius: 8 }}
                   >
                     Đăng bài
                   </Button>
@@ -409,13 +413,13 @@ export default function ClassDetailPage() {
                 const isEditing = editingPostId === post.id;
 
                 return (
-                  <div key={post.id} style={{ background: '#fff', borderRadius: 14, border: '1px solid #e2e8f0', padding: '16px 20px' }}>
+                  <div key={post.id} style={{ background: '#fff', borderRadius: 14, border: `1px solid ${color.border}`, padding: '16px 20px' }}>
                     <div style={{ display: 'flex', gap: 12 }}>
                       <Avatar
                         size={36}
                         src={(post.author as { avatarUrl?: string }).avatarUrl ?? undefined}
                         style={{
-                          background: post.author.role === 'teacher' ? 'linear-gradient(135deg, #6366f1, #8b5cf6)' : 'linear-gradient(135deg, #10b981, #059669)',
+                          background: post.author.role === 'teacher' ? color.primary : color.emerald,
                           flexShrink: 0, fontSize: 14, fontWeight: 600,
                         }}
                       >
@@ -423,7 +427,7 @@ export default function ClassDetailPage() {
                       </Avatar>
                       <div style={{ flex: 1 }}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
-                          <Text style={{ fontSize: 14, fontWeight: 600, color: '#0f172a' }}>{post.author.name}</Text>
+                          <Text style={{ fontSize: 14, fontWeight: 600, color: color.text }}>{post.author.name}</Text>
                           {post.author.role === 'teacher' && (
                             <Tag color="blue" style={{ fontSize: 11, borderRadius: 20, padding: '0 8px', margin: 0 }}>Giáo viên</Tag>
                           )}
@@ -445,10 +449,10 @@ export default function ClassDetailPage() {
                                         cancelText="Hủy"
                                         okButtonProps={{ danger: true }}
                                       >
-                                        <span style={{ color: '#f43f5e' }}>Xóa bài</span>
+                                        <span style={{ color: color.rose }}>Xóa bài</span>
                                       </Popconfirm>
                                     ),
-                                    icon: <DeleteOutlined style={{ color: '#f43f5e' }} />,
+                                    icon: <DeleteOutlined style={{ color: color.rose }} />,
                                   },
                                 ],
                                 onClick: ({ key }) => {
@@ -460,7 +464,7 @@ export default function ClassDetailPage() {
                               }}
                               trigger={['click']}
                             >
-                              <Button type="text" size="small" icon={<MoreOutlined />} style={{ color: '#94a3b8' }} onClick={(e) => e.stopPropagation()} />
+                              <Button type="text" size="small" icon={<MoreOutlined />} style={{ color: color.textMuted }} onClick={(e) => e.stopPropagation()} />
                             </Dropdown>
                           )}
                         </div>
@@ -480,14 +484,14 @@ export default function ClassDetailPage() {
                                 type="primary"
                                 loading={editPostSaving}
                                 onClick={() => handleUpdatePost(post.id)}
-                                style={{ background: 'linear-gradient(135deg, #6366f1, #8b5cf6)', border: 'none', borderRadius: 6 }}
+                                style={{ borderRadius: 6 }}
                               >
                                 Lưu
                               </Button>
                             </div>
                           </div>
                         ) : (
-                          <div className="ck-content" style={{ fontSize: 14, color: '#374151', lineHeight: 1.6 }} dangerouslySetInnerHTML={{ __html: post.content }} />
+                          <div className="ck-content" style={{ fontSize: 14, color: color.text, lineHeight: 1.6 }} dangerouslySetInnerHTML={{ __html: post.content }} />
                         )}
 
                         {!isEditing && post.attachments.length > 0 && (
@@ -498,11 +502,11 @@ export default function ClassDetailPage() {
                                 href={att.url}
                                 target="_blank"
                                 rel="noopener noreferrer"
-                                style={{ display: 'inline-flex', alignItems: 'center', gap: 5, padding: '4px 10px 4px 8px', border: '1px solid #c7d2fe', borderRadius: 6, background: '#eef2ff', fontSize: 12, color: '#6366f1', textDecoration: 'none', fontWeight: 500 }}
+                                style={{ display: 'inline-flex', alignItems: 'center', gap: 5, padding: '4px 10px 4px 8px', border: `1px solid ${color.border}`, borderRadius: 6, background: color.primaryLight, fontSize: 12, color: color.primary, textDecoration: 'none', fontWeight: 500 }}
                               >
                                 <span style={{ fontSize: 14 }}>{FILE_ICON[att.fileExt] ?? '📎'}</span>
                                 <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 160 }}>{att.fileName}</span>
-                                <span style={{ color: '#94a3b8', fontSize: 11, marginLeft: 2 }}>{formatBytes(att.fileSizeBytes)}</span>
+                                <span style={{ color: color.textMuted, fontSize: 11, marginLeft: 2 }}>{formatBytes(att.fileSizeBytes)}</span>
                               </a>
                             ))}
                           </div>
@@ -528,7 +532,7 @@ export default function ClassDetailPage() {
                 type="primary"
                 icon={<PlusOutlined />}
                 onClick={() => { setEditingSchedule(null); scheduleForm.resetFields(); setScheduleOpen(true); }}
-                style={{ background: 'linear-gradient(135deg, #6366f1, #8b5cf6)', border: 'none', fontWeight: 600, borderRadius: 8 }}
+                style={{ fontWeight: 600, borderRadius: 8 }}
               >
                 Thêm buổi học
               </Button>
@@ -545,23 +549,23 @@ export default function ClassDetailPage() {
                 const isDone = !!s.sessionId;
                 const isFaded = isDone || s.scheduledDate < today;
                 return (
-                  <div key={s.id} style={{ background: '#fff', borderRadius: 14, border: '1px solid #e2e8f0', padding: '14px 20px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, opacity: isFaded ? 0.65 : 1, borderLeft: `4px solid ${isFaded ? '#e2e8f0' : '#6366f1'}` }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
-                      <div style={{ width: 44, height: 44, borderRadius: 10, background: isFaded ? '#f8fafc' : '#eef2ff', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                        {isDone ? <CheckCircleOutlined style={{ color: '#94a3b8', fontSize: 18 }} /> : <CalendarOutlined style={{ color: '#6366f1', fontSize: 18 }} />}
+                  <div key={s.id} style={{ background: '#fff', borderRadius: 14, border: `1px solid ${color.border}`, padding: '14px 20px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap', opacity: isFaded ? 0.65 : 1, borderLeft: `4px solid ${isFaded ? color.border : color.primary}` }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 14, flex: '1 1 220px', minWidth: 0 }}>
+                      <div style={{ width: 44, height: 44, borderRadius: 10, background: isFaded ? color.surface2 : color.primaryLight, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                        {isDone ? <CheckCircleOutlined style={{ color: color.textMuted, fontSize: 18 }} /> : <CalendarOutlined style={{ color: color.primary, fontSize: 18 }} />}
                       </div>
                       <div>
-                        <div style={{ fontSize: 14, fontWeight: 600, color: '#0f172a', marginBottom: 3 }}>{s.title}</div>
-                        <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
-                          <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-                            <CalendarOutlined style={{ fontSize: 12, color: '#94a3b8' }} />
-                            <Text type="secondary" style={{ fontSize: 12 }}>
+                        <div style={{ fontSize: 14, fontWeight: 600, color: color.text, marginBottom: 3 }}>{s.title}</div>
+                        <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 4, flexShrink: 0 }}>
+                            <CalendarOutlined style={{ fontSize: 12, color: color.textMuted }} />
+                            <Text type="secondary" style={{ fontSize: 12, whiteSpace: 'nowrap' }}>
                               {new Date(s.scheduledDate).toLocaleDateString('vi-VN', { weekday: 'long', day: 'numeric', month: 'long' })}
                             </Text>
                           </div>
-                          <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-                            <ClockCircleOutlined style={{ fontSize: 12, color: '#94a3b8' }} />
-                            <Text type="secondary" style={{ fontSize: 12 }}>{s.startTime} – {s.endTime}</Text>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 4, flexShrink: 0 }}>
+                            <ClockCircleOutlined style={{ fontSize: 12, color: color.textMuted }} />
+                            <Text type="secondary" style={{ fontSize: 12, whiteSpace: 'nowrap' }}>{s.startTime} - {s.endTime}</Text>
                           </div>
                         </div>
                         {s.description && <Text type="secondary" style={{ fontSize: 12, marginTop: 2, display: 'block' }}>{s.description}</Text>}
@@ -571,7 +575,7 @@ export default function ClassDetailPage() {
                       {isDone ? (
                         <>
                           <Tag color="default" style={{ borderRadius: 6, margin: 0 }}>Đã xong</Tag>
-                          <Button size="small" onClick={() => navigate(isTeacher ? `/dashboard/${s.sessionId}` : `/review/${s.sessionId}`)} style={{ borderRadius: 6, fontSize: 12, color: '#6366f1', borderColor: '#c7d2fe' }}>
+                          <Button size="small" onClick={() => navigate(isTeacher ? `/dashboard/${s.sessionId}` : `/review/${s.sessionId}`)} style={{ borderRadius: 6, fontSize: 12, color: color.primary, borderColor: color.border }}>
                             Xem kết quả →
                           </Button>
                         </>
@@ -581,7 +585,7 @@ export default function ClassDetailPage() {
                           size="small"
                           icon={<PlayCircleOutlined />}
                           onClick={() => navigate(`/session/teacher/${id}`, { state: { scheduleId: s.id } })}
-                          style={{ background: 'linear-gradient(135deg, #6366f1, #8b5cf6)', border: 'none', fontWeight: 600, borderRadius: 8 }}
+                          style={{ fontWeight: 600, borderRadius: 8 }}
                         >
                           Bắt đầu
                         </Button>
@@ -594,7 +598,7 @@ export default function ClassDetailPage() {
                               size="small"
                               icon={<EditOutlined />}
                               onClick={() => openEditSchedule(s)}
-                              style={{ color: '#6366f1' }}
+                              style={{ color: color.primary }}
                             />
                           </Tooltip>
                           <Tooltip title="Xóa">
@@ -632,7 +636,8 @@ export default function ClassDetailPage() {
               rowKey="id"
               pagination={false}
               size="middle"
-              style={{ borderRadius: 12, overflow: 'hidden', border: '1px solid #e2e8f0' }}
+              scroll={{ x: 'max-content' }}
+              style={{ borderRadius: 12, overflow: 'hidden', border: `1px solid ${color.border}` }}
               locale={{ emptyText: <Empty description="Chưa có thành viên" /> }}
               columns={[
                 {
@@ -640,10 +645,10 @@ export default function ClassDetailPage() {
                   key: 'name',
                   render: (_, m) => (
                     <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                      <Avatar size={34} style={{ background: m.avatarColor ?? '#6366f1', fontWeight: 600, fontSize: 13 }}>
+                      <Avatar size={34} style={{ background: m.avatarColor ?? color.primary, fontWeight: 600, fontSize: 13 }}>
                         {m.name.charAt(0)}
                       </Avatar>
-                      <Text style={{ fontSize: 14, fontWeight: 500, color: '#0f172a' }}>{m.name}</Text>
+                      <Text style={{ fontSize: 14, fontWeight: 500, color: color.text }}>{m.name}</Text>
                     </div>
                   ),
                 },
@@ -696,7 +701,7 @@ export default function ClassDetailPage() {
         <div style={{ maxWidth: 640, paddingTop: 4 }}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
             <div>
-              <Text style={{ fontSize: 14, fontWeight: 600, color: '#0f172a' }}>Tài liệu lớp học</Text>
+              <Text style={{ fontSize: 14, fontWeight: 600, color: color.text }}>Tài liệu lớp học</Text>
               <div><Text type="secondary" style={{ fontSize: 12 }}>Tài liệu từ bài đăng và tải lên trực tiếp</Text></div>
             </div>
             {isTeacher && (
@@ -705,7 +710,7 @@ export default function ClassDetailPage() {
                 icon={<UploadOutlined />}
                 loading={docUploading}
                 onClick={() => docFileRef.current?.click()}
-                style={{ background: 'linear-gradient(135deg, #6366f1, #8b5cf6)', border: 'none', fontWeight: 600, borderRadius: 8 }}
+                style={{ fontWeight: 600, borderRadius: 8 }}
               >
                 Tải lên
               </Button>
@@ -719,12 +724,12 @@ export default function ClassDetailPage() {
           ) : (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
               {documents.map((doc) => (
-                <div key={doc.id} style={{ background: '#fff', borderRadius: 12, border: '1px solid #e2e8f0', padding: '12px 16px', display: 'flex', alignItems: 'center', gap: 12 }}>
-                  <div style={{ width: 40, height: 40, borderRadius: 10, background: '#eef2ff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 20, flexShrink: 0 }}>
+                <div key={doc.id} style={{ background: '#fff', borderRadius: 12, border: `1px solid ${color.border}`, padding: '12px 16px', display: 'flex', alignItems: 'center', gap: 12 }}>
+                  <div style={{ width: 40, height: 40, borderRadius: 10, background: color.primaryLight, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 20, flexShrink: 0 }}>
                     {FILE_ICON[doc.fileExt] ?? '📎'}
                   </div>
                   <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ fontSize: 14, fontWeight: 600, color: '#0f172a', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{doc.fileName}</div>
+                    <div style={{ fontSize: 14, fontWeight: 600, color: color.text, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{doc.fileName}</div>
                     <div style={{ display: 'flex', gap: 8, marginTop: 3, alignItems: 'center', flexWrap: 'wrap' }}>
                       <Text type="secondary" style={{ fontSize: 12 }}>{formatBytes(doc.fileSizeBytes)}</Text>
                       <Text type="secondary" style={{ fontSize: 12 }}>
@@ -740,7 +745,7 @@ export default function ClassDetailPage() {
                   </div>
                   <div style={{ display: 'flex', gap: 4, flexShrink: 0 }}>
                     <Tooltip title="Tải xuống">
-                      <Button size="small" type="text" icon={<DownloadOutlined />} href={doc.url} target="_blank" style={{ color: '#6366f1' }} />
+                      <Button size="small" type="text" icon={<DownloadOutlined />} href={doc.url} target="_blank" style={{ color: color.primary }} />
                     </Tooltip>
                     {isTeacher && doc.source === 'direct' && (
                       <Tooltip title="Xóa">
@@ -759,29 +764,33 @@ export default function ClassDetailPage() {
 
   if (clsLoading) {
     return (
-      <div style={{ padding: '28px 32px', display: 'flex', justifyContent: 'center', paddingTop: 100 }}>
-        <Spin size="large" />
-      </div>
+      <PageContainer>
+        <PageSkeleton variant="detail" />
+      </PageContainer>
     );
   }
 
   if (!cls) {
     return (
-      <div style={{ padding: '28px 32px' }}>
-        <Empty description="Không tìm thấy lớp học" />
-        <Button onClick={() => navigate('/classes')} style={{ marginTop: 16 }}>Quay lại</Button>
-      </div>
+      <PageContainer>
+        <EmptyState
+          icon={<BookOutlined />}
+          title="Không tìm thấy lớp học"
+          description="Lớp học có thể đã bị xóa hoặc bạn không có quyền truy cập."
+          action={<Button type="primary" onClick={() => navigate('/classes')}>Quay lại danh sách lớp</Button>}
+        />
+      </PageContainer>
     );
   }
 
   return (
-    <div style={{ padding: '28px 32px' }}>
+    <PageContainer>
       {contextHolder}
 
-      {/* Hero banner */}
-      <div style={{ background: style.gradient, borderRadius: 20, padding: '24px 28px 28px', marginBottom: 24, position: 'relative', overflow: 'hidden' }}>
-        <div style={{ position: 'absolute', right: -30, top: -30, width: 160, height: 160, borderRadius: '50%', background: 'rgba(255,255,255,0.07)' }} />
-        <div style={{ position: 'absolute', right: 80, bottom: -50, width: 120, height: 120, borderRadius: '50%', background: 'rgba(255,255,255,0.05)' }} />
+      {/* Hero banner — dark ink panel with subject-accent glow (flat, no AI gradient) */}
+      <div style={{ background: '#1e1b3a', borderRadius: radius.page, padding: '24px 28px 28px', marginBottom: 24, position: 'relative', overflow: 'hidden' }}>
+        <div className="sq-noise" />
+        <div style={{ position: 'absolute', right: -80, top: -100, width: 320, height: 320, borderRadius: '50%', background: `radial-gradient(circle, ${style.accent}55, transparent 70%)` }} />
 
         <Button
           icon={<ArrowLeftOutlined />}
@@ -793,7 +802,7 @@ export default function ClassDetailPage() {
 
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 16, position: 'relative' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
-            <div style={{ width: 56, height: 56, background: 'rgba(255,255,255,0.18)', borderRadius: 14, display: 'flex', alignItems: 'center', justifyContent: 'center', backdropFilter: 'blur(4px)' }}>
+            <div style={{ width: 56, height: 56, background: style.accent, borderRadius: 14, display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: `0 6px 18px ${style.accent}55` }}>
               {style.icon}
             </div>
             <div>
@@ -810,8 +819,8 @@ export default function ClassDetailPage() {
                 </div>
                 {isTeacher && (
                   <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                    <span style={{ background: 'rgba(255,255,255,0.25)', color: '#fff', borderRadius: 20, padding: '2px 10px', fontSize: 11, fontWeight: 600 }}>
-                      Mã: {cls.joinCode}
+                    <span style={{ background: 'rgba(255,255,255,0.18)', color: '#fff', borderRadius: 999, padding: '2px 10px', fontSize: 11, fontWeight: 600 }}>
+                      Mã: <span className="sq-mono" style={{ letterSpacing: '0.06em' }}>{cls.joinCode}</span>
                     </span>
                     <Tooltip title="Tạo mã mới">
                       <Button
@@ -834,7 +843,7 @@ export default function ClassDetailPage() {
               size="large"
               icon={<PlayCircleOutlined />}
               onClick={() => navigate(isTeacher ? `/session/teacher/${cls.id}` : `/session/student/${cls.id}`)}
-              style={{ background: '#fff', color: '#6366f1', border: 'none', fontWeight: 700, borderRadius: 12, height: 44, paddingInline: 24, boxShadow: '0 4px 12px rgba(0,0,0,0.12)' }}
+              style={{ background: '#fff', color: color.primary, border: 'none', fontWeight: 700, borderRadius: 12, height: 44, paddingInline: 24, boxShadow: '0 4px 12px rgba(0,0,0,0.12)' }}
             >
               {isTeacher ? 'Bắt đầu buổi học' : 'Vào học'}
             </Button>
@@ -856,10 +865,10 @@ export default function ClassDetailPage() {
                           cancelText="Hủy"
                           okButtonProps={{ danger: true }}
                         >
-                          <span style={{ color: '#f43f5e' }}>Xóa lớp học</span>
+                          <span style={{ color: color.rose }}>Xóa lớp học</span>
                         </Popconfirm>
                       ),
-                      icon: <DeleteOutlined style={{ color: '#f43f5e' }} />,
+                      icon: <DeleteOutlined style={{ color: color.rose }} />,
                     },
                   ],
                   onClick: ({ key }) => {
@@ -885,8 +894,8 @@ export default function ClassDetailPage() {
 
       {/* Tabs card */}
       <Card
-        style={{ borderRadius: 16, border: '1px solid #e2e8f0' }}
-        styles={{ body: { padding: '0 24px 24px' } }}
+        style={{ borderRadius: radius.card, border: `1px solid ${color.border}` }}
+        styles={{ body: { padding: '0 16px 20px' } }}
       >
         <Tabs
           items={tabItems}
@@ -901,7 +910,7 @@ export default function ClassDetailPage() {
       {/* Schedule modal (create + edit) */}
       <Modal
         title={
-          <div style={{ fontSize: 16, fontWeight: 700, color: '#0f172a' }}>
+          <div style={{ fontSize: 16, fontWeight: 700, color: color.text }}>
             {editingSchedule ? 'Chỉnh sửa buổi học' : 'Thêm buổi học mới'}
           </div>
         }
@@ -911,7 +920,7 @@ export default function ClassDetailPage() {
         okText={editingSchedule ? 'Lưu thay đổi' : 'Lưu lịch'}
         cancelText="Hủy"
         confirmLoading={scheduleSaving}
-        okButtonProps={{ style: { background: 'linear-gradient(135deg, #6366f1, #8b5cf6)', border: 'none', fontWeight: 600 } }}
+        okButtonProps={{ style: { fontWeight: 600 } }}
         width={480}
       >
         <Form form={scheduleForm} layout="vertical" style={{ marginTop: 8 }}>
@@ -937,7 +946,7 @@ export default function ClassDetailPage() {
 
       {/* Edit class modal */}
       <Modal
-        title={<div style={{ fontSize: 16, fontWeight: 700, color: '#0f172a' }}>Chỉnh sửa lớp học</div>}
+        title={<div style={{ fontSize: 16, fontWeight: 700, color: color.text }}>Chỉnh sửa lớp học</div>}
         open={editClassOpen}
         onCancel={() => { setEditClassOpen(false); editClassForm.resetFields(); }}
         footer={null}
@@ -959,7 +968,7 @@ export default function ClassDetailPage() {
               type="primary"
               htmlType="submit"
               loading={editClassSaving}
-              style={{ borderRadius: 10, background: 'linear-gradient(135deg, #6366f1, #8b5cf6)', border: 'none', fontWeight: 600 }}
+              style={{ borderRadius: 10, fontWeight: 600 }}
             >
               Lưu thay đổi
             </Button>
@@ -976,6 +985,6 @@ export default function ClassDetailPage() {
         style={{ display: 'none' }}
         onChange={handleDocFileChange}
       />
-    </div>
+    </PageContainer>
   );
 }

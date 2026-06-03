@@ -23,7 +23,7 @@ interface VideoTileProps {
 export default function VideoTile({
   stream,
   name,
-  avatarColor = '#6366f1',
+  avatarColor = '#4f46e5',
   isTeacher,
   isMuted,
   isCameraOff,
@@ -62,7 +62,7 @@ export default function VideoTile({
         borderRadius,
         overflow: 'hidden',
         border: isFocused
-          ? '2px solid rgba(99,102,241,0.65)'
+          ? '2px solid rgba(79,70,229,0.65)'
           : isSelf
             ? '2px solid rgba(16,185,129,0.55)'
             : '1.5px solid rgba(255,255,255,0.07)',
@@ -70,7 +70,7 @@ export default function VideoTile({
         alignItems: 'center',
         justifyContent: 'center',
         boxShadow: isFocused
-          ? '0 0 0 4px rgba(99,102,241,0.15), 0 8px 32px rgba(0,0,0,0.5)'
+          ? '0 0 0 4px rgba(79,70,229,0.15), 0 8px 32px rgba(0,0,0,0.5)'
           : isSelf
             ? '0 0 0 3px rgba(16,185,129,0.12), 0 4px 16px rgba(0,0,0,0.4)'
             : '0 2px 12px rgba(0,0,0,0.35)',
@@ -157,12 +157,12 @@ export default function VideoTile({
           }}
           ellipsis
         >
-          {shortName || '—'}
+          {shortName || '?'}
         </Text>
 
         {isTeacher && !compact && (
           <span style={{
-            background: 'linear-gradient(135deg, #6366f1, #8b5cf6)',
+            background: '#4f46e5',
             color: '#fff',
             fontSize: 8,
             padding: '2px 6px',
@@ -178,15 +178,15 @@ export default function VideoTile({
         {isTeacher && compact && (
           <span style={{
             width: 5, height: 5,
-            background: 'linear-gradient(135deg, #6366f1, #8b5cf6)',
+            background: '#4f46e5',
             borderRadius: '50%',
             flexShrink: 0,
-            boxShadow: '0 0 5px rgba(99,102,241,0.8)',
+            boxShadow: '0 0 5px rgba(79,70,229,0.8)',
           }} />
         )}
         {isMuted && (
           <AudioMutedOutlined style={{
-            color: '#f43f5e',
+            color: '#e23d6d',
             fontSize: compact ? 9 : 11,
             flexShrink: 0,
           }} />
