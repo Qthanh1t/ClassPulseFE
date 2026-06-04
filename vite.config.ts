@@ -14,6 +14,11 @@ export default defineConfig(({ mode }) => {
     env.VITE_BACKEND_TARGET ||
     (apiBase.startsWith('http') ? apiBase.replace(/\/api\/v1\/?$/, '') : 'http://localhost:8080')
 
+  // MinIO object storage (avatars, documents, attachments). Like /api and /ws,
+  // proxied through Vite so the browser only ever talks to the dev-server origin
+  // — works over LAN IP (phones) without baking localhost:9000 into stored URLs.
+  const minioTarget = env.VITE_MINIO_TARGET || 'http://localhost:9000'
+
   return {
     plugins: [react(), tailwindcss()],
     define: {
@@ -39,6 +44,15 @@ export default defineConfig(({ mode }) => {
           changeOrigin: true,
           secure: false,
           ws: true,
+        },
+        // /storage/<bucket>/<object> → MinIO <bucket>/<object>.
+        // Stored avatar/document URLs are relative (/storage/...), so the browser
+        // requests them from the current origin and Vite forwards to MinIO.
+        '/storage': {
+          target: minioTarget,
+          changeOrigin: true,
+          secure: false,
+          rewrite: (path) => path.replace(/^\/storage/, ''),
         },
       },
     },
