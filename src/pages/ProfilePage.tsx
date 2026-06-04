@@ -3,7 +3,7 @@ import { Avatar, Button, Card, Col, Row, Tag, Typography, Modal, Form, Input, me
 import {
   BookOutlined, TeamOutlined, QuestionCircleOutlined,
   CalendarOutlined, EditOutlined, SafetyCertificateOutlined,
-  UploadOutlined,
+  UploadOutlined, CheckCircleOutlined,
 } from '@ant-design/icons';
 import { userService } from '../services/user.service';
 import { useAuthStore } from '../store/authStore';
@@ -68,16 +68,26 @@ export default function ProfilePage() {
     return false; // prevent antd default upload
   }
 
-  const stats = [
-    { icon: <BookOutlined />, label: 'Lớp học', value: profile?.stats?.classroomsCount ?? 0, color: color.primary, bg: color.primaryLight },
-    { icon: <CalendarOutlined />, label: 'Buổi học', value: profile?.stats?.sessionsCount ?? 0, color: '#0e7faa', bg: '#e3f1f8' },
-    { icon: <QuestionCircleOutlined />, label: 'Câu hỏi đã tạo', value: profile?.stats?.questionsAsked ?? 0, color: color.amber, bg: color.amberLight },
-    { icon: <TeamOutlined />, label: 'Học sinh', value: profile?.stats?.studentsReached ?? 0, color: color.emerald, bg: color.emeraldLight },
-  ];
+  const role = profile?.role ?? storeUser?.role ?? '';
+  const isStudent = role === 'student';
+
+  const stats = isStudent
+    ? [
+        { icon: <BookOutlined />, label: 'Lớp đã tham gia', value: profile?.stats?.classroomsCount ?? 0, color: color.primary, bg: color.primaryLight },
+        { icon: <CalendarOutlined />, label: 'Buổi đã dự', value: profile?.stats?.sessionsCount ?? 0, color: '#0e7faa', bg: '#e3f1f8' },
+        { icon: <QuestionCircleOutlined />, label: 'Câu đã trả lời', value: profile?.stats?.questionsAsked ?? 0, color: color.amber, bg: color.amberLight },
+        { icon: <CheckCircleOutlined />, label: 'Trả lời đúng', value: profile?.stats?.studentsReached ?? 0, color: color.emerald, bg: color.emeraldLight },
+      ]
+    : [
+        { icon: <BookOutlined />, label: 'Lớp học', value: profile?.stats?.classroomsCount ?? 0, color: color.primary, bg: color.primaryLight },
+        { icon: <CalendarOutlined />, label: 'Buổi học', value: profile?.stats?.sessionsCount ?? 0, color: '#0e7faa', bg: '#e3f1f8' },
+        { icon: <QuestionCircleOutlined />, label: 'Câu hỏi đã tạo', value: profile?.stats?.questionsAsked ?? 0, color: color.amber, bg: color.amberLight },
+        { icon: <TeamOutlined />, label: 'Học sinh', value: profile?.stats?.studentsReached ?? 0, color: color.emerald, bg: color.emeraldLight },
+      ];
 
   const displayName = profile?.name ?? storeUser?.name ?? '';
   const avatarLetter = displayName.charAt(0).toUpperCase();
-  const roleLabel = ROLE_LABEL[profile?.role ?? storeUser?.role ?? ''] ?? '';
+  const roleLabel = ROLE_LABEL[role] ?? '';
 
   if (loading) {
     return (
