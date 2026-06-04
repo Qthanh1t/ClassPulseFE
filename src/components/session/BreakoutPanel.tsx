@@ -60,6 +60,7 @@ export default function BreakoutPanel({
     id: p.studentId,
     name: p.name,
     avatarColor: p.avatarColor,
+    avatarUrl: p.avatarUrl,
   }));
   const assignedIds = new Set(rooms.flatMap((r) => r.studentIds));
   const mainRoomStudents = allStudents.filter((s) => !assignedIds.has(s.id));
@@ -234,7 +235,7 @@ export default function BreakoutPanel({
                   <div style={{ display: 'flex', gap: 8, marginBottom: 10, flexWrap: 'wrap', alignItems: 'center' }}>
                     {room.students.map((s) => (
                       <div key={s.id} style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-                        <Avatar size={24} style={{ background: s.avatarColor ?? '#4f46e5', fontSize: 11 }}>
+                        <Avatar size={24} src={s.avatarUrl ?? undefined} style={{ background: s.avatarColor ?? '#4f46e5', fontSize: 11 }}>
                           {s.name.charAt(0)}
                         </Avatar>
                         <Text style={{ fontSize: 12 }}>{s.name.split(' ').pop()}</Text>
@@ -364,7 +365,7 @@ export default function BreakoutPanel({
                   padding: '3px 6px 3px 4px', border: '1px solid #e7e3dc',
                 }}
               >
-                <Avatar size={20} style={{ background: s.avatarColor ?? '#4f46e5', fontSize: 10, flexShrink: 0 }}>
+                <Avatar size={20} src={s.avatarUrl ?? undefined} style={{ background: s.avatarColor ?? '#4f46e5', fontSize: 10, flexShrink: 0 }}>
                   {s.name.charAt(0)}
                 </Avatar>
                 <Text style={{ fontSize: 12 }}>{s.name.split(' ').pop()}</Text>
@@ -438,7 +439,7 @@ export default function BreakoutPanel({
                         padding: '2px 8px 2px 4px', border: '1px solid #c7d2fe',
                       }}
                     >
-                      <Avatar size={18} style={{ background: s.avatarColor ?? '#4f46e5', fontSize: 10 }}>
+                      <Avatar size={18} src={s.avatarUrl ?? undefined} style={{ background: s.avatarColor ?? '#4f46e5', fontSize: 10 }}>
                         {s.name.charAt(0)}
                       </Avatar>
                       <Text style={{ fontSize: 12 }}>{s.name.split(' ').pop()}</Text>

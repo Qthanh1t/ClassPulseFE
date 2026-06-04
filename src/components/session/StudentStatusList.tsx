@@ -7,6 +7,7 @@ interface Participant {
   id: string;
   name: string;
   avatarColor?: string;
+  avatarUrl?: string;
   isTeacher?: boolean;
   isOnline?: boolean;
 }
@@ -73,7 +74,7 @@ export default function StudentStatusList({
               }}
             >
               <div style={{ position: 'relative' }}>
-                <Avatar size={32} style={{ background: p.avatarColor ?? '#4f46e5', fontSize: 13 }}>
+                <Avatar size={32} src={p.avatarUrl ?? undefined} style={{ background: p.avatarColor ?? '#4f46e5', fontSize: 13 }}>
                   {initial}
                 </Avatar>
                 <div

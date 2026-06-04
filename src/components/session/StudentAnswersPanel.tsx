@@ -21,11 +21,12 @@ function formatAt(iso: string) {
 interface CardProps {
   name: string;
   avatarColor?: string;
+  avatarUrl?: string;
   answer?: StudentAnswerDto;
   question: QuestionDto;
 }
 
-function StudentAnswerCard({ name, avatarColor, answer, question }: CardProps) {
+function StudentAnswerCard({ name, avatarColor, avatarUrl, answer, question }: CardProps) {
   const optMap = new Map((question.options ?? []).map((o) => [o.id, o]));
   const answered = !!answer;
   const conf = answer?.confidence ? CONFIDENCE_CONFIG[answer.confidence] : null;
@@ -50,7 +51,7 @@ function StudentAnswerCard({ name, avatarColor, answer, question }: CardProps) {
     >
       {/* Header row */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-        <Avatar size={26} style={{ background: avatarColor ?? '#4f46e5', fontSize: 11, flexShrink: 0 }}>
+        <Avatar size={26} src={avatarUrl ?? undefined} style={{ background: avatarColor ?? '#4f46e5', fontSize: 11, flexShrink: 0 }}>
           {name.charAt(0).toUpperCase()}
         </Avatar>
         <Text strong style={{ fontSize: 13, flex: 1, minWidth: 80 }}>
@@ -170,23 +171,27 @@ export default function StudentAnswersPanel({ sessionId, question, stats, presen
   const answerMap = new Map(answers.map((a) => [a.student.id, a]));
   const presenceColorMap = new Map(presence.map((p) => [p.studentId, p.avatarColor]));
   const silentColorMap = new Map(stats.silentStudents.map((s) => [s.id, s.avatarColor]));
+  const presenceUrlMap = new Map(presence.map((p) => [p.studentId, p.avatarUrl]));
+  const silentUrlMap = new Map(stats.silentStudents.map((s) => [s.id, s.avatarUrl]));
 
   const getColor = (id: string) =>
     presenceColorMap.get(id) ?? silentColorMap.get(id) ?? '#4f46e5';
+  const getUrl = (id: string) =>
+    presenceUrlMap.get(id) ?? silentUrlMap.get(id) ?? undefined;
 
   // Merge all known students: presence + answers + silentStudents
-  const studentMap = new Map<string, { id: string; name: string; avatarColor?: string }>();
+  const studentMap = new Map<string, { id: string; name: string; avatarColor?: string; avatarUrl?: string }>();
   for (const p of presence) {
-    studentMap.set(p.studentId, { id: p.studentId, name: p.name, avatarColor: p.avatarColor });
+    studentMap.set(p.studentId, { id: p.studentId, name: p.name, avatarColor: p.avatarColor, avatarUrl: p.avatarUrl });
   }
   for (const a of answers) {
     if (!studentMap.has(a.student.id)) {
-      studentMap.set(a.student.id, { id: a.student.id, name: a.student.name, avatarColor: getColor(a.student.id) });
+      studentMap.set(a.student.id, { id: a.student.id, name: a.student.name, avatarColor: getColor(a.student.id), avatarUrl: getUrl(a.student.id) });
     }
   }
   for (const s of stats.silentStudents) {
     if (!studentMap.has(s.id)) {
-      studentMap.set(s.id, { id: s.id, name: s.name, avatarColor: s.avatarColor });
+      studentMap.set(s.id, { id: s.id, name: s.name, avatarColor: s.avatarColor, avatarUrl: s.avatarUrl });
     }
   }
 
@@ -279,6 +284,7 @@ export default function StudentAnswersPanel({ sessionId, question, stats, presen
                             key={s.id}
                             name={s.name}
                             avatarColor={s.avatarColor}
+                            avatarUrl={s.avatarUrl}
                             answer={answerMap.get(s.id)}
                             question={question}
                           />
@@ -303,6 +309,7 @@ export default function StudentAnswersPanel({ sessionId, question, stats, presen
                             key={s.id}
                             name={s.name}
                             avatarColor={s.avatarColor}
+                            avatarUrl={s.avatarUrl}
                             answer={undefined}
                             question={question}
                           />

@@ -174,7 +174,7 @@ export default function TeacherDashboardPage() {
       width: 180,
       render: (_: unknown, record: StudentResult) => (
         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-          <Avatar size={30} style={{ background: record.avatarColor ?? color.primary, flexShrink: 0, fontWeight: 600, fontSize: 12 }}>
+          <Avatar size={30} src={record.avatarUrl ?? undefined} style={{ background: record.avatarColor ?? color.primary, flexShrink: 0, fontWeight: 600, fontSize: 12 }}>
             {record.name.charAt(0)}
           </Avatar>
           <Text style={{ fontSize: 13, fontWeight: 500 }}>{record.name}</Text>

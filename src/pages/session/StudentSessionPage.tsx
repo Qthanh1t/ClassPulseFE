@@ -43,6 +43,7 @@ function dtoToChat(dto: ChatMessageDto): ChatMessage {
     senderId: dto.sender.id,
     senderName: dto.sender.name,
     avatarColor: dto.sender.avatarColor ?? '#4f46e5',
+    avatarUrl: dto.sender.avatarUrl ?? undefined,
     content: dto.content,
     time,
     isTeacher: dto.sender.role === 'teacher',
@@ -168,7 +169,7 @@ export default function StudentSessionPage() {
         function handleEvent(event: WsEvent) {
           switch (event.type) {
             case 'student_presence': {
-              const payload = event.payload as { studentId: string; name: string; avatarColor?: string; action: 'joined' | 'left' };
+              const payload = event.payload as { studentId: string; name: string; avatarColor?: string; avatarUrl?: string; action: 'joined' | 'left' };
               if (payload.action === 'left') {
                 rtc.closePeer(payload.studentId);
                 setPresence((prev) => {
@@ -186,7 +187,7 @@ export default function StudentSessionPage() {
                   if (prev.some((x) => x.studentId === payload.studentId)) {
                     return prev.map((x) => x.studentId === payload.studentId ? { ...x, isOnline: true } : x);
                   }
-                  return [...prev, { studentId: payload.studentId, name: payload.name ?? 'Học sinh', avatarColor: payload.avatarColor, isOnline: true, joinedAt: new Date().toISOString() }];
+                  return [...prev, { studentId: payload.studentId, name: payload.name ?? 'Học sinh', avatarColor: payload.avatarColor, avatarUrl: payload.avatarUrl, isOnline: true, joinedAt: new Date().toISOString() }];
                 });
                 // Refresh profile data from API; also add any students not yet in state.
                 void sessionService.getPresence(info.sessionId).then((res) => {
@@ -197,7 +198,7 @@ export default function StudentSessionPage() {
                       const updated = prev.map((entry) => {
                         const profile = profileMap.get(entry.studentId);
                         return profile
-                          ? { ...entry, name: profile.name ?? entry.name, avatarColor: profile.avatarColor ?? entry.avatarColor }
+                          ? { ...entry, name: profile.name ?? entry.name, avatarColor: profile.avatarColor ?? entry.avatarColor, avatarUrl: profile.avatarUrl ?? entry.avatarUrl }
                           : entry;
                       });
                       // Add online students from API not yet in local state (except self)
@@ -576,14 +577,15 @@ export default function StudentSessionPage() {
   // ── Participant list ───────────────────────────────────────────────
   // Always include self from authStore — getPresence may not return the current student's own entry
   const participants = [
-    { id: 'teacher', name: joinInfo?.teacherName ?? 'Giáo viên', isTeacher: true as const, isOnline: true },
-    ...(me ? [{ id: me.id, name: me.name ?? 'Học sinh', avatarColor: me.avatarColor ?? '#4f46e5', isOnline: true }] : []),
+    { id: 'teacher', name: joinInfo?.teacherName ?? 'Giáo viên', avatarColor: joinInfo?.teacherAvatarColor ?? undefined, avatarUrl: joinInfo?.teacherAvatarUrl ?? undefined, isTeacher: true as const, isOnline: true },
+    ...(me ? [{ id: me.id, name: me.name ?? 'Học sinh', avatarColor: me.avatarColor ?? '#4f46e5', avatarUrl: me.avatarUrl ?? undefined, isOnline: true }] : []),
     ...presence
       .filter((p) => p.isOnline && p.studentId !== me?.id)
       .map((p) => ({
         id: p.studentId,
         name: p.name ?? 'Học sinh',
         avatarColor: p.avatarColor,
+        avatarUrl: p.avatarUrl,
         isOnline: true,
       })),
   ];
@@ -640,7 +642,7 @@ export default function StudentSessionPage() {
       {/* ─── Top header ─── */}
       <div style={{ height: 52, background: 'rgba(0,0,0,0.5)', backdropFilter: 'blur(8px)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 16px', flexShrink: 0, gap: 12, zIndex: 10 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-          <Avatar size={28} style={{ background: myAvatarColor }}>{me?.name.charAt(0)}</Avatar>
+          <Avatar size={28} src={me?.avatarUrl ?? undefined} style={{ background: myAvatarColor }}>{me?.name.charAt(0)}</Avatar>
           <div>
             <Text strong style={{ fontSize: 13, color: '#fff' }}>{me?.name}</Text>
             <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
@@ -719,7 +721,8 @@ export default function StudentSessionPage() {
                     <VideoTile
                       stream={teacherPeer?.remoteStream ?? null}
                       name={joinInfo.teacherName}
-                      avatarColor="#4f46e5"
+                      avatarColor={joinInfo.teacherAvatarColor ?? '#4f46e5'}
+                      avatarUrl={joinInfo.teacherAvatarUrl ?? undefined}
                       isTeacher
                       isCameraOff={teacherPeer?.isCameraOff}
                       borderRadius={10}
@@ -736,6 +739,7 @@ export default function StudentSessionPage() {
                       stream={focusedStudentId === me?.id ? localMedia.stream : (rtc.peers.get(focusedStudentId)?.remoteStream ?? null)}
                       name={focusedStudentId === me?.id ? (me?.name ?? 'Bạn') : (presence.find((p) => p.studentId === focusedStudentId)?.name ?? 'Học sinh')}
                       avatarColor={focusedStudentId === me?.id ? myAvatarColor : presence.find((p) => p.studentId === focusedStudentId)?.avatarColor}
+                      avatarUrl={focusedStudentId === me?.id ? (me?.avatarUrl ?? undefined) : presence.find((p) => p.studentId === focusedStudentId)?.avatarUrl}
                       isLocal={focusedStudentId === me?.id}
                       isMuted={focusedStudentId === me?.id ? !localMedia.isMicOn : undefined}
                       isCameraOff={focusedStudentId === me?.id ? !localMedia.isCameraOn : rtc.peers.get(focusedStudentId)?.isCameraOff}
@@ -757,7 +761,8 @@ export default function StudentSessionPage() {
                   <VideoTile
                     stream={teacherPeer?.remoteStream ?? null}
                     name={joinInfo.teacherName}
-                    avatarColor="#4f46e5"
+                    avatarColor={joinInfo.teacherAvatarColor ?? '#4f46e5'}
+                    avatarUrl={joinInfo.teacherAvatarUrl ?? undefined}
                     isTeacher
                     isCameraOff={teacherPeer?.isCameraOff}
                     borderRadius={12}
@@ -789,6 +794,7 @@ export default function StudentSessionPage() {
                     stream={localMedia.stream}
                     name={me?.name ?? 'Bạn'}
                     avatarColor={myAvatarColor}
+                    avatarUrl={me?.avatarUrl ?? undefined}
                     isLocal
                     isMuted={!localMedia.isMicOn}
                     isCameraOff={!localMedia.isCameraOn}
@@ -814,6 +820,7 @@ export default function StudentSessionPage() {
                           stream={peer?.remoteStream ?? null}
                           name={p.name}
                           avatarColor={p.avatarColor}
+                          avatarUrl={p.avatarUrl}
                           isCameraOff={peer?.isCameraOff}
                           isFocused={focusedStudentId === p.studentId}
                           compact
@@ -846,7 +853,8 @@ export default function StudentSessionPage() {
                     <VideoTile
                       stream={teacherPeer?.remoteStream ?? null}
                       name={joinInfo.teacherName}
-                      avatarColor="#4f46e5"
+                      avatarColor={joinInfo.teacherAvatarColor ?? '#4f46e5'}
+                      avatarUrl={joinInfo.teacherAvatarUrl ?? undefined}
                       isTeacher
                       isCameraOff={teacherPeer?.isCameraOff}
                       borderRadius={10}
@@ -866,6 +874,7 @@ export default function StudentSessionPage() {
                         stream={isSelf ? localMedia.stream : (peer?.remoteStream ?? null)}
                         name={s.name}
                         avatarColor={s.avatarColor}
+                        avatarUrl={s.avatarUrl}
                         isLocal={isSelf}
                         isMuted={isSelf && !localMedia.isMicOn}
                         isCameraOff={isSelf ? !localMedia.isCameraOn : peer?.isCameraOff}

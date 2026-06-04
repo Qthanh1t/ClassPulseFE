@@ -417,7 +417,7 @@ export default function ClassDetailPage() {
                     <div style={{ display: 'flex', gap: 12 }}>
                       <Avatar
                         size={36}
-                        src={(post.author as { avatarUrl?: string }).avatarUrl ?? undefined}
+                        src={post.author.avatarUrl ?? undefined}
                         style={{
                           background: post.author.role === 'teacher' ? color.primary : color.emerald,
                           flexShrink: 0, fontSize: 14, fontWeight: 600,
@@ -645,7 +645,7 @@ export default function ClassDetailPage() {
                   key: 'name',
                   render: (_, m) => (
                     <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                      <Avatar size={34} style={{ background: m.avatarColor ?? color.primary, fontWeight: 600, fontSize: 13 }}>
+                      <Avatar size={34} src={m.avatarUrl ?? undefined} style={{ background: m.avatarColor ?? color.primary, fontWeight: 600, fontSize: 13 }}>
                         {m.name.charAt(0)}
                       </Avatar>
                       <Text style={{ fontSize: 14, fontWeight: 500, color: color.text }}>{m.name}</Text>

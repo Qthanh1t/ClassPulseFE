@@ -9,6 +9,7 @@ export interface ChatMessage {
   senderId: string;
   senderName: string;
   avatarColor: string;
+  avatarUrl?: string;
   content: string;
   time: string;
   isTeacher?: boolean;
@@ -134,6 +135,7 @@ export default function ChatPanel({ messages, currentUser, onSend, onClose, heig
               {!isSelf && (
                 <Avatar
                   size={28}
+                  src={msg.avatarUrl ?? undefined}
                   style={{ background: msg.avatarColor, flexShrink: 0, fontSize: 12 }}
                 >
                   {msg.senderName.charAt(0)}

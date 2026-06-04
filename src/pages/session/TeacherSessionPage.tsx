@@ -58,6 +58,7 @@ function dtoToChat(msg: ChatMessageDto): ChatMessage {
     senderId: msg.sender.id,
     senderName: msg.sender.name,
     avatarColor: msg.sender.avatarColor ?? '#4f46e5',
+    avatarUrl: msg.sender.avatarUrl ?? undefined,
     content: msg.content,
     time: formatTime(msg.sentAt),
     isTeacher: msg.sender.role === 'teacher',
@@ -206,7 +207,7 @@ export default function TeacherSessionPage() {
         switch (event.type) {
           case 'student_presence': {
             const p = event.payload as {
-              studentId: string; name: string; avatarColor?: string; action: 'joined' | 'left';
+              studentId: string; name: string; avatarColor?: string; avatarUrl?: string; action: 'joined' | 'left';
             };
             if (p.action === 'left') {
               rtc.closePeer(p.studentId);
@@ -224,7 +225,7 @@ export default function TeacherSessionPage() {
                 if (prev.some((x) => x.studentId === p.studentId)) {
                   return prev.map((x) => x.studentId === p.studentId ? { ...x, isOnline: true } : x);
                 }
-                return [...prev, { studentId: p.studentId, name: p.name ?? 'Học sinh', avatarColor: p.avatarColor, isOnline: true, joinedAt: new Date().toISOString() }];
+                return [...prev, { studentId: p.studentId, name: p.name ?? 'Học sinh', avatarColor: p.avatarColor, avatarUrl: p.avatarUrl, isOnline: true, joinedAt: new Date().toISOString() }];
               });
               // Refresh from API: update profile data AND remove students now offline
               void sessionService.getPresence(sess.id).then((res) => {
@@ -239,7 +240,7 @@ export default function TeacherSessionPage() {
                       .map(entry => {
                         const profile = profileMap.get(entry.studentId);
                         return profile
-                          ? { ...entry, name: profile.name ?? entry.name, avatarColor: profile.avatarColor ?? entry.avatarColor }
+                          ? { ...entry, name: profile.name ?? entry.name, avatarColor: profile.avatarColor ?? entry.avatarColor, avatarUrl: profile.avatarUrl ?? entry.avatarUrl }
                           : entry;
                       });
                     presenceRef.current = updated;
@@ -289,7 +290,7 @@ export default function TeacherSessionPage() {
                   optionId: o.id, label: o.label, text: o.text, isCorrect: o.isCorrect, count: 0,
                 })),
                 confidenceBreakdown: { high: 0, medium: 0, low: 0, none: 0 },
-                silentStudents: presenceRef.current.map((p) => ({ id: p.studentId, name: p.name, avatarColor: p.avatarColor })),
+                silentStudents: presenceRef.current.map((p) => ({ id: p.studentId, name: p.name, avatarColor: p.avatarColor, avatarUrl: p.avatarUrl })),
               });
             }
             break;
@@ -565,6 +566,7 @@ export default function TeacherSessionPage() {
       id: user?.id ?? '__teacher__',
       name: user?.name ?? 'Giáo viên',
       avatarColor: user?.avatarColor ?? '#4f46e5',
+      avatarUrl: user?.avatarUrl ?? undefined,
       isTeacher: true,
       isOnline: true,
     },
@@ -575,6 +577,7 @@ export default function TeacherSessionPage() {
         id: p.studentId,
         name: p.name ?? 'Học sinh',
         avatarColor: p.avatarColor,
+        avatarUrl: p.avatarUrl,
         isOnline: true,
       })),
   ];
@@ -684,7 +687,7 @@ export default function TeacherSessionPage() {
               {formatElapsed(elapsedSeconds)}
             </Text>
           </div>
-          <Avatar size={26} style={{ background: '#4f46e5', fontSize: 12 }}>
+          <Avatar size={26} src={user?.avatarUrl ?? undefined} style={{ background: user?.avatarColor ?? '#4f46e5', fontSize: 12 }}>
             {user?.name?.charAt(0) ?? 'G'}
           </Avatar>
           {!compact && <Text style={{ fontSize: 13, color: '#fff' }}>{user?.name ?? 'Giáo viên'}</Text>}
@@ -705,6 +708,7 @@ export default function TeacherSessionPage() {
                   {i > 0 ? ', ' : ''}
                   <Avatar
                     size={18}
+                    src={s.avatarUrl ?? undefined}
                     style={{ background: s.avatarColor ?? '#4f46e5', fontSize: 10, marginRight: 3, verticalAlign: 'middle' }}
                   >
                     {s.name.charAt(0)}
@@ -756,6 +760,7 @@ export default function TeacherSessionPage() {
                       stream={localMedia.stream}
                       name={user?.name ?? 'Giáo viên'}
                       avatarColor={user?.avatarColor ?? '#4f46e5'}
+                      avatarUrl={user?.avatarUrl ?? undefined}
                       isTeacher
                       isLocal
                       isMuted={!localMedia.isMicOn}
@@ -777,6 +782,7 @@ export default function TeacherSessionPage() {
                       stream={rtc.peers.get(focusedStudent.studentId)?.remoteStream ?? null}
                       name={focusedStudent.name}
                       avatarColor={focusedStudent.avatarColor}
+                      avatarUrl={focusedStudent.avatarUrl}
                       isCameraOff={rtc.peers.get(focusedStudent.studentId)?.isCameraOff}
                       isFocused
                       borderRadius={10}
@@ -796,7 +802,8 @@ export default function TeacherSessionPage() {
                   <VideoTile
                     stream={localMedia.stream}
                     name={user?.name ?? 'Giáo viên'}
-                    avatarColor="#4f46e5"
+                    avatarColor={user?.avatarColor ?? '#4f46e5'}
+                    avatarUrl={user?.avatarUrl ?? undefined}
                     isTeacher
                     isLocal
                     isMuted={!localMedia.isMicOn}
@@ -844,6 +851,7 @@ export default function TeacherSessionPage() {
                           stream={rtc.peers.get(p.studentId)?.remoteStream ?? null}
                           name={p.name}
                           avatarColor={p.avatarColor}
+                          avatarUrl={p.avatarUrl}
                           isCameraOff={rtc.peers.get(p.studentId)?.isCameraOff}
                           isFocused={isFocused}
                           compact
@@ -1009,6 +1017,7 @@ export default function TeacherSessionPage() {
                         stream={localMedia.stream}
                         name={user?.name ?? 'Giáo viên'}
                         avatarColor={user?.avatarColor ?? '#4f46e5'}
+                        avatarUrl={user?.avatarUrl ?? undefined}
                         isTeacher
                         isLocal
                         isMuted={!localMedia.isMicOn}
@@ -1026,6 +1035,7 @@ export default function TeacherSessionPage() {
                             stream={peer?.remoteStream ?? null}
                             name={s.name}
                             avatarColor={s.avatarColor}
+                            avatarUrl={s.avatarUrl}
                             isCameraOff={peer?.isCameraOff}
                             borderRadius={10}
                           >
@@ -1063,6 +1073,7 @@ export default function TeacherSessionPage() {
                           stream={localMedia.stream}
                           name={user?.name ?? 'Giáo viên'}
                           avatarColor={user?.avatarColor ?? '#4f46e5'}
+                          avatarUrl={user?.avatarUrl ?? undefined}
                           isTeacher
                           isLocal
                           isMuted={!localMedia.isMicOn}
@@ -1078,6 +1089,7 @@ export default function TeacherSessionPage() {
                               stream={peer?.remoteStream ?? null}
                               name={p.name}
                               avatarColor={p.avatarColor}
+                              avatarUrl={p.avatarUrl}
                               isCameraOff={peer?.isCameraOff}
                               borderRadius={10}
                             >

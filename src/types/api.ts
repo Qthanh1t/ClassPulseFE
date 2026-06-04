@@ -69,7 +69,7 @@ export interface ClassroomDto {
   description: string | null;
   subject: string | null;
   joinCode: string;
-  teacher: { id: string; name: string; avatarColor: string | null };
+  teacher: { id: string; name: string; avatarColor: string | null; avatarUrl: string | null };
   studentCount: number;
   nextSchedule: {
     id: string;
@@ -99,6 +99,7 @@ export interface MemberDto {
   id: string;
   name: string;
   avatarColor: string | null;
+  avatarUrl: string | null;
   role: 'teacher' | 'student';
   joinedAt: string;
 }
@@ -122,7 +123,7 @@ export interface AttachmentDto {
 
 export interface PostDto {
   id: string;
-  author: { id: string; name: string; role: string; avatarColor: string | null };
+  author: { id: string; name: string; role: string; avatarColor: string | null; avatarUrl: string | null };
   content: string;
   attachments: AttachmentDto[];
   createdAt: string;
@@ -236,6 +237,8 @@ export interface JoinSessionResponse {
   classroomName: string;
   teacherName: string;
   teacherId: string;
+  teacherAvatarColor?: string | null;
+  teacherAvatarUrl?: string | null;
   wsTicket: string;
 }
 
@@ -251,6 +254,7 @@ export interface PresenceDto {
   studentId: string;
   name: string;
   avatarColor?: string;
+  avatarUrl?: string;
   joinedAt: string;
   isOnline: boolean;
 }
@@ -336,6 +340,7 @@ export interface QuestionStatsDto {
     id: string;
     name: string;
     avatarColor?: string;
+    avatarUrl?: string;
   }[];
 }
 
@@ -366,6 +371,7 @@ export interface RoomStudentInfo {
   id: string;
   name: string;
   avatarColor?: string;
+  avatarUrl?: string;
 }
 
 export interface RoomDto {
@@ -422,6 +428,7 @@ export interface ChatMessageDto {
     name: string;
     role: 'teacher' | 'student';
     avatarColor?: string;
+    avatarUrl?: string;
   };
   content: string;
   breakoutRoomId?: string;
@@ -459,6 +466,7 @@ export interface StudentResult {
   studentId: string;
   name: string;
   avatarColor?: string;
+  avatarUrl?: string;
   answeredCount: number;
   correctCount: number;
   skippedCount: number;
@@ -532,7 +540,7 @@ export interface AdminClassroomDto {
   name: string;
   subject?: string;
   joinCode: string;
-  teacher: { id: string; name: string; avatarColor: string | null };
+  teacher: { id: string; name: string; avatarColor: string | null; avatarUrl: string | null };
   studentCount: number;
   createdAt: string;
   archived: boolean;

@@ -137,7 +137,7 @@ export default function StudentReviewPage() {
 
       {/* Student info */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 14, marginBottom: 24 }}>
-        <Avatar size={52} style={{ background: me?.avatarColor ?? color.primary, fontWeight: 700, fontSize: 20 }}>
+        <Avatar size={52} src={me?.avatarUrl ?? undefined} style={{ background: me?.avatarColor ?? color.primary, fontWeight: 700, fontSize: 20 }}>
           {(me?.name ?? '?').charAt(0)}
         </Avatar>
         <div>

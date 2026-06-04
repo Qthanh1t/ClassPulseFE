@@ -9,6 +9,7 @@ interface VideoTileProps {
   stream: MediaStream | null;
   name: string;
   avatarColor?: string;
+  avatarUrl?: string;
   isTeacher?: boolean;
   isMuted?: boolean;
   isCameraOff?: boolean;
@@ -24,6 +25,7 @@ export default function VideoTile({
   stream,
   name,
   avatarColor = '#4f46e5',
+  avatarUrl,
   isTeacher,
   isMuted,
   isCameraOff,
@@ -105,6 +107,7 @@ export default function VideoTile({
         }}>
           <Avatar
             size={avatarSize}
+            src={avatarUrl ?? undefined}
             style={{
               background: `linear-gradient(135deg, ${avatarColor}dd, ${avatarColor}88)`,
               fontSize: compact ? 12 : 20,

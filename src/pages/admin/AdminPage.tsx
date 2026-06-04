@@ -150,6 +150,7 @@ export default function AdminPage() {
         <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
           <Avatar
             size={24}
+            src={record.teacher.avatarUrl ?? undefined}
             style={{ background: record.teacher.avatarColor ?? color.primary, fontSize: 11 }}
           >
             {record.teacher.name.charAt(0)}
