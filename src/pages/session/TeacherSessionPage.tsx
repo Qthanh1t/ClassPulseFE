@@ -923,6 +923,7 @@ export default function TeacherSessionPage() {
                   </div>
                 </div>
                 <div
+                  className="sq-rich"
                   dangerouslySetInnerHTML={{ __html: runningQuestion.content }}
                   style={{ fontSize: 16, fontWeight: 500, marginBottom: 16, lineHeight: 1.6 }}
                 />
@@ -975,6 +976,7 @@ export default function TeacherSessionPage() {
                 </Button>
               </div>
               <div
+                className="sq-rich"
                 dangerouslySetInnerHTML={{ __html: runningQuestion.content }}
                 style={{ fontSize: 15, fontWeight: 500, marginBottom: 16 }}
               />
@@ -1393,6 +1395,7 @@ export default function TeacherSessionPage() {
                     <div>
                       {/* Question content */}
                       <div
+                        className="sq-rich"
                         dangerouslySetInnerHTML={{ __html: q.content }}
                         style={{
                           fontSize: 14, fontWeight: 500, lineHeight: 1.6, marginBottom: 12,

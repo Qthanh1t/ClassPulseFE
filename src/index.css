@@ -1,5 +1,8 @@
 @import url('https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;600&display=swap');
 @import "tailwindcss";
+/* KaTeX styles — global so rendered math looks right on every page (review,
+   dashboard, session), not only where the editor module happens to be loaded. */
+@import "katex/dist/katex.min.css";
 
 :root {
   /* ── Accent — single, desaturated ink-indigo (no AI gradient) ── */
@@ -142,26 +145,63 @@ select:focus-visible,
   100% { transform: translateX(100%); }
 }
 
-/* ── Tiptap rich text editor ── */
-.sq-editor .ProseMirror {
-  outline: none;
-  line-height: 1.7;
-  word-break: break-word;
+/* ── Rendered rich text (read-only CKEditor output) ──
+   The editor scopes its own styles to the editing surface; saved HTML rendered
+   anywhere else (questions, essay answers, posts, dashboard) needs these rules
+   to restore lists, font sizes, alignment, images and math. Applies to both the
+   `.sq-rich` render sites and the legacy `.ck-content` ones (classroom posts). */
+.sq-rich,
+.ck-content { line-height: 1.7; word-break: break-word; }
+.sq-rich p,
+.ck-content p { margin: 0 0 0.5em; }
+.sq-rich p:last-child,
+.ck-content p:last-child { margin-bottom: 0; }
+
+/* Lists — override Tailwind v4 preflight (list-style:none; padding:0) */
+.sq-rich ul,
+.ck-content ul { list-style-type: disc; padding-left: 1.6em; margin: 0.3em 0; }
+.sq-rich ol,
+.ck-content ol { list-style-type: decimal; padding-left: 1.6em; margin: 0.3em 0; }
+.sq-rich ul ul,
+.ck-content ul ul { list-style-type: circle; }
+.sq-rich ul ul ul,
+.ck-content ul ul ul { list-style-type: square; }
+.sq-rich li,
+.ck-content li { display: list-item; margin: 0.15em 0; }
+
+/* Inline marks */
+.sq-rich strong, .ck-content strong { font-weight: 700; }
+.sq-rich em,     .ck-content em     { font-style: italic; }
+.sq-rich u,      .ck-content u      { text-decoration: underline; }
+.sq-rich s,      .ck-content s      { text-decoration: line-through; }
+.sq-rich a,      .ck-content a      { color: var(--sq-primary); text-decoration: underline; }
+
+/* Font-size classes emitted by the editor's FontSize plugin */
+.sq-rich .sq-size-small,  .ck-content .sq-size-small  { font-size: 12px; }
+.sq-rich .sq-size-normal, .ck-content .sq-size-normal { font-size: 14px; }
+.sq-rich .sq-size-large,  .ck-content .sq-size-large  { font-size: 18px; }
+
+/* Images (inline <img> and CKEditor <figure class="image">, incl. resized) */
+.sq-rich img,
+.ck-content img { max-width: 100%; height: auto; border-radius: 6px; }
+.sq-rich figure.image,
+.ck-content figure.image { margin: 0.6em 0; max-width: 100%; }
+.sq-rich figure.image img,
+.ck-content figure.image img { width: 100%; }
+.sq-rich figure.image > figcaption,
+.ck-content figure.image > figcaption {
+  font-size: 12px; color: var(--sq-text-secondary); text-align: center; padding-top: 4px;
 }
-.sq-editor .ProseMirror p { margin: 0 0 0.4em; }
-.sq-editor .ProseMirror p:last-child { margin-bottom: 0; }
-.sq-editor .ProseMirror ul,
-.sq-editor .ProseMirror ol { padding-left: 1.6em; margin: 0.2em 0; }
-.sq-editor .ProseMirror ul { list-style-type: disc; }
-.sq-editor .ProseMirror ol { list-style-type: decimal; }
-.sq-editor .ProseMirror h1 { font-size: 1.5em; font-weight: 700; margin: 0.2em 0; }
-.sq-editor .ProseMirror h2 { font-size: 1.2em; font-weight: 600; margin: 0.2em 0; }
-.sq-editor .ProseMirror h3 { font-size: 1.05em; font-weight: 600; margin: 0.2em 0; }
-.sq-editor .ProseMirror strong { font-weight: 700; }
-.sq-editor .ProseMirror em { font-style: italic; }
-.sq-editor .ProseMirror u { text-decoration: underline; }
-.sq-editor .ProseMirror s { text-decoration: line-through; }
-.sq-editor .ProseMirror blockquote {
+
+/* Math (KaTeX widget produced by MathPlugin) */
+.sq-rich .sq-math-block,
+.ck-content .sq-math-block { display: block; text-align: center; margin: 12px 0; overflow-x: auto; }
+.sq-rich .sq-math-inline,
+.ck-content .sq-math-inline { display: inline-block; vertical-align: middle; }
+
+/* Blockquote */
+.sq-rich blockquote,
+.ck-content blockquote {
   border-left: 3px solid var(--sq-border);
   padding-left: 12px;
   color: var(--sq-text-secondary);

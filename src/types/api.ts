@@ -180,7 +180,12 @@ export interface DocumentDto {
 
 // ── Upload ─────────────────────────────────────────────────────────
 
-export type UploadPurpose = 'post_attachment' | 'classroom_document' | 'avatar';
+export type UploadPurpose =
+  | 'post_attachment'
+  | 'classroom_document'
+  | 'avatar'
+  | 'question_attachment'
+  | 'answer_attachment';
 
 export interface PresignRequest {
   purpose: UploadPurpose;
@@ -191,6 +196,8 @@ export interface PresignedUrlDto {
   fileName: string;
   fileKey: string;
   uploadUrl: string;
+  /** Relative public URL (/storage/{bucket}/{key}) to embed once the PUT completes. */
+  url: string;
   expiresAt: string;
 }
 

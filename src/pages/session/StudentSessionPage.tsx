@@ -942,6 +942,7 @@ export default function StudentSessionPage() {
               {/* Body */}
               <div style={{ flex: 1, overflowY: 'auto', padding: '14px 14px 0' }}>
                 <div
+                  className="sq-rich"
                   dangerouslySetInnerHTML={{ __html: runningQuestion.content }}
                   style={{ fontSize: 14, fontWeight: 500, marginBottom: 14, lineHeight: 1.6 }}
                 />
@@ -988,7 +989,7 @@ export default function StudentSessionPage() {
                       dangerouslySetInnerHTML={{ __html: essayText || '<span style="color:#a8a29e">Không có câu trả lời</span>' }}
                     />
                   ) : (
-                    <RichTextEditor onChange={setEssayText} placeholder="Nhập câu trả lời của bạn..." minHeight={panelExpanded ? 180 : 100} />
+                    <RichTextEditor onChange={setEssayText} placeholder="Nhập câu trả lời của bạn..." minHeight={panelExpanded ? 180 : 100} uploadPurpose="answer_attachment" />
                   )
                 )}
 

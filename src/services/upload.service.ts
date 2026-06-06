@@ -22,4 +22,18 @@ export const uploadService = {
     await uploadService.putToMinIO(presigned.uploadUrl, file);
     return presigned.fileKey;
   },
+
+  // Presign + upload, returning the relative public URL to embed (and the key).
+  uploadAndGetUrl: async (file: File, purpose: UploadPurpose) => {
+    const [presigned] = await uploadService.presign({
+      purpose,
+      files: [{
+        fileName: file.name,
+        contentType: file.type || 'application/octet-stream',
+        fileSizeBytes: file.size,
+      }],
+    });
+    await uploadService.putToMinIO(presigned.uploadUrl, file);
+    return { url: presigned.url, fileKey: presigned.fileKey };
+  },
 };

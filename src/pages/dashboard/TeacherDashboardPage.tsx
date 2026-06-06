@@ -261,6 +261,16 @@ export default function TeacherDashboardPage() {
       ),
       children: (
         <div style={{ padding: '4px 0' }}>
+          {/* Full rich-text question content (header is truncated plain text) */}
+          <div
+            className="sq-rich"
+            dangerouslySetInnerHTML={{ __html: q.content }}
+            style={{
+              fontSize: 14, fontWeight: 500, color: color.text, lineHeight: 1.6,
+              marginBottom: 12, padding: '10px 12px',
+              background: color.surface2, borderRadius: 8, border: `1px solid ${color.border}`,
+            }}
+          />
           <div style={{ display: 'flex', gap: 8, marginBottom: 12 }}>
             <div style={{ flex: 1, background: color.primaryLight, border: `1px solid ${color.border}`, borderRadius: 8, padding: '10px 14px' }}>
               <div className="sq-nums" style={{ fontSize: 18, fontWeight: 700, color: color.primary }}>{q.answeredCount}</div>

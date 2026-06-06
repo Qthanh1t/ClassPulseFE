@@ -314,6 +314,7 @@ export default function StudentReviewPage() {
               {/* Question body */}
               <div style={{ padding: '14px 18px' }}>
                 <div
+                  className="sq-rich"
                   dangerouslySetInnerHTML={{ __html: q.content }}
                   style={{ fontSize: 14, marginBottom: 12, fontWeight: 500, color: color.text, lineHeight: 1.6 }}
                 />
@@ -345,8 +346,12 @@ export default function StudentReviewPage() {
 
                 {/* Essay */}
                 {q.type === 'essay' && q.myEssayText && (
-                  <div style={{ background: color.surface2, borderRadius: 10, padding: '10px 14px', border: `1px solid ${color.border}` }}>
-                    <Text style={{ fontSize: 13, fontStyle: 'italic', color: color.text }}>"{q.myEssayText}"</Text>
+                  <div style={{ background: color.surface2, borderRadius: 10, padding: '10px 14px', border: `1px solid ${color.border}`, borderLeft: `3px solid ${color.primary}` }}>
+                    <div
+                      className="sq-rich"
+                      dangerouslySetInnerHTML={{ __html: q.myEssayText }}
+                      style={{ fontSize: 13, color: color.text, lineHeight: 1.6 }}
+                    />
                   </div>
                 )}
               </div>

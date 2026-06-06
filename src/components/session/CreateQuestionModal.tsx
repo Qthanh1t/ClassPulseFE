@@ -327,6 +327,7 @@ export default function CreateQuestionModal({ open, onClose, onSubmit }: Props) 
               placeholder="Nhập nội dung câu hỏi tại đây..."
               minHeight={100}
               initialValue={content}
+              uploadPurpose="question_attachment"
             />
           </div>
 

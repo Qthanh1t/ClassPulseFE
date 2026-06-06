@@ -33,23 +33,19 @@ import katex from 'katex';
 import 'katex/dist/katex.min.css';
 import { Modal, Input, Switch, Button, Tooltip, message } from 'antd';
 import { FunctionOutlined, PaperClipOutlined } from '@ant-design/icons';
+import { uploadService } from '../../services/upload.service';
+import type { UploadPurpose } from '../../types/api';
 
-// ── Upload endpoints ─────────────────────────────────────────────────────────
-const UPLOAD_IMAGE_URL = '/api/upload/image';
-const UPLOAD_FILE_URL  = '/api/upload/file';
-
-// ── Image upload adapter ─────────────────────────────────────────────────────
-function createUploadAdapter(loader: { file: Promise<File | null> }) {
+// ── Image upload adapter (presigned MinIO PUT → embed relative /storage URL) ──
+function createUploadAdapter(loader: { file: Promise<File | null> }, purpose: UploadPurpose) {
   return {
     upload: async (): Promise<{ default: string }> => {
       const file = await loader.file;
       if (!file) throw new Error('No file');
       try {
-        const fd = new FormData();
-        fd.append('upload', file);
-        const res = await fetch(UPLOAD_IMAGE_URL, { method: 'POST', body: fd });
-        if (res.ok) return { default: ((await res.json()) as { url: string }).url };
-      } catch { /* fallback below */ }
+        const { url } = await uploadService.uploadAndGetUrl(file, purpose);
+        if (url) return { default: url };
+      } catch { /* fall back to inline base64 below */ }
       return new Promise((resolve, reject) => {
         const reader = new FileReader();
         reader.onload = (e) => {
@@ -65,10 +61,14 @@ function createUploadAdapter(loader: { file: Promise<File | null> }) {
   };
 }
 
-function UploadAdapterPlugin(editor: {
-  plugins: { get(n: string): { createUploadAdapter: typeof createUploadAdapter } };
-}) {
-  editor.plugins.get('FileRepository').createUploadAdapter = createUploadAdapter;
+// Factory: bind the upload purpose into the FileRepository adapter for this editor.
+function makeUploadAdapterPlugin(purpose: UploadPurpose) {
+  return function UploadAdapterPlugin(editor: {
+    plugins: { get(n: string): { createUploadAdapter: (l: { file: Promise<File | null> }) => unknown } };
+  }) {
+    editor.plugins.get('FileRepository').createUploadAdapter =
+      (loader) => createUploadAdapter(loader, purpose);
+  };
 }
 
 // ────────────────────────────────────────────────────────────────────────────
@@ -184,30 +184,23 @@ class MathPlugin extends Plugin {
   }
 }
 
-// ── Attachment type ──────────────────────────────────────────────────────────
-export interface Attachment {
-  name: string;
-  url: string;
-  size: string;
-  ext: string;
-}
-
 // ── Props ────────────────────────────────────────────────────────────────────
 interface Props {
   onChange: (html: string) => void;
-  onAttachmentsChange?: (attachments: Attachment[]) => void;
   placeholder?: string;
   minHeight?: number;
   initialValue?: string;
+  /** Storage purpose for uploaded images & file attachments (size limit + path). */
+  uploadPurpose?: UploadPurpose;
 }
 
 // ── Component ────────────────────────────────────────────────────────────────
 export default function RichTextEditor({
   onChange,
-  onAttachmentsChange,
   placeholder = 'Nhập nội dung...',
   minHeight = 100,
   initialValue = '',
+  uploadPurpose = 'post_attachment',
 }: Props) {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const editorRef       = useRef<any>(null);
@@ -298,16 +291,20 @@ export default function RichTextEditor({
     setLatex('');
   }, [latex, isBlock, mathError]);
 
-  // ── Attachments (rendered outside the editor, non-editable) ──
-  const [attachments, setAttachments] = useState<Attachment[]>([]);
-
-  const handleRemoveAttachment = useCallback((index: number) => {
-    setAttachments(prev => {
-      const next = prev.filter((_, i) => i !== index);
-      onAttachmentsChange?.(next);
-      return next;
-    });
-  }, [onAttachmentsChange]);
+  // ── File attach: upload to MinIO, insert a download link into the content ──
+  // Snapshot the selection before the OS file dialog steals focus (same reason
+  // as the math modal) so the link lands where the cursor was.
+  const handleOpenFilePicker = useCallback(() => {
+    if (editorRef.current) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const editor: any = editorRef.current;
+      savedRangesRef.current = [...editor.model.document.selection.getRanges()].map(
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        (r: any) => r.clone(),
+      );
+    }
+    fileInputRef.current?.click();
+  }, []);
 
   const handleFileAttach = useCallback(async (file: File) => {
     const ext = file.name.split('.').pop()?.toLowerCase() ?? '';
@@ -316,25 +313,35 @@ export default function RichTextEditor({
       message.error('Định dạng không hỗ trợ. Chấp nhận: PDF, DOCX, XLSX, PPTX, TXT, ZIP');
       return;
     }
+    const hide = message.loading('Đang tải tệp lên...', 0);
     let url = '';
     try {
-      const fd = new FormData();
-      fd.append('file', file);
-      const res = await fetch(UPLOAD_FILE_URL, { method: 'POST', body: fd });
-      if (res.ok) url = ((await res.json()) as { url: string }).url;
-    } catch { /* ignore */ }
-    if (!url) url = URL.createObjectURL(file);
+      const res = await uploadService.uploadAndGetUrl(file, uploadPurpose);
+      url = res.url;
+    } catch { /* handled below */ }
+    hide();
+    if (!url) { message.error('Tải tệp lên thất bại'); return; }
 
     const size = file.size < 1024 * 1024
       ? `${(file.size / 1024).toFixed(1)} KB`
       : `${(file.size / 1024 / 1024).toFixed(1)} MB`;
+    const label = `📎 ${file.name} (${size})`;
 
-    setAttachments(prev => {
-      const next = [...prev, { name: file.name, url, size, ext }];
-      onAttachmentsChange?.(next);
-      return next;
+    if (!editorRef.current) return;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const editor: any = editorRef.current;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    editor.model.change((writer: any) => {
+      if (savedRangesRef.current.length > 0) {
+        writer.setSelection(savedRangesRef.current);
+      }
+      const text = writer.createText(label, { linkHref: url });
+      const range = editor.model.insertContent(text);
+      // Move caret past the link and clear the attribute so further typing isn't linked.
+      writer.setSelection(range.end);
+      writer.removeSelectionAttribute('linkHref');
     });
-  }, [onAttachmentsChange]);
+  }, [uploadPurpose]);
 
   // ── Editor config ────────────────────────────────────────────────────────
   const editorConfig = useMemo(() => ({
@@ -354,7 +361,7 @@ export default function RichTextEditor({
       GeneralHtmlSupport,
       MathPlugin,
     ],
-    extraPlugins: [UploadAdapterPlugin],
+    extraPlugins: [makeUploadAdapterPlugin(uploadPurpose)],
     toolbar: {
       items: [
         'fontSize', '|',
@@ -393,7 +400,7 @@ export default function RichTextEditor({
       allow: [{ name: /.*/, attributes: true, classes: true, styles: true }],
     },
     placeholder,
-  }), [placeholder]);
+  }), [placeholder, uploadPurpose]);
 
   // ── Render ────────────────────────────────────────────────────────────────
   return (
@@ -555,7 +562,7 @@ export default function RichTextEditor({
               size="small"
               type="text"
               icon={<PaperClipOutlined />}
-              onClick={() => fileInputRef.current?.click()}
+              onClick={handleOpenFilePicker}
               style={{ borderRadius: 4, fontSize: 12, color: '#57534e' }}
             >
               Đính kèm
@@ -596,80 +603,6 @@ export default function RichTextEditor({
           }}
           onChange={handleEditorChange}
         />
-
-        {/* Attachment list — outside editor, non-editable */}
-        {attachments.length > 0 && (
-          <div style={{
-            borderTop: '1px solid #e7e3dc',
-            padding: '8px 10px',
-            display: 'flex',
-            flexWrap: 'wrap',
-            gap: 6,
-          }}>
-            {attachments.map((att, i) => {
-              const iconMap: Record<string, string> = {
-                pdf: '📄', docx: '📝', doc: '📝', xlsx: '📊', xls: '📊',
-                pptx: '📊', ppt: '📊', zip: '🗜️', txt: '📄',
-              };
-              const icon = iconMap[att.ext] ?? '📎';
-              return (
-                <div
-                  key={i}
-                  style={{
-                    display: 'inline-flex',
-                    alignItems: 'center',
-                    gap: 5,
-                    padding: '4px 8px 4px 6px',
-                    border: '1px solid #e7e3dc',
-                    borderRadius: 6,
-                    background: '#f3f1ec',
-                    fontSize: 12,
-                    maxWidth: 260,
-                  }}
-                >
-                  <span style={{ fontSize: 14, flexShrink: 0 }}>{icon}</span>
-                  <a
-                    href={att.url}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    style={{
-                      color: '#4f46e5',
-                      fontWeight: 500,
-                      textDecoration: 'none',
-                      overflow: 'hidden',
-                      textOverflow: 'ellipsis',
-                      whiteSpace: 'nowrap',
-                      flex: 1,
-                    }}
-                    title={att.name}
-                  >
-                    {att.name}
-                  </a>
-                  <span style={{ color: '#a8a29e', whiteSpace: 'nowrap', flexShrink: 0 }}>
-                    {att.size}
-                  </span>
-                  <button
-                    type="button"
-                    onClick={() => handleRemoveAttachment(i)}
-                    style={{
-                      border: 'none',
-                      background: 'none',
-                      cursor: 'pointer',
-                      color: '#a8a29e',
-                      padding: '0 0 0 2px',
-                      fontSize: 14,
-                      lineHeight: 1,
-                      flexShrink: 0,
-                    }}
-                    aria-label="Xoá đính kèm"
-                  >
-                    ×
-                  </button>
-                </div>
-              );
-            })}
-          </div>
-        )}
       </div>
     </>
   );

@@ -106,6 +106,7 @@ function StudentAnswerCard({ name, avatarColor, avatarUrl, answer, question }: C
       {answered && answer.essayText && (
         <div style={{ paddingLeft: 34, marginTop: 7 }}>
           <div
+            className="sq-rich"
             style={{
               fontSize: 13, lineHeight: 1.6, color: '#1c1917',
               background: 'rgba(255,255,255,0.8)',
