@@ -817,6 +817,12 @@ export default function ClassDetailPage() {
                   <BookOutlined style={{ color: 'rgba(255,255,255,0.7)', fontSize: 13 }} />
                   <span style={{ color: 'rgba(255,255,255,0.85)', fontSize: 13 }}>{cls.teacher.name}</span>
                 </div>
+                {cls.activeSessionId && (
+                  <span style={{ display: 'flex', alignItems: 'center', gap: 6, color: '#fff', background: color.emerald, fontWeight: 700, fontSize: 11.5, letterSpacing: '0.04em', padding: '3px 10px', borderRadius: 999 }}>
+                    <span className="sq-live-dot" style={{ width: 7, height: 7, borderRadius: '50%', background: '#fff', display: 'inline-block' }} />
+                    ĐANG DIỄN RA
+                  </span>
+                )}
                 {isTeacher && (
                   <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                     <span style={{ background: 'rgba(255,255,255,0.18)', color: '#fff', borderRadius: 999, padding: '2px 10px', fontSize: 11, fontWeight: 600 }}>
@@ -843,9 +849,11 @@ export default function ClassDetailPage() {
               size="large"
               icon={<PlayCircleOutlined />}
               onClick={() => navigate(isTeacher ? `/session/teacher/${cls.id}` : `/session/student/${cls.id}`)}
-              style={{ background: '#fff', color: color.primary, border: 'none', fontWeight: 700, borderRadius: 12, height: 44, paddingInline: 24, boxShadow: '0 4px 12px rgba(0,0,0,0.12)' }}
+              style={cls.activeSessionId
+                ? { background: color.emerald, color: '#fff', border: 'none', fontWeight: 700, borderRadius: 12, height: 44, paddingInline: 24, boxShadow: '0 4px 12px rgba(14,166,114,0.35)' }
+                : { background: '#fff', color: color.primary, border: 'none', fontWeight: 700, borderRadius: 12, height: 44, paddingInline: 24, boxShadow: '0 4px 12px rgba(0,0,0,0.12)' }}
             >
-              {isTeacher ? 'Bắt đầu buổi học' : 'Vào học'}
+              {cls.activeSessionId ? (isTeacher ? 'Tiếp tục buổi học' : 'Tham gia ngay') : (isTeacher ? 'Bắt đầu buổi học' : 'Vào học')}
             </Button>
             {isTeacher && (
               <Dropdown

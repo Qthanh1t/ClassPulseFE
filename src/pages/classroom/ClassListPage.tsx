@@ -42,14 +42,16 @@ function CourseCard({ cls, onStart, onJoinAsStudent, onCardClick, isTeacher }: {
   isTeacher: boolean;
 }) {
   const config = SUBJECT_CONFIG[cls.subject ?? ''] ?? DEFAULT_SUBJECT;
+  const isLive = !!cls.activeSessionId;
 
   return (
     <div
       className="sq-card-hover"
       style={{
-        background: color.surface, borderRadius: radius.card, border: `1px solid ${color.border}`,
+        background: color.surface, borderRadius: radius.card,
+        border: isLive ? `1px solid ${color.emerald}` : `1px solid ${color.border}`,
         overflow: 'hidden', cursor: 'pointer', display: 'flex', flexDirection: 'column',
-        boxShadow: shadow.sm,
+        boxShadow: isLive ? `0 0 0 3px ${color.emeraldLight}, ${shadow.sm}` : shadow.sm,
       }}
       onClick={onCardClick}
     >
@@ -74,6 +76,19 @@ function CourseCard({ cls, onStart, onJoinAsStudent, onCardClick, isTeacher }: {
         {cls.subject && (
           <span style={{ color: config.accent, fontWeight: 600, fontSize: 12.5, background: color.surface, padding: '4px 11px', borderRadius: 999, border: `1px solid ${color.border}` }}>
             {cls.subject}
+          </span>
+        )}
+        {isLive && (
+          <span
+            style={{
+              marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 6,
+              color: '#fff', background: color.emerald, fontWeight: 700, fontSize: 11.5,
+              letterSpacing: '0.04em', padding: '4px 10px', borderRadius: 999,
+              boxShadow: `0 1px 4px ${color.emeraldLight}`,
+            }}
+          >
+            <span className="sq-live-dot" style={{ width: 7, height: 7, borderRadius: '50%', background: '#fff', display: 'inline-block' }} />
+            LIVE
           </span>
         )}
       </div>
@@ -108,9 +123,22 @@ function CourseCard({ cls, onStart, onJoinAsStudent, onCardClick, isTeacher }: {
             icon={<PlayCircleOutlined />}
             onClick={(e) => { e.stopPropagation(); onStart(); }}
             className="sq-press"
-            style={{ width: '100%', fontWeight: 600, fontSize: 13.5, height: 38, borderRadius: radius.control }}
+            style={{
+              width: '100%', fontWeight: 600, fontSize: 13.5, height: 38, borderRadius: radius.control,
+              ...(isLive ? { background: color.emerald, borderColor: color.emerald } : {}),
+            }}
           >
-            Bắt đầu buổi học
+            {isLive ? 'Tiếp tục buổi học' : 'Bắt đầu buổi học'}
+          </Button>
+        ) : isLive ? (
+          <Button
+            type="primary"
+            icon={<PlayCircleOutlined />}
+            onClick={(e) => { e.stopPropagation(); onJoinAsStudent(); }}
+            className="sq-press"
+            style={{ width: '100%', height: 38, fontSize: 13.5, fontWeight: 600, borderRadius: radius.control, background: color.emerald, borderColor: color.emerald }}
+          >
+            Tham gia ngay
           </Button>
         ) : (
           <Button
@@ -175,7 +203,30 @@ export default function ClassListPage() {
     }
   }, [messageApi]);
 
+  // Silent background refresh — keeps the LIVE badge in sync without flashing the skeleton
+  const refreshClasses = useCallback(async () => {
+    try {
+      const data = await classroomService.list();
+      setClasses(data);
+    } catch {
+      /* ignore transient errors during polling */
+    }
+  }, []);
+
   useEffect(() => { fetchClasses(); }, [fetchClasses]);
+
+  // Poll every 15s while the page is visible, and refresh immediately when the tab regains focus
+  useEffect(() => {
+    const interval = setInterval(() => {
+      if (document.visibilityState === 'visible') refreshClasses();
+    }, 15000);
+    const onVisible = () => { if (document.visibilityState === 'visible') refreshClasses(); };
+    document.addEventListener('visibilitychange', onVisible);
+    return () => {
+      clearInterval(interval);
+      document.removeEventListener('visibilitychange', onVisible);
+    };
+  }, [refreshClasses]);
 
   async function handleCreate(values: { name: string; description?: string; subject?: string }) {
     setCreating(true);

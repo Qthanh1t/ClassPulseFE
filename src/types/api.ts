@@ -78,6 +78,7 @@ export interface ClassroomDto {
     startTime: string;
     endTime: string;
   } | null;
+  activeSessionId: string | null;
   isArchived: boolean;
   createdAt: string;
 }
