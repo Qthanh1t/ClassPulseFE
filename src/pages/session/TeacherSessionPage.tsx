@@ -971,9 +971,21 @@ export default function TeacherSessionPage() {
                   <CheckCircleOutlined style={{ color: '#0ea672', fontSize: 18 }} />
                   <Text strong style={{ fontSize: 15 }}>Kết quả câu {runningQuestion.questionOrder}</Text>
                 </div>
-                <Button type="primary" onClick={() => { setRunningQuestion(null); setQuestionStats(null); }}>
-                  Câu hỏi mới
-                </Button>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <Button
+                    type="primary"
+                    icon={<PlusCircleOutlined />}
+                    onClick={() => { setRunningQuestion(null); setQuestionStats(null); setCreateOpen(true); }}
+                  >
+                    Câu hỏi mới
+                  </Button>
+                  <Button
+                    type="text"
+                    icon={<CloseOutlined />}
+                    onClick={() => { setRunningQuestion(null); setQuestionStats(null); }}
+                    title="Đóng kết quả"
+                  />
+                </div>
               </div>
               <div
                 className="sq-rich"
