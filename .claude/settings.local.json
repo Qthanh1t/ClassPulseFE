@@ -16,7 +16,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "Write-Output '{\"hookSpecificOutput\": {\"hookEventName\": \"Stop\", \"additionalContext\": \"Nếu lượt vừa rồi bạn thay đổi cấu trúc project, routing, component, services, hay kiến trúc hệ thống — hãy cập nhật CLAUDE.md để phản ánh thay đổi đó.\"}}'",
+            "command": "$raw=[Console]::In.ReadToEnd(); try { $j=$raw|ConvertFrom-Json } catch { exit 0 }; if ($j.stop_hook_active) { exit 0 }; $ctx='If this turn changed project structure, routing, components, services, or system architecture, update CLAUDE.md to reflect it.'; Write-Output (@{hookSpecificOutput=@{hookEventName='Stop';additionalContext=$ctx}}|ConvertTo-Json -Compress)",
             "shell": "powershell"
           }
         ]
