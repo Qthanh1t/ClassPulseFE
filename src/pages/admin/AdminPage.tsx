@@ -1,62 +1,48 @@
 import { useState, useEffect } from 'react';
 import {
-  Avatar, Badge, Button, Card, Col, Row, Select, Table, Tag, Input,
-  Typography, Statistic, Popconfirm, message, Tabs,
+  Avatar, Button, Select, Table, Tag, Input, Typography, Popconfirm, message, Tabs, Alert,
 } from 'antd';
 import {
-  UserOutlined, TeamOutlined, BookOutlined, PlayCircleOutlined,
-  SearchOutlined, StopOutlined, CheckCircleOutlined, ReloadOutlined,
+  UserOutlined, TeamOutlined, BookOutlined, PlayCircleOutlined, ReadOutlined,
+  SearchOutlined, StopOutlined, CheckCircleOutlined, ReloadOutlined, InboxOutlined,
 } from '@ant-design/icons';
 import type { ColumnsType } from 'antd/es/table';
 import type { AdminStatsDto, AdminClassroomDto, UserDto } from '../../types/api';
 import adminService from '../../services/admin.service';
 import PageContainer from '../../components/ui/PageContainer';
 import PageSkeleton from '../../components/ui/PageSkeleton';
+import SectionHeader from '../../components/ui/SectionHeader';
+import StatCard from '../../components/ui/StatCard';
+import EmptyState from '../../components/ui/EmptyState';
 import { color, radius } from '../../theme/tokens';
 
-const { Text, Title } = Typography;
+const { Text } = Typography;
 const { Search } = Input;
 
-function StatCard({
-  icon,
-  value,
-  label,
-  color,
-}: {
-  icon: React.ReactNode;
-  value: number | string;
-  label: string;
-  color: string;
-}) {
+// Sky accent for the "teacher" metric — kept in the warm-neutral family by pairing
+// a single desaturated blue with a low-alpha tint, consistent with the token ramp.
+const SKY = '#0e7faa';
+
+function StatusPill({ active }: { active: boolean }) {
+  const c = active ? color.emerald : color.rose;
+  const tint = active ? color.emeraldLight : color.roseLight;
   return (
-    <Card
-      style={{ borderRadius: radius.card }}
-      styles={{ body: { padding: '16px 20px' } }}
-      className="sq-stat-card"
+    <span
+      style={{
+        display: 'inline-flex',
+        alignItems: 'center',
+        gap: 6,
+        padding: '2px 10px',
+        borderRadius: radius.pill,
+        background: tint,
+        color: c,
+        fontSize: 12,
+        fontWeight: 600,
+      }}
     >
-      <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
-        <div
-          style={{
-            width: 44,
-            height: 44,
-            background: `${color}18`,
-            borderRadius: 12,
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            flexShrink: 0,
-          }}
-        >
-          <span style={{ color, fontSize: 20 }}>{icon}</span>
-        </div>
-        <div>
-          <Statistic value={value} valueStyle={{ fontSize: 26, fontWeight: 700, color: '#1c1917', lineHeight: 1, fontVariantNumeric: 'tabular-nums' }} />
-          <Text type="secondary" style={{ fontSize: 12, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-            {label}
-          </Text>
-        </div>
-      </div>
-    </Card>
+      <span style={{ width: 6, height: 6, borderRadius: '50%', background: c }} />
+      {active ? 'Hoạt động' : 'Vô hiệu'}
+    </span>
   );
 }
 
@@ -65,31 +51,37 @@ export default function AdminPage() {
   const [classrooms, setClassrooms] = useState<AdminClassroomDto[]>([]);
   const [users, setUsers] = useState<UserDto[]>([]);
   const [loading, setLoading] = useState(true);
+  const [failedParts, setFailedParts] = useState<string[]>([]);
   const [classSearch, setClassSearch] = useState('');
   const [userSearch, setUserSearch] = useState('');
   const [userRoleFilter, setUserRoleFilter] = useState<string | undefined>(undefined);
 
   async function loadData() {
     setLoading(true);
-    try {
-      const [statsRes, classRes, userRes] = await Promise.all([
-        adminService.getStats(),
-        adminService.listClassrooms({ limit: 100 }),
-        adminService.listUsers({ limit: 100 }),
-      ]);
-      setStats(statsRes.data ?? null);
-      setClassrooms(classRes.data ?? []);
-      setUsers(userRes.data ?? []);
-    } catch {
-      message.error('Không thể tải dữ liệu admin');
-    } finally {
-      setLoading(false);
-    }
+    // allSettled so a single failing endpoint degrades that one section instead of
+    // blanking the whole page (cross-boundary resilience).
+    const [statsRes, classRes, userRes] = await Promise.allSettled([
+      adminService.getStats(),
+      adminService.listClassrooms({ limit: 100 }),
+      adminService.listUsers({ limit: 100 }),
+    ]);
+
+    const failed: string[] = [];
+    if (statsRes.status === 'fulfilled') setStats(statsRes.value.data ?? null);
+    else failed.push('thống kê');
+    if (classRes.status === 'fulfilled') setClassrooms(classRes.value.data ?? []);
+    else failed.push('danh sách lớp');
+    if (userRes.status === 'fulfilled') setUsers(userRes.value.data ?? []);
+    else failed.push('danh sách người dùng');
+
+    setFailedParts(failed);
+    if (failed.length === 3) message.error('Không thể tải dữ liệu admin');
+    setLoading(false);
   }
 
   useEffect(() => { loadData(); }, []);
 
-  async function handleToggleActive(userId: string, currentActive: boolean | undefined) {
+  async function handleToggleActive(userId: string, currentActive: boolean) {
     try {
       const res = await adminService.updateUser(userId, { isActive: !currentActive });
       if (res.data) {
@@ -136,7 +128,9 @@ export default function AdminPage() {
       render: (name: string, record) => (
         <div>
           <Text strong>{name}</Text>
-          {record.archived && <Tag color="default" style={{ marginLeft: 6, fontSize: 11 }}>Lưu trữ</Tag>}
+          {record.archived && (
+            <Tag style={{ marginLeft: 6, fontSize: 11, borderRadius: radius.tag }}>Lưu trữ</Tag>
+          )}
           {record.subject && (
             <div><Text type="secondary" style={{ fontSize: 12 }}>{record.subject}</Text></div>
           )}
@@ -147,11 +141,11 @@ export default function AdminPage() {
       title: 'Giáo viên',
       key: 'teacher',
       render: (_, record) => (
-        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
           <Avatar
-            size={24}
+            size={26}
             src={record.teacher.avatarUrl ?? undefined}
-            style={{ background: record.teacher.avatarColor ?? color.primary, fontSize: 11 }}
+            style={{ background: record.teacher.avatarColor ?? color.primary, fontSize: 12 }}
           >
             {record.teacher.name.charAt(0)}
           </Avatar>
@@ -164,8 +158,19 @@ export default function AdminPage() {
       dataIndex: 'studentCount',
       key: 'studentCount',
       align: 'center',
+      sorter: (a, b) => a.studentCount - b.studentCount,
       render: (v: number) => (
-        <Tag color="blue" style={{ borderRadius: 20 }}>{v} HS</Tag>
+        <Tag
+          style={{
+            borderRadius: radius.pill,
+            background: color.primaryLight,
+            color: color.primary,
+            border: 'none',
+            fontWeight: 600,
+          }}
+        >
+          {v} HS
+        </Tag>
       ),
     },
     {
@@ -180,6 +185,7 @@ export default function AdminPage() {
       title: 'Ngày tạo',
       dataIndex: 'createdAt',
       key: 'createdAt',
+      sorter: (a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime(),
       render: (v: string) => (
         <Text type="secondary" style={{ fontSize: 12 }}>
           {new Date(v).toLocaleDateString('vi-VN')}
@@ -195,9 +201,9 @@ export default function AdminPage() {
       render: (_, record) => (
         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
           <Avatar
-            size={32}
+            size={34}
             src={record.avatarUrl ?? undefined}
-            style={{ background: record.avatarColor ?? color.primary, fontSize: 13 }}
+            style={{ background: record.avatarColor ?? color.primary, fontSize: 14 }}
           >
             {record.name.charAt(0)}
           </Avatar>
@@ -212,11 +218,18 @@ export default function AdminPage() {
       title: 'Vai trò',
       dataIndex: 'role',
       key: 'role',
+      filters: [
+        { text: 'Giáo viên', value: 'teacher' },
+        { text: 'Học sinh', value: 'student' },
+        { text: 'Admin', value: 'admin' },
+      ],
+      onFilter: (value, record) => record.role === value,
       render: (role: string, record) => (
         <Select
           size="small"
           value={role}
-          style={{ width: 110 }}
+          variant="filled"
+          style={{ width: 116 }}
           options={[
             { value: 'teacher', label: 'Giáo viên' },
             { value: 'student', label: 'Học sinh' },
@@ -230,13 +243,7 @@ export default function AdminPage() {
       title: 'Trạng thái',
       key: 'isActive',
       align: 'center',
-      render: (_, record) => (
-        record.isActive !== false ? (
-          <Badge status="success" text={<Text style={{ fontSize: 12 }}>Hoạt động</Text>} />
-        ) : (
-          <Badge status="error" text={<Text style={{ fontSize: 12, color: color.rose }}>Vô hiệu</Text>} />
-        )
-      ),
+      render: (_, record) => <StatusPill active={record.isActive !== false} />,
     },
     {
       title: 'Ngày tạo',
@@ -252,94 +259,115 @@ export default function AdminPage() {
       title: 'Hành động',
       key: 'actions',
       align: 'center',
-      render: (_, record) => (
-        <Popconfirm
-          title={record.isActive !== false ? 'Vô hiệu hóa tài khoản này?' : 'Kích hoạt tài khoản này?'}
-          onConfirm={() => handleToggleActive(record.id, record.isActive !== false)}
-          okText="Xác nhận"
-          cancelText="Hủy"
-          okButtonProps={{ danger: record.isActive !== false }}
-        >
-          <Button
-            size="small"
-            danger={record.isActive !== false}
-            icon={record.isActive !== false ? <StopOutlined /> : <CheckCircleOutlined />}
+      render: (_, record) => {
+        const active = record.isActive !== false;
+        return (
+          <Popconfirm
+            title={active ? 'Vô hiệu hóa tài khoản này?' : 'Kích hoạt tài khoản này?'}
+            onConfirm={() => handleToggleActive(record.id, active)}
+            okText="Xác nhận"
+            cancelText="Hủy"
+            okButtonProps={{ danger: active }}
           >
-            {record.isActive !== false ? 'Vô hiệu hóa' : 'Kích hoạt'}
-          </Button>
-        </Popconfirm>
-      ),
+            <Button
+              size="small"
+              danger={active}
+              icon={active ? <StopOutlined /> : <CheckCircleOutlined />}
+            >
+              {active ? 'Vô hiệu hóa' : 'Kích hoạt'}
+            </Button>
+          </Popconfirm>
+        );
+      },
     },
   ];
 
+  const tableWrap: React.CSSProperties = {
+    background: color.surface,
+    border: `1px solid ${color.border}`,
+    borderRadius: radius.card,
+    padding: 16,
+  };
+
   return (
     <PageContainer>
-      {/* Header */}
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 24, gap: 12, flexWrap: 'wrap' }}>
-        <div>
-          <Title level={4} style={{ margin: 0 }}>Quản trị hệ thống</Title>
-          <Text type="secondary" style={{ fontSize: 13 }}>Quản lý người dùng và lớp học trên ClassPulse</Text>
-        </div>
-        <Button icon={<ReloadOutlined />} onClick={loadData} loading={loading} className="sq-press">
-          Làm mới
-        </Button>
-      </div>
+      <SectionHeader
+        size="lg"
+        title="Quản trị hệ thống"
+        subtitle="Quản lý người dùng và lớp học trên ClassPulse"
+        action={
+          <Button icon={<ReloadOutlined />} onClick={loadData} loading={loading} className="sq-press">
+            Làm mới
+          </Button>
+        }
+      />
 
-      {/* Stats */}
+      {failedParts.length > 0 && failedParts.length < 3 && (
+        <Alert
+          type="warning"
+          showIcon
+          style={{ marginBottom: 20, borderRadius: radius.control }}
+          message={`Một phần dữ liệu chưa tải được: ${failedParts.join(', ')}.`}
+          action={<Button size="small" onClick={loadData}>Thử lại</Button>}
+        />
+      )}
+
       {loading && !stats ? (
         <PageSkeleton variant="table" />
       ) : (
         <>
-          <Row gutter={[16, 16]} style={{ marginBottom: 24 }}>
-            <Col xs={24} sm={12} md={8} lg={4}>
-              <StatCard
-                icon={<UserOutlined />}
-                value={stats?.totalUsers ?? 0}
-                label="Tổng người dùng"
-                color={color.primary}
-              />
-            </Col>
-            <Col xs={24} sm={12} md={8} lg={4}>
-              <StatCard
-                icon={<TeamOutlined />}
-                value={stats?.teacherCount ?? 0}
-                label="Giáo viên"
-                color="#0e7faa"
-              />
-            </Col>
-            <Col xs={24} sm={12} md={8} lg={4}>
-              <StatCard
-                icon={<UserOutlined />}
-                value={stats?.studentCount ?? 0}
-                label="Học sinh"
-                color={color.emerald}
-              />
-            </Col>
-            <Col xs={24} sm={12} md={8} lg={4}>
-              <StatCard
-                icon={<BookOutlined />}
-                value={stats?.activeClassrooms ?? 0}
-                label="Lớp đang hoạt động"
-                color={color.amber}
-              />
-            </Col>
-            <Col xs={24} sm={12} md={8} lg={4}>
-              <StatCard
-                icon={<BookOutlined />}
-                value={stats?.archivedClassrooms ?? 0}
-                label="Lớp lưu trữ"
-                color={color.textMuted}
-              />
-            </Col>
-            <Col xs={24} sm={12} md={8} lg={4}>
-              <StatCard
-                icon={<PlayCircleOutlined />}
-                value={stats?.activeSessions ?? 0}
-                label="Phiên đang diễn ra"
-                color={color.rose}
-              />
-            </Col>
-          </Row>
+          {/* Stats */}
+          <div
+            style={{
+              display: 'grid',
+              gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))',
+              gap: 16,
+              marginBottom: 24,
+            }}
+          >
+            <StatCard
+              title="Tổng người dùng"
+              value={stats?.totalUsers ?? 0}
+              icon={<UserOutlined />}
+              accent={color.primary}
+              tint={color.primaryLight}
+            />
+            <StatCard
+              title="Giáo viên"
+              value={stats?.teacherCount ?? 0}
+              icon={<TeamOutlined />}
+              accent={SKY}
+              tint={`${SKY}1f`}
+            />
+            <StatCard
+              title="Học sinh"
+              value={stats?.studentCount ?? 0}
+              icon={<ReadOutlined />}
+              accent={color.emerald}
+              tint={color.emeraldLight}
+            />
+            <StatCard
+              title="Lớp hoạt động"
+              value={stats?.activeClassrooms ?? 0}
+              icon={<BookOutlined />}
+              accent={color.amber}
+              tint={color.amberLight}
+            />
+            <StatCard
+              title="Lớp lưu trữ"
+              value={stats?.archivedClassrooms ?? 0}
+              icon={<InboxOutlined />}
+              accent={color.textMuted}
+              tint={color.surface2}
+            />
+            <StatCard
+              title="Phiên đang diễn ra"
+              value={stats?.activeSessions ?? 0}
+              icon={<PlayCircleOutlined />}
+              accent={color.rose}
+              tint={color.roseLight}
+            />
+          </div>
 
           <Tabs
             defaultActiveKey="classrooms"
@@ -353,7 +381,7 @@ export default function AdminPage() {
                   </span>
                 ),
                 children: (
-                  <Card style={{ borderRadius: 16 }}>
+                  <div style={tableWrap}>
                     <div style={{ marginBottom: 16 }}>
                       <Search
                         placeholder="Tìm theo tên lớp hoặc giáo viên..."
@@ -368,12 +396,22 @@ export default function AdminPage() {
                       dataSource={filteredClassrooms}
                       columns={classroomColumns}
                       rowKey="id"
-                      size="small"
+                      size="middle"
                       scroll={{ x: 'max-content' }}
-                      pagination={{ pageSize: 15, showSizeChanger: false }}
+                      pagination={{ pageSize: 12, showSizeChanger: false, hideOnSinglePage: true }}
                       loading={loading}
+                      locale={{
+                        emptyText: (
+                          <EmptyState
+                            compact
+                            icon={<BookOutlined />}
+                            title={classSearch ? 'Không tìm thấy lớp học' : 'Chưa có lớp học nào'}
+                            description={classSearch ? 'Thử từ khóa khác.' : undefined}
+                          />
+                        ),
+                      }}
                     />
-                  </Card>
+                  </div>
                 ),
               },
               {
@@ -385,7 +423,7 @@ export default function AdminPage() {
                   </span>
                 ),
                 children: (
-                  <Card style={{ borderRadius: 16 }}>
+                  <div style={tableWrap}>
                     <div style={{ display: 'flex', gap: 12, marginBottom: 16, flexWrap: 'wrap' }}>
                       <Search
                         placeholder="Tìm theo tên hoặc email..."
@@ -400,7 +438,7 @@ export default function AdminPage() {
                         value={userRoleFilter}
                         onChange={setUserRoleFilter}
                         allowClear
-                        style={{ width: 160 }}
+                        style={{ width: 170 }}
                         options={[
                           { value: 'teacher', label: 'Giáo viên' },
                           { value: 'student', label: 'Học sinh' },
@@ -412,12 +450,22 @@ export default function AdminPage() {
                       dataSource={filteredUsers}
                       columns={userColumns}
                       rowKey="id"
-                      size="small"
+                      size="middle"
                       scroll={{ x: 'max-content' }}
-                      pagination={{ pageSize: 15, showSizeChanger: false }}
+                      pagination={{ pageSize: 12, showSizeChanger: false, hideOnSinglePage: true }}
                       loading={loading}
+                      locale={{
+                        emptyText: (
+                          <EmptyState
+                            compact
+                            icon={<UserOutlined />}
+                            title={userSearch || userRoleFilter ? 'Không tìm thấy người dùng' : 'Chưa có người dùng nào'}
+                            description={userSearch || userRoleFilter ? 'Thử điều chỉnh bộ lọc.' : undefined}
+                          />
+                        ),
+                      }}
                     />
-                  </Card>
+                  </div>
                 ),
               },
             ]}

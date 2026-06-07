@@ -234,6 +234,9 @@ Lưu `userName` + `userAvatarColor` vào WS session attributes → `PresenceEven
 ### `PresenceEventListener.java`
 `handleConnect` fires tại STOMP CONNECT, TRƯỚC khi server gửi CONNECTED frame → backend broadcast `student_presence` khi S2 chưa subscribe `/user/queue/private`. Frontend xử lý bằng `onConnected` callback.
 
+### `UserService.listUsers` (admin list users)
+`Role` map qua `AttributeConverter` (lowercase string). JPQL kiểu `(:role IS NULL OR u.role = :role)` bind NULL cho param enum đã convert → PostgreSQL `could not determine data type of parameter $1` → **500** khi gọi `/users` không kèm filter. **Fix**: dùng `JpaSpecificationExecutor` + `Specification` (chỉ thêm predicate khi filter có giá trị), không so sánh NULL với param untyped. `UserRepository` bỏ `findFiltered`, extends thêm `JpaSpecificationExecutor<User>`.
+
 ## Project status — Phase 1–4 (M01–M16) hoàn chỉnh
 
 `src/mock/` đã xóa hoàn toàn. Không còn mock data.
