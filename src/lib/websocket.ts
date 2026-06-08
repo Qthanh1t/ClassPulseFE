@@ -6,6 +6,7 @@ import type { IMessage, StompSubscription } from '@stomp/stompjs';
 
 export type WsEventType =
   | 'student_presence'
+  | 'session_started'
   | 'session_ended'
   | 'question_started'
   | 'question_ended'
@@ -208,6 +209,87 @@ export function createSessionWsClient(
         clearInterval(hbInterval);
         hbInterval = null;
       }
+      client.deactivate();
+    },
+  };
+}
+
+// ── App-level client ───────────────────────────────────────────────
+// Connection cấp ứng dụng (không gắn với session nào): dùng để nhận push
+// ngoài phiên học — ví dụ `session_started` / `session_ended` cho danh sách lớp,
+// thay cho việc poll REST liên tục. Không có heartbeat presence (dựa vào STOMP
+// heartbeat ở tầng giao thức); chỉ expose subscribe theo topic tùy ý.
+
+export interface AppWsClient {
+  /** Subscribe một STOMP destination (vd `/topic/classroom/{id}`). Trả về hàm unsubscribe. */
+  subscribeTopic: (destination: string, handler: WsEventHandler) => () => void;
+  disconnect: () => void;
+}
+
+export function createAppWsClient(
+  wsTicket: string,
+  /** Gọi khi WS đóng để lấy ticket mới (1 lần, TTL 60s) — thường là POST /auth/ws-ticket */
+  onReconnect: () => Promise<string>,
+): AppWsClient {
+  // destination -> { handler, sub } — giữ lại để resubscribe sau mỗi lần reconnect
+  const topics = new Map<string, { handler: WsEventHandler; sub: StompSubscription | null }>();
+
+  let currentTicket = wsTicket;
+  let deactivating = false;
+
+  const WS_URL = import.meta.env.VITE_WS_URL ?? 'http://localhost:8080/ws';
+
+  const doSubscribe = (destination: string, handler: WsEventHandler): StompSubscription =>
+    client.subscribe(destination, (msg: IMessage) => {
+      const event = JSON.parse(msg.body) as WsEvent;
+      handler(event);
+    });
+
+  const client = new Client({
+    webSocketFactory: () => new SockJS(`${WS_URL}?ticket=${encodeURIComponent(currentTicket)}`),
+    reconnectDelay: 5000,
+    // STOMP-level heartbeat giữ kết nối sống mà không cần publish thủ công
+    heartbeatIncoming: 25_000,
+    heartbeatOutgoing: 25_000,
+
+    onConnect: () => {
+      // Resubscribe toàn bộ topic đã đăng ký (cả lần đầu lẫn sau reconnect)
+      for (const [destination, entry] of topics) {
+        entry.sub?.unsubscribe();
+        entry.sub = doSubscribe(destination, entry.handler);
+      }
+    },
+
+    onWebSocketClose: () => {
+      if (deactivating) return;
+      // Đánh dấu sub cũ là chết để onConnect tạo lại
+      for (const entry of topics.values()) entry.sub = null;
+      void onReconnect()
+        .then((ticket) => { currentTicket = ticket; })
+        .catch(() => { /* giữ ticket hiện tại; STOMP sẽ retry */ });
+    },
+  });
+
+  client.activate();
+
+  return {
+    subscribeTopic(destination, handler) {
+      // Ghi đè handler nếu subscribe lại cùng destination
+      topics.get(destination)?.sub?.unsubscribe();
+      const entry: { handler: WsEventHandler; sub: StompSubscription | null } = { handler, sub: null };
+      if (client.connected) entry.sub = doSubscribe(destination, handler);
+      topics.set(destination, entry);
+
+      return () => {
+        topics.get(destination)?.sub?.unsubscribe();
+        topics.delete(destination);
+      };
+    },
+
+    disconnect() {
+      deactivating = true;
+      for (const entry of topics.values()) entry.sub?.unsubscribe();
+      topics.clear();
       client.deactivate();
     },
   };

@@ -121,7 +121,7 @@ src/
   main.tsx          # bootstrap authStore (wire axios interceptors trước khi render)
   lib/
     api.ts          # Axios instance; Bearer interceptor; silent 401 refresh (queue pattern)
-    websocket.ts    # STOMP/SockJS; createSessionWsClient; 14 event types; heartbeat; auto-reconnect
+    websocket.ts    # STOMP/SockJS; createSessionWsClient (session) + createAppWsClient (app-level); 15 event types; heartbeat; auto-reconnect
   store/
     authStore.ts    # Zustand: { user, accessToken, setAuth, setToken, clearAuth }
   services/
@@ -166,6 +166,12 @@ src/
 ### AppLayout
 Nav dùng custom `<button>` (không phải AntD `Menu`) với `.sq-nav-item`. Active state: `background: #eef2ff, color: #6366f1, fontWeight: 600`.
 
+### ClassListPage
+- **Không polling** — LIVE badge (`activeSessionId`) cập nhật realtime qua `createAppWsClient`: subscribe `/topic/classroom/{id}` cho từng lớp hiển thị; `session_started` → set `activeSessionId`, `session_ended` → set `null` (cập nhật state tại chỗ, không gọi lại API)
+- Subscription đồng bộ theo `classes` (lớp mới tạo/tham gia → subscribe thêm; lớp biến mất → unsubscribe). Connection mở khi mount, `disconnect()` khi unmount
+- Giữ refresh-on-`visibilitychange` làm safety-net (event-driven) khi WS rớt và lỡ event
+- **Backend**: `SessionController` broadcast `{ type: 'session_started'|'session_ended', payload: { classroomId, sessionId } }` tới `/topic/classroom/{classroomId}` sau khi `start()` / `end()` (xem Backend notes)
+
 ### ClassDetailPage
 - Lịch học TimePicker pre-fill: `dayjs('2000-01-01 ' + s.startTime)` — API trả `"HH:mm"`, cần date giả để dayjs parse không lỗi (không cần `customParseFormat` plugin)
 - Tab Tài liệu: tổng hợp attachments bài đăng (badge "Đăng bài") + upload trực tiếp GV (badge "Tải lên trực tiếp")
@@ -206,7 +212,8 @@ Nav dùng custom `<button>` (không phải AntD `Menu`) với `.sq-nav-item`. Ac
 
 ## WebSocket layer (`src/lib/websocket.ts`)
 
-- `createSessionWsClient(ticket, sessionId, onReconnect, onConnected?)`
+- `createSessionWsClient(ticket, sessionId, onReconnect, onConnected?)` — WS theo phiên học
+- `createAppWsClient(ticket, onReconnect)` — WS cấp ứng dụng (ngoài phiên); chỉ có `subscribeTopic(destination, handler)` (trả hàm unsubscribe) + `disconnect()`; STOMP-level heartbeat (25s), không heartbeat presence; resubscribe toàn bộ topic sau reconnect. Dùng cho push `session_started`/`session_ended` ở `ClassListPage` (thay polling)
 - **Ticket qua URL query param**: `new SockJS(\`${WS_URL}?ticket=${encodeURIComponent(ticket)}\`)` — KHÔNG dùng `connectHeaders: { ticket }` (STOMP headers post-handshake, backend không đọc được)
 - Ticket **dùng 1 lần**, TTL 60s — kết nối ngay sau khi nhận
 - Heartbeat: publish `/app/session/{id}/heartbeat` mỗi 25s
@@ -233,6 +240,9 @@ Lưu `userName` + `userAvatarColor` vào WS session attributes → `PresenceEven
 
 ### `PresenceEventListener.java`
 `handleConnect` fires tại STOMP CONNECT, TRƯỚC khi server gửi CONNECTED frame → backend broadcast `student_presence` khi S2 chưa subscribe `/user/queue/private`. Frontend xử lý bằng `onConnected` callback.
+
+### Classroom-level broadcast (`SessionBroadcastService` / `SessionController`)
+`broadcastToClassroom(classroomId, type, payload)` → `/topic/classroom/{classroomId}`. `SessionController.start()` phát `session_started`, `end()` phát `session_ended` (kèm `{classroomId, sessionId}`) — ngoài broadcast `session_ended` sẵn có tới `/topic/session/{id}` cho participant. `SessionEndResponse` có thêm field `classroomId` để controller phát được. `JwtChannelInterceptor` chỉ cần principal đã xác thực cho SUBSCRIBE, không giới hạn destination → không cần sửa security config. FE `ClassListPage` subscribe để cập nhật LIVE badge realtime thay polling.
 
 ### `UserService.listUsers` (admin list users)
 `Role` map qua `AttributeConverter` (lowercase string). JPQL kiểu `(:role IS NULL OR u.role = :role)` bind NULL cho param enum đã convert → PostgreSQL `could not determine data type of parameter $1` → **500** khi gọi `/users` không kèm filter. **Fix**: dùng `JpaSpecificationExecutor` + `Specification` (chỉ thêm predicate khi filter có giá trị), không so sánh NULL với param untyped. `UserRepository` bỏ `findFiltered`, extends thêm `JpaSpecificationExecutor<User>`.

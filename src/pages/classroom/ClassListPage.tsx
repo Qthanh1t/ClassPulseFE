@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { Button, Modal, Form, Input, message } from 'antd';
 import {
   PlusOutlined, TeamOutlined, CalendarOutlined,
@@ -8,6 +8,9 @@ import {
 } from '@ant-design/icons';
 import { useNavigate } from 'react-router-dom';
 import { classroomService } from '../../services/classroom.service';
+import { authService } from '../../services/auth.service';
+import { createAppWsClient } from '../../lib/websocket';
+import type { AppWsClient, WsEvent } from '../../lib/websocket';
 import { useAuthStore } from '../../store/authStore';
 import type { ClassroomDto } from '../../types/api';
 import PageContainer from '../../components/ui/PageContainer';
@@ -209,23 +212,70 @@ export default function ClassListPage() {
       const data = await classroomService.list();
       setClasses(data);
     } catch {
-      /* ignore transient errors during polling */
+      /* ignore transient errors during background refresh */
     }
   }, []);
 
   useEffect(() => { fetchClasses(); }, [fetchClasses]);
 
-  // Poll every 15s while the page is visible, and refresh immediately when the tab regains focus
+  // ── Realtime LIVE badge qua WebSocket (thay cho polling) ──────────
+  // Backend broadcast `session_started` / `session_ended` tới `/topic/classroom/{id}`
+  // khi GV bắt đầu / kết thúc buổi học → cập nhật activeSessionId tại chỗ, không gọi lại API.
+  const wsRef = useRef<AppWsClient | null>(null);
+  const subsRef = useRef<Map<string, () => void>>(new Map());
+  const [wsReady, setWsReady] = useState(false);
+
+  const handleSessionEvent = useCallback((event: WsEvent) => {
+    if (event.type === 'session_started') {
+      const { classroomId, sessionId } = event.payload as { classroomId: string; sessionId: string };
+      setClasses((prev) => prev.map((c) => (c.id === classroomId ? { ...c, activeSessionId: sessionId } : c)));
+    } else if (event.type === 'session_ended') {
+      const { classroomId } = event.payload as { classroomId: string };
+      setClasses((prev) => prev.map((c) => (c.id === classroomId ? { ...c, activeSessionId: null } : c)));
+    }
+  }, []);
+
+  // Mở 1 connection cấp app khi vào trang; đóng khi rời trang
   useEffect(() => {
-    const interval = setInterval(() => {
-      if (document.visibilityState === 'visible') refreshClasses();
-    }, 15000);
+    let cancelled = false;
+    authService.getWsTicket()
+      .then(({ ticket }) => {
+        if (cancelled) return;
+        wsRef.current = createAppWsClient(
+          ticket,
+          async () => (await authService.getWsTicket()).ticket,
+        );
+        setWsReady(true);
+      })
+      .catch(() => { /* WS không khả dụng → vẫn còn refresh-on-focus làm safety-net */ });
+    return () => {
+      cancelled = true;
+      // disconnect() đã unsubscribe toàn bộ topic; map sẽ bị GC khi unmount
+      wsRef.current?.disconnect();
+      wsRef.current = null;
+    };
+  }, []);
+
+  // Đồng bộ subscription theo danh sách lớp đang hiển thị (lớp mới tạo/tham gia → subscribe thêm)
+  useEffect(() => {
+    const ws = wsRef.current;
+    if (!ws) return;
+    const current = new Set(classes.map((c) => c.id));
+    for (const [id, unsub] of subsRef.current) {
+      if (!current.has(id)) { unsub(); subsRef.current.delete(id); }
+    }
+    for (const c of classes) {
+      if (!subsRef.current.has(c.id)) {
+        subsRef.current.set(c.id, ws.subscribeTopic(`/topic/classroom/${c.id}`, handleSessionEvent));
+      }
+    }
+  }, [classes, wsReady, handleSessionEvent]);
+
+  // Refresh một lần khi tab được focus lại — bắt kịp event lỡ trong lúc WS rớt (event-driven, không phải polling)
+  useEffect(() => {
     const onVisible = () => { if (document.visibilityState === 'visible') refreshClasses(); };
     document.addEventListener('visibilitychange', onVisible);
-    return () => {
-      clearInterval(interval);
-      document.removeEventListener('visibilitychange', onVisible);
-    };
+    return () => document.removeEventListener('visibilitychange', onVisible);
   }, [refreshClasses]);
 
   async function handleCreate(values: { name: string; description?: string; subject?: string }) {
