@@ -112,6 +112,9 @@ export default function TeacherSessionPage() {
   const presenceRef = useRef<PresenceDto[]>([]);
   const questionsRef = useRef<QuestionDto[]>([]);
   const screenTrackRef = useRef<MediaStreamTrack | null>(null);
+  // Server clock − local clock (ms), từ serverNow trong question_started — countdown bám
+  // theo đồng hồ server để khớp với phía học sinh
+  const clockOffsetRef = useRef(0);
 
   useEffect(() => { presenceRef.current = presence; }, [presence]);
   useEffect(() => { questionsRef.current = questions; }, [questions]);
@@ -257,7 +260,11 @@ export default function TeacherSessionPage() {
               questionId: string; type: string; content: string;
               options?: { id: string; label: string; text: string; isCorrect: boolean; order: number }[];
               endsAt?: string;
+              serverNow?: string;
             };
+            if (raw.serverNow) {
+              clockOffsetRef.current = new Date(raw.serverNow).getTime() - Date.now();
+            }
             // Use setQuestions updater to read the LATEST state (avoids stale questionsRef causing duplicates)
             let resolvedQ: QuestionDto | null = null;
             setQuestions((current) => {
@@ -453,7 +460,7 @@ export default function TeacherSessionPage() {
   );
 
   const timeRemaining = runningQuestion?.endsAt
-    ? Math.max(0, Math.round((new Date(runningQuestion.endsAt).getTime() - now) / 1000))
+    ? Math.max(0, Math.round((new Date(runningQuestion.endsAt).getTime() - (now + clockOffsetRef.current)) / 1000))
     : null;
 
   const silentStudents = viewMode === 'running' ? (questionStats?.silentStudents ?? []) : [];

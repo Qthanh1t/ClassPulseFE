@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import {
   Avatar, Badge, Button, Checkbox, Modal, Progress, Radio,
-  Spin, Tag, Tooltip, Typography, Alert,
+  Spin, Tag, Tooltip, Typography, Alert, message,
 } from 'antd';
 import {
   CheckCircleOutlined, ClockCircleOutlined, TeamOutlined,
@@ -105,6 +105,9 @@ export default function StudentSessionPage() {
 
   const wsRef = useRef<SessionWsClient | null>(null);
   const submitFnRef = useRef<(() => void) | null>(null);
+  // Server clock − local clock (ms), từ serverNow trong question_started — đồng hồ máy HS
+  // có thể lệch so với server nên không trừ thẳng Date.now() vào endsAt
+  const clockOffsetRef = useRef(0);
   const teacherIdRef = useRef<string | null>(null);
   const presenceRef = useRef<PresenceDto[]>([]);
   const screenTrackRef = useRef<MediaStreamTrack | null>(null);
@@ -230,9 +233,13 @@ export default function StudentSessionPage() {
                 questionId: string; type: QuestionType; content: string;
                 options?: { id: string; label: string; text: string; isCorrect: boolean; order: number }[];
                 endsAt?: string;
+                serverNow?: string;
               };
+              if (raw.serverNow) {
+                clockOffsetRef.current = new Date(raw.serverNow).getTime() - Date.now();
+              }
               const estimatedTimer = raw.endsAt
-                ? Math.round((new Date(raw.endsAt).getTime() - Date.now()) / 1000)
+                ? Math.round((new Date(raw.endsAt).getTime() - (Date.now() + clockOffsetRef.current)) / 1000)
                 : 0;
               const q: QuestionDto = {
                 id: raw.questionId,
@@ -260,6 +267,8 @@ export default function StudentSessionPage() {
               // Backend payload: { questionId }
               const ended = event.payload as { questionId: string };
               setRunningQuestion((prev) => (prev?.id === ended.questionId ? { ...prev, status: 'ended' } : prev));
+              // Mở lại panel để HS thấy trạng thái hết giờ ngay cả khi đã thu nhỏ
+              setQuestionPanelOpen(true);
               break;
             }
             case 'raise_hand_changed': {
@@ -476,8 +485,13 @@ export default function StudentSessionPage() {
   const TIMER_TOTAL = runningQuestion?.timerSeconds ?? 0;
   const timeRemaining =
     isQuestionRunning && runningQuestion?.endsAt && !questionSubmitted
-      ? Math.max(0, Math.round((new Date(runningQuestion.endsAt).getTime() - now) / 1000))
+      ? Math.max(0, Math.round((new Date(runningQuestion.endsAt).getTime() - (now + clockOffsetRef.current)) / 1000))
       : null;
+
+  const questionEnded = runningQuestion?.status === 'ended';
+  // Khóa chọn/sửa đáp án: đã gửi, server đã kết thúc câu hỏi, hoặc đồng hồ cục bộ chạm 0
+  // (chặn ngay trong khoảng chờ WS question_ended tới)
+  const answerLocked = questionSubmitted || questionEnded || timeRemaining === 0;
 
   const essayHasContent = essayText.replace(/<[^>]*>/g, '').trim().length > 0;
   const canSubmit = selectedOptions.length > 0 || essayHasContent;
@@ -497,25 +511,38 @@ export default function StudentSessionPage() {
         essayText: essayText || undefined,
         confidence: confidence || undefined,
       });
-    } catch { /* keep submitted flag */ }
+    } catch (err) {
+      const code = (err as { response?: { data?: { error?: { code?: string } } } })
+        ?.response?.data?.error?.code;
+      if (code === 'QUESTION_NOT_RUNNING') {
+        // Server đã kết thúc câu hỏi — câu trả lời KHÔNG được ghi nhận, không hiện "Đã gửi" giả
+        setQuestionSubmitted(false);
+        setRunningQuestion((prev) => (prev ? { ...prev, status: 'ended' } : prev));
+        message.error('Đã hết thời gian — câu trả lời không được ghi nhận');
+      }
+      // ALREADY_ANSWERED (refresh/double-submit): giữ flag submitted
+    }
   }, [runningQuestion, joinInfo, questionSubmitted, selectedOptions, essayText, confidence]);
 
   useEffect(() => { submitFnRef.current = handleSubmit; }, [handleSubmit]);
 
+  // Auto-submit khi còn ≤1s (thay vì đúng 0s): server auto-end đúng thời điểm endsAt,
+  // gửi tại 0s sẽ thua race và bị từ chối QUESTION_NOT_RUNNING. Chỉ gửi khi có nội dung
+  // — không ghi nhận câu trả lời rỗng (HS không chọn gì sẽ tính là bỏ qua).
   useEffect(() => {
-    if (timeRemaining === 0 && runningQuestion && !questionSubmitted) {
+    if (timeRemaining !== null && timeRemaining <= 1 && runningQuestion && !questionSubmitted && canSubmit) {
       submitFnRef.current?.();
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [timeRemaining]);
+  }, [timeRemaining, canSubmit]);
 
   const handleSelectSingle = (optId: string) => {
-    if (questionSubmitted) return;
+    if (answerLocked) return;
     setSelectedOptions([optId]);
   };
 
   const handleSelectMultiple = (optId: string) => {
-    if (questionSubmitted) return;
+    if (answerLocked) return;
     setSelectedOptions((prev) =>
       prev.includes(optId) ? prev.filter((id) => id !== optId) : [...prev, optId],
     );
@@ -954,9 +981,9 @@ export default function StudentSessionPage() {
                         <div
                           key={opt.id}
                           onClick={() => handleSelectSingle(opt.id)}
-                          style={{ padding: '10px 12px', border: `2px solid ${selectedOptions.includes(opt.id) ? '#4f46e5' : '#e7e3dc'}`, borderRadius: 8, cursor: questionSubmitted ? 'default' : 'pointer', background: selectedOptions.includes(opt.id) ? '#eceafd' : '#f3f1ec', display: 'flex', alignItems: 'center', gap: 8, transition: 'all 0.15s' }}
+                          style={{ padding: '10px 12px', border: `2px solid ${selectedOptions.includes(opt.id) ? '#4f46e5' : '#e7e3dc'}`, borderRadius: 8, cursor: answerLocked ? 'default' : 'pointer', opacity: answerLocked && !questionSubmitted ? 0.6 : 1, background: selectedOptions.includes(opt.id) ? '#eceafd' : '#f3f1ec', display: 'flex', alignItems: 'center', gap: 8, transition: 'all 0.15s' }}
                         >
-                          <Radio value={opt.id} />
+                          <Radio value={opt.id} disabled={answerLocked} />
                           <Tag style={{ minWidth: 24, textAlign: 'center', margin: 0, fontSize: 11 }}>{opt.label}</Tag>
                           <Text style={{ fontSize: 13 }}>{opt.text}</Text>
                         </div>
@@ -971,9 +998,9 @@ export default function StudentSessionPage() {
                       <div
                         key={opt.id}
                         onClick={() => handleSelectMultiple(opt.id)}
-                        style={{ padding: '10px 12px', border: `2px solid ${selectedOptions.includes(opt.id) ? '#4f46e5' : '#e7e3dc'}`, borderRadius: 8, cursor: questionSubmitted ? 'default' : 'pointer', background: selectedOptions.includes(opt.id) ? '#eceafd' : '#f3f1ec', display: 'flex', alignItems: 'center', gap: 8 }}
+                        style={{ padding: '10px 12px', border: `2px solid ${selectedOptions.includes(opt.id) ? '#4f46e5' : '#e7e3dc'}`, borderRadius: 8, cursor: answerLocked ? 'default' : 'pointer', opacity: answerLocked && !questionSubmitted ? 0.6 : 1, background: selectedOptions.includes(opt.id) ? '#eceafd' : '#f3f1ec', display: 'flex', alignItems: 'center', gap: 8 }}
                       >
-                        <Checkbox checked={selectedOptions.includes(opt.id)} />
+                        <Checkbox checked={selectedOptions.includes(opt.id)} disabled={answerLocked} />
                         <Tag style={{ minWidth: 24, textAlign: 'center', margin: 0, fontSize: 11 }}>{opt.label}</Tag>
                         <Text style={{ fontSize: 13 }}>{opt.text}</Text>
                       </div>
@@ -982,7 +1009,7 @@ export default function StudentSessionPage() {
                 )}
 
                 {runningQuestion.type === 'essay' && (
-                  questionSubmitted ? (
+                  answerLocked ? (
                     <div
                       className="ck-content"
                       style={{ fontSize: 13, lineHeight: 1.6, padding: '8px 12px', background: '#f3f1ec', borderRadius: 8, border: '1px solid #e7e3dc', minHeight: 64 }}
@@ -993,7 +1020,7 @@ export default function StudentSessionPage() {
                   )
                 )}
 
-                {!questionSubmitted && (
+                {!answerLocked && (
                   <div style={{ marginTop: 12 }}>
                     <ConfidenceSelector value={confidence} onChange={setConfidence} />
                   </div>
@@ -1002,7 +1029,22 @@ export default function StudentSessionPage() {
 
               {/* Footer */}
               <div style={{ padding: '12px 14px', borderTop: '1px solid #e7e3dc', flexShrink: 0 }}>
-                {!questionSubmitted ? (
+                {!questionSubmitted && answerLocked ? (
+                  <div style={{ textAlign: 'center' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, marginBottom: 4 }}>
+                      <ClockCircleOutlined style={{ color: '#f43f5e', fontSize: 18 }} />
+                      <Text strong style={{ color: '#f43f5e' }}>Đã hết thời gian!</Text>
+                    </div>
+                    <Text type="secondary" style={{ fontSize: 12 }}>
+                      Câu hỏi đã kết thúc, không thể gửi câu trả lời nữa.
+                    </Text>
+                    <div style={{ marginTop: 8 }}>
+                      <Button size="small" icon={<MinusOutlined />} onClick={() => { setQuestionPanelOpen(false); setPanelExpanded(false); }}>
+                        Thu nhỏ, tiếp tục học
+                      </Button>
+                    </div>
+                  </div>
+                ) : !questionSubmitted ? (
                   <Button type="primary" icon={<SendOutlined />} block onClick={handleSubmit} disabled={!canSubmit} style={{ borderRadius: 8, fontWeight: 600 }}>
                     Gửi câu trả lời
                   </Button>
@@ -1076,7 +1118,7 @@ export default function StudentSessionPage() {
             title={questionPanelOpen ? 'Thu nhỏ câu hỏi' : 'Mở câu hỏi'}
             icon={questionPanelOpen ? <MinusOutlined /> : <ExpandAltOutlined />}
           >
-            {questionSubmitted ? '✓ Đã trả lời' : '📝 Câu hỏi'}
+            {questionSubmitted ? '✓ Đã trả lời' : answerLocked ? '⏱ Hết giờ' : '📝 Câu hỏi'}
           </CtrlBtn>
         )}
 

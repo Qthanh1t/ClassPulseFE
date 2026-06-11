@@ -198,6 +198,12 @@ Nav dùng custom `<button>` (không phải AntD `Menu`) với `.sq-nav-item`. Ac
 - **`onConnected` callback**: refresh presence → `callPeer(teacherIdRef)` + `callPeer` tất cả HS online — phải chủ động call vì backend broadcast `student_presence` TRƯỚC khi student subscribe `/user/queue/private`
 - `student_presence` payload: `{ studentId, action, name, avatarColor }` — `name`/`avatarColor` từ WS session attributes, không cần REST lookup
 
+### Question countdown & hết giờ (cả 2 trang session)
+- `question_started` payload có `serverNow` → `clockOffsetRef = serverNow - Date.now()`; countdown = `endsAt - (now + offset)` — đồng hồ máy client có thể lệch server, không trừ thẳng `Date.now()`
+- Student: `answerLocked = questionSubmitted || status==='ended' || timeRemaining===0` — khóa chọn đáp án/editor/confidence, footer hiện "Đã hết thời gian"; `question_ended` mở lại panel
+- Auto-submit khi còn ≤1s (KHÔNG phải 0s — server auto-end đúng `endsAt`, gửi tại 0s thua race bị `QUESTION_NOT_RUNNING`) và chỉ khi có nội dung (không ghi nhận answer rỗng)
+- `handleSubmit` catch `QUESTION_NOT_RUNNING` → bỏ flag submitted + set status ended + message.error (không hiện "Đã gửi" giả)
+
 ## TypeScript config
 
 `tsconfig.app.json` strict: `noUnusedLocals`, `noUnusedParameters`, `erasableSyntaxOnly`, `noFallthroughCasesInSwitch`.  
