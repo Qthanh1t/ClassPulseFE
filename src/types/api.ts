@@ -394,6 +394,8 @@ export interface BreakoutSessionDto {
   breakoutSessionId: string;
   startedAt: string;
   endedAt?: string;
+  /** Phòng GV đang ở (null/undefined = phòng chính) — dùng khôi phục trạng thái sau reload */
+  teacherRoomId?: string | null;
   rooms: RoomDto[];
 }
 

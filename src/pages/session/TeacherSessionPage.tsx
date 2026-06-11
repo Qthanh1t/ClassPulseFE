@@ -115,9 +115,15 @@ export default function TeacherSessionPage() {
   // Server clock − local clock (ms), từ serverNow trong question_started — countdown bám
   // theo đồng hồ server để khớp với phía học sinh
   const clockOffsetRef = useRef(0);
+  // Mirror breakout state cho closure onConnected (chạy ngoài React render): biết đang
+  // breakout + GV đang ở phòng nào để chỉ gọi WebRTC tới đúng người sau khi (re)connect
+  const breakoutRef = useRef<BreakoutSessionDto | null>(null);
+  const teacherJoinedRoomIdRef = useRef<string | null>(null);
 
   useEffect(() => { presenceRef.current = presence; }, [presence]);
   useEffect(() => { questionsRef.current = questions; }, [questions]);
+  useEffect(() => { breakoutRef.current = breakout; }, [breakout]);
+  useEffect(() => { teacherJoinedRoomIdRef.current = teacherJoinedRoomId; }, [teacherJoinedRoomId]);
 
   // ── WebRTC hooks ────────────────────────────────────────────────────
   const localMedia = useLocalMedia();
@@ -173,7 +179,15 @@ export default function TeacherSessionPage() {
 
       if (bRes.data) {
         setBreakout(bRes.data);
+        breakoutRef.current = bRes.data;
         setShowBreakoutPanel(true);
+        // Reload giữa lúc đang ở trong một phòng nhóm → khôi phục vị trí; onConnected
+        // sẽ gọi lại joinRoom để HS trong phòng re-offer WebRTC tới kết nối mới của GV
+        if (bRes.data.teacherRoomId) {
+          setTeacherJoinedRoomId(bRes.data.teacherRoomId);
+          teacherJoinedRoomIdRef.current = bRes.data.teacherRoomId;
+          setBreakoutPanelCollapsed(true);
+        }
       }
 
       // Pre-fetch stats for already-ended questions so the results drawer can show them
@@ -414,8 +428,23 @@ export default function TeacherSessionPage() {
             }
           } catch { /* ignore */ }
           if (cancelled) return;
-          // Re-offer WebRTC to all online students
+          const bo = breakoutRef.current;
+          const visitingRoomId = teacherJoinedRoomIdRef.current;
+          if (bo && visitingRoomId) {
+            // Đang ở trong một phòng nhóm (reload trang / WS reconnect): gọi lại joinRoom
+            // để backend re-broadcast teacher_joined_room — HS trong phòng đóng PC cũ và
+            // gửi offer mới tới kết nối vừa tạo của GV. Không tự callPeer (HS là bên offer).
+            try {
+              await breakoutService.joinRoom(sess.id, bo.breakoutSessionId, visitingRoomId);
+            } catch { /* phòng/breakout có thể vừa kết thúc — bỏ qua */ }
+            return;
+          }
+          // Re-offer WebRTC to online students — skip những HS đang ở phòng nhóm
+          const assignedIds = bo
+            ? new Set(bo.rooms.flatMap((r) => r.students.map((s) => s.id)))
+            : null;
           for (const p of presenceRef.current.filter((x) => x.isOnline)) {
+            if (assignedIds?.has(p.studentId)) continue;
             await rtc.callPeer(p.studentId);
           }
         },
@@ -449,6 +478,10 @@ export default function TeacherSessionPage() {
 
   // The sub-room the teacher is currently visiting — its students get a live video grid.
   const teacherJoinedRoom = breakout?.rooms.find((r) => r.id === teacherJoinedRoomId) ?? null;
+  // Chỉ render HS trong phòng còn online — HS rời lớp giữa breakout thì bỏ tile luôn
+  const joinedRoomOnlineStudents = teacherJoinedRoom
+    ? teacherJoinedRoom.students.filter((s) => presence.some((p) => p.studentId === s.id && p.isOnline))
+    : [];
 
   // Students NOT assigned to any sub-room stay in the main room. While the teacher is in
   // the main room (no sub-room joined) they keep talking to these students.
@@ -1026,7 +1059,7 @@ export default function TeacherSessionPage() {
                         <Text style={{ color: 'rgba(255,255,255,0.6)', fontSize: 12, marginLeft: 10 }}>{teacherJoinedRoom.task}</Text>
                       )}
                     </div>
-                    <Tag color="purple" style={{ borderRadius: 20, margin: 0 }}>{teacherJoinedRoom.students.length} HS</Tag>
+                    <Tag color="purple" style={{ borderRadius: 20, margin: 0 }}>{joinedRoomOnlineStudents.length} HS</Tag>
                     <Button size="small" type="text" style={{ color: 'rgba(255,255,255,0.75)' }} onClick={() => setBreakoutPanelCollapsed(false)}>
                       Quản lý phòng
                     </Button>
@@ -1048,7 +1081,7 @@ export default function TeacherSessionPage() {
                     </div>
                     {/* Room students — stream is null until their fresh PC connects, so a stale
                         connection shows the avatar placeholder instead of a frozen frame. */}
-                    {teacherJoinedRoom.students.map((s) => {
+                    {joinedRoomOnlineStudents.map((s) => {
                       const peer = rtc.peers.get(s.id);
                       return (
                         <div key={s.id} style={{ aspectRatio: '4/3' }}>
@@ -1153,6 +1186,7 @@ export default function TeacherSessionPage() {
                     sessionId={session.id}
                     breakout={breakout}
                     presence={presence}
+                    teacherRoomId={teacherJoinedRoomId}
                     onClose={() => { setShowBreakoutPanel(false); setBreakout(null); setTeacherJoinedRoomId(null); setBreakoutPanelCollapsed(false); }}
                     onSyncActive={async () => {
                       const bRes = await breakoutService.getActive(session.id);

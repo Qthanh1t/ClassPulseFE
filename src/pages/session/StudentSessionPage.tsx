@@ -111,11 +111,17 @@ export default function StudentSessionPage() {
   const teacherIdRef = useRef<string | null>(null);
   const presenceRef = useRef<PresenceDto[]>([]);
   const screenTrackRef = useRef<MediaStreamTrack | null>(null);
-  // Latest sub-room id (null = I'm in the main room) for the WS handler closure to read.
-  const myRoomIdRef = useRef<string | null>(null);
+  // Latest sub-room (null = I'm in the main room) for WS handler closures to read.
+  const myRoomRef = useRef<RoomDto | null>(null);
+  // Mirror of breakoutMemberIds for closures (onConnected runs outside React render).
+  const breakoutMemberIdsRef = useRef<string[]>([]);
+  // Room the teacher is currently visiting (null = main room) — seeded from REST on
+  // reload, then kept in sync by teacher_joined_room / teacher_left_room events.
+  const teacherRoomIdRef = useRef<string | null>(null);
 
   useEffect(() => { presenceRef.current = presence; }, [presence]);
-  useEffect(() => { myRoomIdRef.current = myRoom?.id ?? null; }, [myRoom]);
+  useEffect(() => { myRoomRef.current = myRoom; }, [myRoom]);
+  useEffect(() => { breakoutMemberIdsRef.current = breakoutMemberIds; }, [breakoutMemberIds]);
 
   // ── WebRTC hooks ────────────────────────────────────────────────────
   const localMedia = useLocalMedia();
@@ -146,10 +152,11 @@ export default function StudentSessionPage() {
         // Teacher ID is included in join response — set immediately so onConnected can call teacher.
         teacherIdRef.current = info.teacherId;
 
-        const [presenceRes, chatHistRes, questionsRes] = await Promise.all([
+        const [presenceRes, chatHistRes, questionsRes, breakoutRes] = await Promise.all([
           sessionService.getPresence(info.sessionId),
           chatService.getHistory(info.sessionId, 50),
           questionService.list(info.sessionId),
+          breakoutService.getActive(info.sessionId).catch(() => ({ data: null })),
         ]);
         if (cancelled) return;
 
@@ -159,6 +166,23 @@ export default function StudentSessionPage() {
         if (chatHistRes.data) setChatMessages(chatHistRes.data.map(dtoToChat));
         const runningQ = questionsRes.data?.find((q) => q.status === 'running');
         if (runningQ) { setRunningQuestion(runningQ); setQuestionPanelOpen(true); }
+
+        // Khôi phục trạng thái breakout (reload trang giữa lúc đang chia nhóm):
+        // set phòng của mình + vị trí GV trước khi WS connect để onConnected chỉ
+        // gọi WebRTC tới đúng người cùng phòng.
+        let restoredRoom: RoomDto | null = null;
+        const activeBreakout = breakoutRes.data;
+        if (activeBreakout) {
+          const assignedIds = activeBreakout.rooms.flatMap((r) => r.students.map((s) => s.id));
+          setBreakoutMemberIds(assignedIds);
+          breakoutMemberIdsRef.current = assignedIds;
+          teacherRoomIdRef.current = activeBreakout.teacherRoomId ?? null;
+          restoredRoom = activeBreakout.rooms.find((r) => r.students.some((s) => s.id === me?.id)) ?? null;
+          setMyRoom(restoredRoom);
+          myRoomRef.current = restoredRoom;
+          setTeacherInRoom(restoredRoom !== null && activeBreakout.teacherRoomId === restoredRoom.id);
+          setTeacherAway(restoredRoom === null && activeBreakout.teacherRoomId != null);
+        }
 
         setLoading(false);
 
@@ -181,8 +205,14 @@ export default function StudentSessionPage() {
                   return updated;
                 });
               } else {
+                // Chỉ gọi WebRTC nếu người mới vào đang ở cùng "phòng" với mình:
+                // mình ở sub-room → phải là bạn cùng phòng; mình ở phòng chính → người đó
+                // không thuộc sub-room nào (tránh kết nối xuyên phòng khi HS reload giữa breakout)
+                const sameRoom = myRoomRef.current
+                  ? myRoomRef.current.students.some((s) => s.id === payload.studentId)
+                  : !breakoutMemberIdsRef.current.includes(payload.studentId);
                 // Polite peer: lower ID initiates student-to-student connection
-                if (payload.studentId !== me?.id && (me?.id ?? '') < payload.studentId) {
+                if (sameRoom && payload.studentId !== me?.id && (me?.id ?? '') < payload.studentId) {
                   void rtc.callPeer(payload.studentId);
                 }
                 // Optimistically mark online with whatever the WS payload has
@@ -292,9 +322,11 @@ export default function StudentSessionPage() {
                 const bo = res.data;
                 const assignedIds = bo.rooms.flatMap((r) => r.students.map((s) => s.id));
                 setBreakoutMemberIds(assignedIds);
+                breakoutMemberIdsRef.current = assignedIds;
+                teacherRoomIdRef.current = null; // GV bắt đầu ở phòng chính
                 const room = bo.rooms.find((r) => r.students.some((s) => s.id === me?.id));
                 setMyRoom(room ?? null);
-                myRoomIdRef.current = room?.id ?? null;
+                myRoomRef.current = room ?? null;
                 if (room) {
                   // Assigned to a sub-room → talk only to roommates. The teacher is still in
                   // the main room at this point, so we are not connected to them yet.
@@ -322,7 +354,9 @@ export default function StudentSessionPage() {
               setTeacherInRoom(false);
               setTeacherAway(false);
               setBreakoutMemberIds([]);
-              myRoomIdRef.current = null;
+              breakoutMemberIdsRef.current = [];
+              teacherRoomIdRef.current = null;
+              myRoomRef.current = null;
               setMyRoom((prev) => {
                 if (prev) wsRef.current?.unsubscribeRoom(prev.id);
                 return null;
@@ -358,12 +392,18 @@ export default function StudentSessionPage() {
               // Session-wide: `roomId` is the teacher's current sub-room. Connect only if it
               // is MY room; otherwise drop the teacher PC (main-room or other-room students).
               const { roomId } = event.payload as { roomId: string };
-              const withMe = roomId === myRoomIdRef.current;
+              teacherRoomIdRef.current = roomId;
+              const withMe = roomId === (myRoomRef.current?.id ?? null);
               setTeacherInRoom(withMe);
-              setTeacherAway(myRoomIdRef.current === null);
+              setTeacherAway(myRoomRef.current === null);
               if (withMe) {
                 setBroadcastMsg('Giáo viên đã vào phòng');
-                if (teacherIdRef.current) void rtc.callPeer(teacherIdRef.current);
+                if (teacherIdRef.current) {
+                  // GV có thể vừa reload (re-announce joinRoom): PC cũ phía mình vẫn báo
+                  // 'connected' (stale) làm callPeer skip — đóng trước để luôn offer mới
+                  rtc.closePeer(teacherIdRef.current);
+                  void rtc.callPeer(teacherIdRef.current);
+                }
               } else if (teacherIdRef.current) {
                 // Teacher is elsewhere → close so the tile shows a placeholder, not a frozen frame.
                 rtc.closePeer(teacherIdRef.current);
@@ -372,8 +412,9 @@ export default function StudentSessionPage() {
             }
             case 'teacher_left_room': {
               // Session-wide: the teacher returned to the main room.
+              teacherRoomIdRef.current = null;
               setTeacherInRoom(false);
-              if (myRoomIdRef.current === null) {
+              if (myRoomRef.current === null) {
                 // I'm in the main room → the teacher is back with me, reconnect.
                 setTeacherAway(false);
                 setBroadcastMsg('Giáo viên đã quay lại phòng chính');
@@ -443,24 +484,42 @@ export default function StudentSessionPage() {
               }
             } catch { /* ignore — use existing presence */ }
             if (cancelled) return;
+            // Đang ở sub-room (reload giữa breakout hoặc WS reconnect): chỉ kết nối với
+            // bạn cùng phòng + GV nếu GV đang ở đúng phòng này.
+            const room = myRoomRef.current;
+            if (room) {
+              if (teacherRoomIdRef.current === room.id && teacherIdRef.current) {
+                await rtc.callPeer(teacherIdRef.current);
+              }
+              for (const s of room.students) {
+                if (s.id !== me?.id && presenceRef.current.some((p) => p.studentId === s.id && p.isOnline)) {
+                  await rtc.callPeer(s.id);
+                }
+              }
+              return;
+            }
             // Call Teacher. The backend broadcasts student_presence as soon as the REST join
             // completes, BEFORE our WS subscription is ready. Teacher's offer was already
             // sent and dropped. We initiate here so Teacher can do glare resolution.
-            if (teacherIdRef.current) {
+            // Skip when the teacher is visiting a sub-room — they are not with us.
+            if (teacherIdRef.current && teacherRoomIdRef.current === null) {
               await rtc.callPeer(teacherIdRef.current);
             }
             // Call ALL online students regardless of polite-peer ID order.
             // Students who joined before us tried to call us when we weren't subscribed yet.
             // We call them now; if they have a stale have-local-offer PC they will rollback
-            // and handle our offer via glare resolution.
+            // and handle our offer via glare resolution. Skip students in breakout sub-rooms.
             for (const p of presenceRef.current) {
-              if (p.isOnline && p.studentId !== me?.id) {
+              if (p.isOnline && p.studentId !== me?.id && !breakoutMemberIdsRef.current.includes(p.studentId)) {
                 await rtc.callPeer(p.studentId);
               }
             }
           },
         );
         ws.subscribe(handleEvent);
+        // Reload giữa breakout: đăng ký lại topic phòng (websocket layer sẽ subscribe
+        // khi STOMP connect xong) để nhận chat/sự kiện trong phòng
+        if (restoredRoom) ws.subscribeRoom(restoredRoom.id, handleEvent);
         wsRef.current = ws;
       } catch {
         if (!cancelled) setLoading(false);
@@ -481,6 +540,10 @@ export default function StudentSessionPage() {
 
   // ── Derived ───────────────────────────────────────────────────────
   const isBreakout = myRoom !== null;
+  // Đếm bạn đang ở phòng nhóm theo presence online — thành viên breakout rời lớp thì trừ ra
+  const breakoutOnlineCount = breakoutMemberIds.filter(
+    (sid) => presence.some((p) => p.studentId === sid && p.isOnline),
+  ).length;
   const isQuestionRunning = runningQuestion?.status === 'running';
   const TIMER_TOTAL = runningQuestion?.timerSeconds ?? 0;
   const timeRemaining =
@@ -680,9 +743,9 @@ export default function StudentSessionPage() {
         </div>
 
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          {!isBreakout && breakoutMemberIds.length > 0 && (
+          {!isBreakout && breakoutOnlineCount > 0 && (
             <Tag color="geekblue" icon={<TeamOutlined />} style={{ borderRadius: 20, fontSize: 11 }}>
-              {breakoutMemberIds.length} bạn đang ở phòng nhóm
+              {breakoutOnlineCount} bạn đang ở phòng nhóm
             </Tag>
           )}
           {focusedStudentId && (
@@ -892,7 +955,10 @@ export default function StudentSessionPage() {
                     </VideoTile>
                   </div>
                 )}
-                {myRoom.students.map((s) => {
+                {/* Chỉ render bạn cùng phòng còn online — HS rời lớp thì bỏ tile luôn */}
+                {myRoom.students
+                  .filter((s) => s.id === me?.id || presence.some((p) => p.studentId === s.id && p.isOnline))
+                  .map((s) => {
                   const isSelf = s.id === me?.id;
                   const peer = rtc.peers.get(s.id);
                   return (

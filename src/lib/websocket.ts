@@ -70,6 +70,19 @@ export function createSessionWsClient(
   let sessionSub: StompSubscription | null = null;
   let privateSub: StompSubscription | null = null;
 
+  // (Re)subscribe a breakout room topic — replaces any existing subscription for the room
+  const subscribeRoomTopic = (roomId: string, handler: WsEventHandler) => {
+    roomSubs.get(roomId)?.unsubscribe();
+    const sub = client.subscribe(
+      `/topic/session/${sessionId}/room/${roomId}`,
+      (msg: IMessage) => {
+        const event = JSON.parse(msg.body) as WsEvent;
+        handler(event);
+      },
+    );
+    roomSubs.set(roomId, sub);
+  };
+
   // Mutable ticket — updated before each reconnect attempt
   let currentTicket = wsTicket;
   // Set to true when disconnect() is called intentionally — suppresses reconnect ticket refresh
@@ -97,6 +110,12 @@ export function createSessionWsClient(
         const event = JSON.parse(msg.body) as WsEvent;
         mainHandler?.(event);
       });
+
+      // (Re)subscribe room topics — covers subscribeRoom called before the socket was
+      // ready (breakout restore on page reload) and lost subscriptions after reconnect
+      for (const [roomId, handler] of roomHandlers) {
+        subscribeRoomTopic(roomId, handler);
+      }
 
       // Heartbeat every 25s to keep presence alive
       if (hbInterval !== null) clearInterval(hbInterval);
@@ -136,15 +155,9 @@ export function createSessionWsClient(
 
     subscribeRoom(roomId, handler) {
       roomHandlers.set(roomId, handler);
+      // Not connected yet → onConnect will pick the handler up from roomHandlers
       if (client.connected) {
-        const sub = client.subscribe(
-          `/topic/session/${sessionId}/room/${roomId}`,
-          (msg: IMessage) => {
-            const event = JSON.parse(msg.body) as WsEvent;
-            handler(event);
-          },
-        );
-        roomSubs.set(roomId, sub);
+        subscribeRoomTopic(roomId, handler);
       }
     },
 

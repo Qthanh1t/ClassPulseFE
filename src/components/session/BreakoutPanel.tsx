@@ -7,7 +7,7 @@ import {
   LoginOutlined, LogoutOutlined, CheckCircleFilled,
   ThunderboltOutlined, UsergroupAddOutlined,
 } from '@ant-design/icons';
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import type { BreakoutSessionDto, PresenceDto } from '../../types/api';
 import breakoutService from '../../services/breakout.service';
 
@@ -24,6 +24,8 @@ interface Props {
   sessionId: string;
   breakout: BreakoutSessionDto | null;
   presence: PresenceDto[];
+  /** Phòng GV đang ở (null = phòng chính) — cha quản lý để khôi phục được sau reload */
+  teacherRoomId?: string | null;
   onClose: () => void;
   onSyncActive?: () => Promise<void>;
   /** Called synchronously BEFORE the teacher joins a room — used to tear down stale PCs
@@ -35,7 +37,7 @@ interface Props {
 }
 
 export default function BreakoutPanel({
-  sessionId, breakout, presence, onClose, onSyncActive,
+  sessionId, breakout, presence, teacherRoomId = null, onClose, onSyncActive,
   onTeacherJoinRoom, onTeacherLeaveRoom,
 }: Props) {
   // Setup mode state
@@ -50,15 +52,10 @@ export default function BreakoutPanel({
   const [randomCount, setRandomCount] = useState(2);
 
   // Active mode state
-  const [teacherRoomId, setTeacherRoomId] = useState<string | null>(null);
   const [ending, setEnding] = useState(false);
   const [broadcastOpen, setBroadcastOpen] = useState(false);
   const [broadcastMsg, setBroadcastMsg] = useState('');
   const [broadcasting, setBroadcasting] = useState(false);
-
-  useEffect(() => {
-    setTeacherRoomId(null);
-  }, [breakout?.breakoutSessionId]);
 
   // Derived from presence for setup mode
   const allStudents = presence.map((p) => ({
@@ -177,12 +174,14 @@ export default function BreakoutPanel({
       // Tear down stale PCs BEFORE the network call so they are gone before students are
       // notified (teacher_joined_room) and send their fresh offers. Reusing a stale PC keeps
       // a dead inbound audio track → teacher can't hear the students.
+      // Parent optimistically sets teacherRoomId here.
       onTeacherJoinRoom?.(roomId);
       // No explicit leave when switching rooms: the session-wide teacher_joined_room makes the
       // previous room's students disconnect (their room id ≠ the new room id).
       await breakoutService.joinRoom(sessionId, breakout.breakoutSessionId, roomId);
-      setTeacherRoomId(roomId);
     } catch {
+      // Revert the optimistic join in the parent
+      onTeacherLeaveRoom?.();
       message.error('Không thể vào phòng');
     }
   };
@@ -192,9 +191,9 @@ export default function BreakoutPanel({
     try {
       // Close peers BEFORE the network call so the main-room students' reconnect offers
       // (sent on teacher_left_room) land on a clean slate instead of a PC we then close.
+      // Parent clears teacherRoomId here.
       onTeacherLeaveRoom?.();
       await breakoutService.leaveRoom(sessionId, breakout.breakoutSessionId, roomId);
-      setTeacherRoomId(null);
     } catch {
       message.error('Không thể rời phòng');
     }
@@ -233,6 +232,8 @@ export default function BreakoutPanel({
   /* ── ACTIVE MODE ── */
   if (breakout !== null) {
     const sortedRooms = [...breakout.rooms].sort((a, b) => a.order - b.order);
+    // HS rời lớp giữa breakout: làm mờ chip + đếm theo số còn online
+    const onlineIds = new Set(presence.filter((p) => p.isOnline).map((p) => p.studentId));
 
     return (
       <div style={{ padding: '0 0 16px' }}>
@@ -257,12 +258,17 @@ export default function BreakoutPanel({
           defaultActiveKey={sortedRooms.map((r) => r.id)}
           items={sortedRooms.map((room) => {
             const isTeacherHere = teacherRoomId === room.id;
+            const onlineCount = room.students.filter((s) => onlineIds.has(s.id)).length;
             return {
               key: room.id,
               label: (
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                   <Text strong>{room.name}</Text>
-                  <Tag color="blue" style={{ borderRadius: 20 }}>{room.students.length} HS</Tag>
+                  <Tag color="blue" style={{ borderRadius: 20 }}>
+                    {onlineCount < room.students.length
+                      ? `${onlineCount}/${room.students.length} HS`
+                      : `${room.students.length} HS`}
+                  </Tag>
                   <Badge
                     status="processing"
                     text={<Text style={{ fontSize: 12, color: '#0ea672' }}>Đang thảo luận</Text>}
@@ -278,14 +284,21 @@ export default function BreakoutPanel({
               children: (
                 <div>
                   <div style={{ display: 'flex', gap: 8, marginBottom: 10, flexWrap: 'wrap', alignItems: 'center' }}>
-                    {room.students.map((s) => (
-                      <div key={s.id} style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-                        <Avatar size={24} src={s.avatarUrl ?? undefined} style={{ background: s.avatarColor ?? '#4f46e5', fontSize: 11 }}>
-                          {s.name.charAt(0)}
-                        </Avatar>
-                        <Text style={{ fontSize: 12 }}>{s.name.split(' ').pop()}</Text>
-                      </div>
-                    ))}
+                    {room.students.map((s) => {
+                      const isOnline = onlineIds.has(s.id);
+                      return (
+                        <Tooltip key={s.id} title={isOnline ? undefined : 'Đã rời buổi học'}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 4, opacity: isOnline ? 1 : 0.4 }}>
+                            <Avatar size={24} src={s.avatarUrl ?? undefined} style={{ background: s.avatarColor ?? '#4f46e5', fontSize: 11 }}>
+                              {s.name.charAt(0)}
+                            </Avatar>
+                            <Text style={{ fontSize: 12, textDecoration: isOnline ? undefined : 'line-through' }}>
+                              {s.name.split(' ').pop()}
+                            </Text>
+                          </div>
+                        </Tooltip>
+                      );
+                    })}
                     {isTeacherHere && (
                       <Tooltip title="Giáo viên đang trong phòng này">
                         <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>

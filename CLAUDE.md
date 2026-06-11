@@ -146,7 +146,7 @@ src/
       LiveQuestionStats.tsx   # props: stats: QuestionStatsDto, questionType
       ConfidenceSelector.tsx
       CreateQuestionModal.tsx # modal 2 bước; MCQ options hỗ trợ LaTeX
-      BreakoutPanel.tsx       # breakout=null → setup; breakout!=null → active. Setup: chọn từng HS + modal thêm hàng loạt theo phòng + chia ngẫu nhiên nhanh (UI-only, xác nhận bằng "Bắt đầu breakout")
+      BreakoutPanel.tsx       # breakout=null → setup; breakout!=null → active. Setup: chọn từng HS + modal thêm hàng loạt theo phòng + chia ngẫu nhiên nhanh (UI-only, xác nhận bằng "Bắt đầu breakout"). teacherRoomId là prop (cha quản lý — khôi phục được sau reload); active mode làm mờ + gạch tên HS offline, tag đếm online/total
       ChatPanel.tsx
       RichTextEditor.tsx      # CKEditor5; prop initialValue để pre-fill khi edit
       CtrlBtn.tsx
@@ -194,9 +194,16 @@ Nav dùng custom `<button>` (không phải AntD `Menu`) với `.sq-nav-item`. Ac
 
 ### StudentSessionPage
 - Cùng **StrictMode guard** pattern với TeacherSessionPage
-- Init flow: `listByClassroom` → find active → `join(sessionId)` → load presence/chat/questions parallel → WS connect
-- **`onConnected` callback**: refresh presence → `callPeer(teacherIdRef)` + `callPeer` tất cả HS online — phải chủ động call vì backend broadcast `student_presence` TRƯỚC khi student subscribe `/user/queue/private`
-- `student_presence` payload: `{ studentId, action, name, avatarColor }` — `name`/`avatarColor` từ WS session attributes, không cần REST lookup
+- Init flow: `listByClassroom` → find active → `join(sessionId)` → load presence/chat/questions/**breakout getActive** parallel → WS connect
+- **`onConnected` callback** (breakout-aware): refresh presence → nếu đang ở sub-room chỉ `callPeer` bạn cùng phòng (+GV nếu `teacherRoomIdRef` = phòng mình); nếu ở phòng chính: `callPeer(teacherIdRef)` (trừ khi GV đang ở sub-room) + `callPeer` HS online KHÔNG thuộc sub-room — phải chủ động call vì backend broadcast `student_presence` TRƯỚC khi student subscribe `/user/queue/private`
+- `student_presence` payload: `{ studentId, action, name, avatarColor }` — `name`/`avatarColor` từ WS session attributes, không cần REST lookup; handler `joined` chỉ `callPeer` khi người mới cùng "phòng" với mình (guard `myRoomRef`/`breakoutMemberIdsRef`)
+
+### Breakout: khôi phục sau reload + HS rời lớp (cả 2 trang session)
+- **Backend lưu `teacherRoomId`** trên `breakout_sessions` (migration V13; `joinRoom` set, `leaveRoom` clear) → `BreakoutSessionDto.teacherRoomId` cho FE biết GV đang ở phòng nào sau reload
+- **Student reload giữa breakout**: init fetch `breakoutService.getActive` → khôi phục `myRoom`/`breakoutMemberIds`/`teacherInRoom`/`teacherAway` TRƯỚC khi WS connect; `ws.subscribeRoom(roomId)` gọi trước khi STOMP connect vẫn hoạt động (xem WebSocket layer)
+- **Teacher reload giữa breakout**: init khôi phục `teacherJoinedRoomId` + collapse panel; `onConnected` gọi lại `breakoutService.joinRoom` → backend re-broadcast `teacher_joined_room` → HS trong phòng PHẢI `closePeer(teacherId)` trước khi `callPeer` — GV reload không phát event nào nên PC cũ phía HS vẫn 'connected' (stale), mà `callPeer` skip PC chưa closed/failed → không closePeer trước thì không có offer mới, GV mất kết nối vĩnh viễn. GV ở phòng chính thì tự `callPeer` HS chưa phân phòng (HS renegotiate qua `handleOffer`, cùng đường với reload GV ngoài breakout)
+- **Refs cho closure**: `myRoomRef` (RoomDto), `breakoutMemberIdsRef`, `teacherRoomIdRef` (student) / `breakoutRef`, `teacherJoinedRoomIdRef` (teacher) — WS handler + onConnected đọc latest value; cập nhật `.current` trực tiếp trong handler, effect sync làm dự phòng
+- **HS rời lớp khi đang breakout**: lưới video phòng nhóm lọc `room.students` theo presence online (HS offline bỏ tile luôn, không hiện avatar kiểu tắt camera) — cả grid HS (`myRoom.students.filter`) lẫn grid GV (`joinedRoomOnlineStudents`); tag "X bạn đang ở phòng nhóm" đếm theo online
 
 ### Question countdown & hết giờ (cả 2 trang session)
 - `question_started` payload có `serverNow` → `clockOffsetRef = serverNow - Date.now()`; countdown = `endsAt - (now + offset)` — đồng hồ máy client có thể lệch server, không trừ thẳng `Date.now()`
@@ -226,6 +233,7 @@ Nav dùng custom `<button>` (không phải AntD `Menu`) với `.sq-nav-item`. Ac
 - Heartbeat: publish `/app/session/{id}/heartbeat` mỗi 25s
 - Reconnect: `onReconnect()` → ticket mới → `client.webSocketFactory` cập nhật trước STOMP retry
 - Subscriptions: `/topic/session/{id}` + `/user/queue/private`; `subscribeRoom/unsubscribeRoom` cho breakout
+- `subscribeRoom` gọi được TRƯỚC khi STOMP connect (handler lưu vào `roomHandlers`); `onConnect` (re)subscribe toàn bộ room topic — vừa phục vụ khôi phục breakout khi reload, vừa giữ room subscription sau reconnect
 
 ## WebRTC (`src/config/webrtc.ts`, `src/hooks/useWebRTC.ts`)
 
@@ -234,6 +242,7 @@ Nav dùng custom `<button>` (không phải AntD `Menu`) với `.sq-nav-item`. Ac
 - `ontrack` dùng `event.track` trực tiếp, không `event.streams[0].getTracks()` — tránh duplicate add
 - ICE buffering: buffer vào `iceBuf` nếu `remoteDescription` chưa set; drain sau `setRemoteDescription`
 - Glare: rollback `setLocalDescription({type:'rollback'})` khi nhận offer trong trạng thái `have-local-offer`
+- **`callPeer` skip PC "usable"** (chưa `closed`/`failed` — kể cả `disconnected`): peer reload thì PC cũ phía mình vẫn 'connected' nhiều giây → muốn ép re-offer phải `closePeer` trước (xem Breakout reload)
 - Teacher: `callPeer(studentId)` khi nhận `student_presence` joined
 - Student `onConnected`: `callPeer` tất cả (teacher + HS online); student join SAU mình: polite-peer (UUID nhỏ hơn offer trước)
 
@@ -250,6 +259,9 @@ Lưu `userName` + `userAvatarColor` vào WS session attributes → `PresenceEven
 
 ### Classroom-level broadcast (`SessionBroadcastService` / `SessionController`)
 `broadcastToClassroom(classroomId, type, payload)` → `/topic/classroom/{classroomId}`. `SessionController.start()` phát `session_started`, `end()` phát `session_ended` (kèm `{classroomId, sessionId}`) — ngoài broadcast `session_ended` sẵn có tới `/topic/session/{id}` cho participant. `SessionEndResponse` có thêm field `classroomId` để controller phát được. `JwtChannelInterceptor` chỉ cần principal đã xác thực cho SUBSCRIBE, không giới hạn destination → không cần sửa security config. FE `ClassListPage` subscribe để cập nhật LIVE badge realtime thay polling.
+
+### Breakout `teacherRoomId` (`BreakoutSession` / `BreakoutService`)
+Cột `teacher_room_id` (nullable, FK `breakout_rooms` ON DELETE SET NULL — migration `V13__breakout_teacher_room.sql`). `joinRoom` persist, `leaveRoom` clear (cả 2 đổi từ `readOnly=true` sang transactional ghi). `BreakoutSessionDto` trả `teacherRoomId` để FE khôi phục vị trí GV sau reload.
 
 ### `UserService.listUsers` (admin list users)
 `Role` map qua `AttributeConverter` (lowercase string). JPQL kiểu `(:role IS NULL OR u.role = :role)` bind NULL cho param enum đã convert → PostgreSQL `could not determine data type of parameter $1` → **500** khi gọi `/users` không kèm filter. **Fix**: dùng `JpaSpecificationExecutor` + `Specification` (chỉ thêm predicate khi filter có giá trị), không so sánh NULL với param untyped. `UserRepository` bỏ `findFiltered`, extends thêm `JpaSpecificationExecutor<User>`.
