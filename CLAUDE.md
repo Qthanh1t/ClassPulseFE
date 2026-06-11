@@ -146,7 +146,7 @@ src/
       LiveQuestionStats.tsx   # props: stats: QuestionStatsDto, questionType
       ConfidenceSelector.tsx
       CreateQuestionModal.tsx # modal 2 bước; MCQ options hỗ trợ LaTeX
-      BreakoutPanel.tsx       # breakout=null → setup; breakout!=null → active
+      BreakoutPanel.tsx       # breakout=null → setup; breakout!=null → active. Setup: chọn từng HS + modal thêm hàng loạt theo phòng + chia ngẫu nhiên nhanh (UI-only, xác nhận bằng "Bắt đầu breakout")
       ChatPanel.tsx
       RichTextEditor.tsx      # CKEditor5; prop initialValue để pre-fill khi edit
       CtrlBtn.tsx
@@ -180,6 +180,7 @@ Nav dùng custom `<button>` (không phải AntD `Menu`) với `.sq-nav-item`. Ac
 - Load song song: `getTeacherDashboard(sessionId)` + `sessionService.get(sessionId)` (lấy `classroomId`)
 - Nếu nhận `SESSION_NOT_ENDED` error → retry sau 1.5s
 - Bar chart màu bar: emerald ≥70% | amber 40–70% | rose <40% (`correctCount/answeredCount`)
+- Câu tự luận: panel expand → `EssayAnswerList` lazy-load `answerService.list(sessionId, questionId)` (AntD Collapse mount children khi mở lần đầu); render `essayText` HTML qua `.sq-rich`; backend `StudentAnswerController.getAnswers` cho teacher xem toàn bộ đáp án, không giới hạn session ended
 
 ### StudentReviewPage
 - Performance thresholds: "Xuất sắc!" ≥70% emerald | "Khá tốt!" 40–70% amber | "Cần cố gắng hơn" <40% rose

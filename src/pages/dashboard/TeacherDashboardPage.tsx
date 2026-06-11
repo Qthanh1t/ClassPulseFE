@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import {
-  Avatar, Button, Card, Col, Collapse, Row, Statistic,
+  Avatar, Button, Card, Col, Collapse, Row, Skeleton, Statistic,
   Table, Tag, Typography, Tooltip, Tabs,
 } from 'antd';
 import {
@@ -15,7 +15,8 @@ import {
 import { useNavigate, useParams } from 'react-router-dom';
 import dashboardService from '../../services/dashboard.service';
 import sessionService from '../../services/session.service';
-import type { DashboardResponse, StudentResult, QuestionSummary } from '../../types/api';
+import answerService from '../../services/answer.service';
+import type { DashboardResponse, StudentResult, QuestionSummary, StudentAnswerDto } from '../../types/api';
 import PageContainer from '../../components/ui/PageContainer';
 import PageSkeleton from '../../components/ui/PageSkeleton';
 import EmptyState from '../../components/ui/EmptyState';
@@ -63,6 +64,85 @@ function StatCard({ title, value, icon, accentColor, lightBg, suffix }: StatCard
           {value}{suffix && <span style={{ fontSize: 14, fontWeight: 500, color: color.textSecondary, marginLeft: 2 }}>{suffix}</span>}
         </div>
       </div>
+    </div>
+  );
+}
+
+const confidenceMeta: Record<string, { label: string; color: string }> = {
+  high: { label: 'Tự tin cao', color: 'success' },
+  medium: { label: 'Tự tin vừa', color: 'warning' },
+  low: { label: 'Chưa chắc chắn', color: 'error' },
+};
+
+/** Lazy-loaded list of essay answers — mounted only when the question panel is first expanded. */
+function EssayAnswerList({ sessionId, questionId, studentMeta }: {
+  sessionId: string;
+  questionId: string;
+  studentMeta: Map<string, { avatarColor?: string; avatarUrl?: string }>;
+}) {
+  const [answers, setAnswers] = useState<StudentAnswerDto[] | null>(null);
+  const [failed, setFailed] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    answerService.list(sessionId, questionId).then((res) => {
+      if (!cancelled) setAnswers(res.data ?? []);
+    }).catch(() => {
+      if (!cancelled) setFailed(true);
+    });
+    return () => { cancelled = true; };
+  }, [sessionId, questionId]);
+
+  if (failed) {
+    return <Text type="secondary" style={{ fontSize: 12 }}>Không thể tải câu trả lời của học sinh.</Text>;
+  }
+  if (answers === null) {
+    return <Skeleton active title={false} paragraph={{ rows: 3 }} style={{ marginTop: 4 }} />;
+  }
+
+  const essayAnswers = answers
+    .filter((a) => a.essayText && a.essayText.trim().length > 0)
+    .sort((a, b) => a.student.name.localeCompare(b.student.name, 'vi'));
+
+  if (essayAnswers.length === 0) {
+    return <Text type="secondary" style={{ fontSize: 12, fontStyle: 'italic' }}>Chưa có học sinh nào trả lời câu hỏi này.</Text>;
+  }
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+      {essayAnswers.map((a) => {
+        const meta = studentMeta.get(a.student.id);
+        const conf = a.confidence ? confidenceMeta[a.confidence] : null;
+        return (
+          <div
+            key={a.id}
+            style={{ border: `1px solid ${color.border}`, borderRadius: 10, background: color.surface, overflow: 'hidden' }}
+          >
+            <div
+              style={{
+                display: 'flex', alignItems: 'center', gap: 8,
+                padding: '8px 12px', background: color.surface2, borderBottom: `1px solid ${color.border}`,
+              }}
+            >
+              <Avatar size={24} src={meta?.avatarUrl ?? undefined} style={{ background: meta?.avatarColor ?? color.primary, fontSize: 11, fontWeight: 600, flexShrink: 0 }}>
+                {a.student.name.charAt(0)}
+              </Avatar>
+              <Text style={{ fontSize: 13, fontWeight: 600, flex: 1 }} ellipsis>{a.student.name}</Text>
+              {conf && (
+                <Tag color={conf.color} style={{ borderRadius: 20, fontSize: 11, marginInlineEnd: 0 }}>{conf.label}</Tag>
+              )}
+              <Text style={{ fontSize: 11, color: color.textMuted, flexShrink: 0 }}>
+                {new Date(a.answeredAt).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })}
+              </Text>
+            </div>
+            <div
+              className="sq-rich"
+              dangerouslySetInnerHTML={{ __html: a.essayText! }}
+              style={{ padding: '10px 12px', fontSize: 13.5, color: color.text, lineHeight: 1.6 }}
+            />
+          </div>
+        );
+      })}
     </div>
   );
 }
@@ -222,6 +302,11 @@ export default function TeacherDashboardPage() {
     },
   ];
 
+  // Avatar info for essay answer headers (StudentAnswerDto only carries id + name)
+  const studentMeta = new Map(
+    dashboard.students.map((s) => [s.studentId, { avatarColor: s.avatarColor, avatarUrl: s.avatarUrl }]),
+  );
+
   // Question collapse items
   const questionCollapseItems = dashboard.questions.map((q: QuestionSummary, idx: number) => {
     const isEssay = q.type === 'essay';
@@ -293,6 +378,15 @@ export default function TeacherDashboardPage() {
               <Text type="secondary" style={{ fontSize: 12 }}>Bỏ qua</Text>
             </div>
           </div>
+
+          {isEssay && sessionId && (
+            <div>
+              <Text strong style={{ fontSize: 13, display: 'block', marginBottom: 8, color: color.text }}>
+                Câu trả lời của học sinh
+              </Text>
+              <EssayAnswerList sessionId={sessionId} questionId={q.id} studentMeta={studentMeta} />
+            </div>
+          )}
 
           {optionChartData.length > 0 && (
             <div>

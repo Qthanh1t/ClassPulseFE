@@ -1,10 +1,11 @@
 import {
-  Avatar, Badge, Button, Card, Collapse, Input, Modal, Select, Tag, Tooltip,
-  Typography, message,
+  Avatar, Badge, Button, Card, Checkbox, Collapse, Input, InputNumber, Modal,
+  Select, Tag, Tooltip, Typography, message,
 } from 'antd';
 import {
   TeamOutlined, MessageOutlined, PlusOutlined, CloseOutlined,
   LoginOutlined, LogoutOutlined, CheckCircleFilled,
+  ThunderboltOutlined, UsergroupAddOutlined,
 } from '@ant-design/icons';
 import { useState, useEffect } from 'react';
 import type { BreakoutSessionDto, PresenceDto } from '../../types/api';
@@ -43,6 +44,10 @@ export default function BreakoutPanel({
   ]);
   const [roomCounter, setRoomCounter] = useState(2);
   const [starting, setStarting] = useState(false);
+  // Bulk-add modal: which room is being filled + selected student ids
+  const [bulkRoomId, setBulkRoomId] = useState<string | null>(null);
+  const [bulkSelected, setBulkSelected] = useState<string[]>([]);
+  const [randomCount, setRandomCount] = useState(2);
 
   // Active mode state
   const [teacherRoomId, setTeacherRoomId] = useState<string | null>(null);
@@ -97,6 +102,46 @@ export default function BreakoutPanel({
         studentIds: r.localId === localId ? r.studentIds.filter((id) => id !== studentId) : r.studentIds,
       })),
     );
+  };
+
+  const openBulkAdd = (localId: string) => {
+    setBulkSelected([]);
+    setBulkRoomId(localId);
+  };
+
+  const handleBulkAdd = () => {
+    if (!bulkRoomId) return;
+    // Only add students still unassigned (guards against stale selection)
+    const unassigned = new Set(mainRoomStudents.map((s) => s.id));
+    const toAdd = bulkSelected.filter((id) => unassigned.has(id));
+    setRooms((prev) =>
+      prev.map((r) =>
+        r.localId === bulkRoomId ? { ...r, studentIds: [...r.studentIds, ...toAdd] } : r,
+      ),
+    );
+    setBulkRoomId(null);
+    setBulkSelected([]);
+  };
+
+  /** UI-only random split: rebuilds the local room list and shuffles every student
+   *  into N rooms — nothing is sent to the server until "Bắt đầu breakout". */
+  const handleRandomSplit = () => {
+    if (allStudents.length === 0) return;
+    const shuffled = [...allStudents];
+    for (let i = shuffled.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+    }
+    const n = Math.max(1, Math.min(randomCount, shuffled.length));
+    const newRooms: LocalRoom[] = Array.from({ length: n }, (_, i) => ({
+      localId: `room-${roomCounter + i}`,
+      name: `Phòng ${i + 1}`,
+      task: '',
+      studentIds: [],
+    }));
+    shuffled.forEach((s, i) => { newRooms[i % n].studentIds.push(s.id); });
+    setRooms(newRooms);
+    setRoomCounter((c) => c + n);
   };
 
   const handleStartBreakout = async () => {
@@ -333,6 +378,40 @@ export default function BreakoutPanel({
         </div>
       </div>
 
+      {/* Quick random split — UI-only, teacher confirms with "Bắt đầu breakout" */}
+      {allStudents.length > 0 && (
+        <Card
+          size="small"
+          style={{ marginBottom: 10, borderRadius: 10, border: '1px solid #fde68a', background: '#fffbeb' }}
+          styles={{ body: { padding: '10px 14px' } }}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+            <ThunderboltOutlined style={{ color: '#f59e0b', fontSize: 15 }} />
+            <Text style={{ fontSize: 13, fontWeight: 600 }}>Chia ngẫu nhiên nhanh</Text>
+            <InputNumber
+              size="small"
+              min={1}
+              max={allStudents.length}
+              value={randomCount}
+              onChange={(v) => setRandomCount(v ?? 2)}
+              style={{ width: 60 }}
+            />
+            <Text type="secondary" style={{ fontSize: 12 }}>phòng</Text>
+            <Button
+              size="small"
+              icon={<ThunderboltOutlined />}
+              onClick={handleRandomSplit}
+              style={{ borderColor: '#f59e0b', color: '#b45309' }}
+            >
+              Chia ngẫu nhiên
+            </Button>
+            <Text type="secondary" style={{ fontSize: 11 }}>
+              Chỉ xếp thử trên giao diện — bấm "Bắt đầu breakout" để xác nhận
+            </Text>
+          </div>
+        </Card>
+      )}
+
       {/* Main room — unassigned students */}
       <Card
         size="small"
@@ -413,20 +492,41 @@ export default function BreakoutPanel({
               </div>
             }
             extra={
-              <Tooltip title="Xóa phòng">
-                <Button
-                  type="text" size="small" danger
-                  icon={<CloseOutlined />}
-                  onClick={() => removeRoom(room.localId)}
-                />
-              </Tooltip>
+              <div style={{ display: 'flex', gap: 2 }}>
+                <Tooltip title={mainRoomStudents.length === 0 ? 'Không còn học sinh chưa phân công' : 'Thêm học sinh hàng loạt'}>
+                  <Button
+                    type="text" size="small"
+                    icon={<UsergroupAddOutlined />}
+                    style={{ color: mainRoomStudents.length === 0 ? undefined : '#4f46e5' }}
+                    disabled={mainRoomStudents.length === 0}
+                    onClick={() => openBulkAdd(room.localId)}
+                  />
+                </Tooltip>
+                <Tooltip title="Xóa phòng">
+                  <Button
+                    type="text" size="small" danger
+                    icon={<CloseOutlined />}
+                    onClick={() => removeRoom(room.localId)}
+                  />
+                </Tooltip>
+              </div>
             }
           >
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 10 }}>
               {room.studentIds.length === 0 ? (
-                <Text type="secondary" style={{ fontSize: 12, fontStyle: 'italic' }}>
-                  Chưa có học sinh, phân công từ phòng chính
-                </Text>
+                mainRoomStudents.length > 0 ? (
+                  <Text
+                    style={{ fontSize: 12, fontStyle: 'italic', color: '#4f46e5', cursor: 'pointer' }}
+                    onClick={() => openBulkAdd(room.localId)}
+                  >
+                    <UsergroupAddOutlined style={{ marginRight: 4 }} />
+                    Chưa có học sinh — nhấn để thêm hàng loạt
+                  </Text>
+                ) : (
+                  <Text type="secondary" style={{ fontSize: 12, fontStyle: 'italic' }}>
+                    Chưa có học sinh, phân công từ phòng chính
+                  </Text>
+                )
               ) : (
                 room.studentIds.map((sid) => {
                   const s = allStudents.find((st) => st.id === sid);
@@ -487,6 +587,72 @@ export default function BreakoutPanel({
           Bắt đầu breakout →
         </Button>
       </div>
+
+      {/* Bulk-add students modal */}
+      <Modal
+        title={
+          <>
+            <UsergroupAddOutlined style={{ color: '#4f46e5', marginRight: 8 }} />
+            Thêm học sinh vào {rooms.find((r) => r.localId === bulkRoomId)?.name ?? 'phòng'}
+          </>
+        }
+        open={bulkRoomId !== null}
+        onCancel={() => setBulkRoomId(null)}
+        onOk={handleBulkAdd}
+        okText={`Thêm ${bulkSelected.length} học sinh`}
+        okButtonProps={{ disabled: bulkSelected.length === 0 }}
+        cancelText="Hủy"
+      >
+        {mainRoomStudents.length === 0 ? (
+          <Text type="secondary" style={{ fontSize: 13 }}>
+            Tất cả học sinh đã được phân công vào các phòng.
+          </Text>
+        ) : (
+          <>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: 8 }}>
+              <Checkbox
+                checked={bulkSelected.length === mainRoomStudents.length}
+                indeterminate={bulkSelected.length > 0 && bulkSelected.length < mainRoomStudents.length}
+                onChange={(e) =>
+                  setBulkSelected(e.target.checked ? mainRoomStudents.map((s) => s.id) : [])
+                }
+              >
+                <Text style={{ fontSize: 13, fontWeight: 600 }}>
+                  Chọn tất cả ({mainRoomStudents.length})
+                </Text>
+              </Checkbox>
+              <Text type="secondary" style={{ fontSize: 12 }}>Đã chọn {bulkSelected.length}</Text>
+            </div>
+            <div style={{ maxHeight: 320, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 4, marginTop: 10 }}>
+              {mainRoomStudents.map((s) => {
+                const checked = bulkSelected.includes(s.id);
+                return (
+                  <div
+                    key={s.id}
+                    onClick={() =>
+                      setBulkSelected((prev) =>
+                        checked ? prev.filter((id) => id !== s.id) : [...prev, s.id],
+                      )
+                    }
+                    style={{
+                      display: 'flex', alignItems: 'center', gap: 10,
+                      padding: '6px 10px', borderRadius: 8, cursor: 'pointer',
+                      background: checked ? '#eceafd' : 'transparent',
+                      border: checked ? '1px solid #c7d2fe' : '1px solid transparent',
+                    }}
+                  >
+                    <Checkbox checked={checked} style={{ pointerEvents: 'none' }} />
+                    <Avatar size={26} src={s.avatarUrl ?? undefined} style={{ background: s.avatarColor ?? '#4f46e5', fontSize: 12, flexShrink: 0 }}>
+                      {s.name.charAt(0)}
+                    </Avatar>
+                    <Text style={{ fontSize: 13 }}>{s.name}</Text>
+                  </div>
+                );
+              })}
+            </div>
+          </>
+        )}
+      </Modal>
     </div>
   );
 }
