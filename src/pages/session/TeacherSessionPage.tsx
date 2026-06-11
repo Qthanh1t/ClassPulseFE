@@ -530,7 +530,7 @@ export default function TeacherSessionPage() {
           optionId: o.id, label: o.label, text: o.text, isCorrect: o.isCorrect, count: 0,
         })),
         confidenceBreakdown: { high: 0, medium: 0, low: 0, none: 0 },
-        silentStudents: presenceRef.current.map((p) => ({ id: p.studentId, name: p.name, avatarColor: p.avatarColor })),
+        silentStudents: presenceRef.current.map((p) => ({ id: p.studentId, name: p.name, avatarColor: p.avatarColor, avatarUrl: p.avatarUrl })),
       });
     } catch (err) {
       const errCode = (err as { response?: { data?: { error?: { code?: string } } } })?.response?.data?.error?.code;
