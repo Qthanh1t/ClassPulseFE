@@ -178,12 +178,13 @@ Nav dùng custom `<button>` (không phải AntD `Menu`) với `.sq-nav-item`. Ac
 ### TeacherDashboardPage
 - Load song song: `getTeacherDashboard(sessionId)` + `sessionService.get(sessionId)` (lấy `classroomId`)
 - Nếu nhận `SESSION_NOT_ENDED` error → retry sau 1.5s
-- Bar chart màu bar: emerald ≥70% | amber 40–70% | rose <40% (`correctCount/answeredCount`)
-- Câu tự luận: panel expand → `EssayAnswerList` lazy-load `answerService.list(sessionId, questionId)` (AntD Collapse mount children khi mở lần đầu); render `essayText` HTML qua `.sq-rich`; backend `StudentAnswerController.getAnswers` cho teacher xem toàn bộ đáp án, không giới hạn session ended
+- **Không dùng Recharts BarChart** (chỉ còn Pie): "Kết quả theo câu hỏi" = thanh ngang xếp chồng đúng/sai/bỏ qua per câu (tự luận: tham gia/bỏ qua, màu primary); "Phân bố đáp án" trong panel câu = hàng option có thanh nền tỉ lệ (width theo `count/maxCount`), đáp án đúng tô emerald. Ngưỡng màu rate: emerald ≥70% | amber 40–70% | rose <40%
+- **Toàn bộ answers load 1 lần** sau khi dashboard về: `Promise.all(questions.map(q => answerService.list(sessionId, q.id)))` → `Map<questionId, StudentAnswerDto[]>` (backend `StudentAnswerController.getAnswers` cho teacher xem toàn bộ, không giới hạn session ended). Dùng cho 2 chỗ: (1) panel mỗi câu — `QuestionAnswers` (MCQ: hàng HS + chip đáp án đã chọn emerald/rose theo `option.correct` + icon `isCorrect` + confidence + giờ nộp; essay: card `.sq-rich`); (2) tab Kết quả học sinh — Table `expandable` (`expandRowByClick`) → `StudentAnswerDetail` liệt kê từng câu kèm đáp án đã chọn/bài tự luận/Bỏ qua. Summary row đầu phải `colSpan={2}` (Table expandable thêm cột expand icon)
 
 ### StudentReviewPage
 - Performance thresholds: "Xuất sắc!" ≥70% emerald | "Khá tốt!" 40–70% amber | "Cần cố gắng hơn" <40% rose
 - Load song song: `getStudentReview(sessionId)` + `sessionService.get(sessionId)` (lấy `classroomName`)
+- "Kết quả theo câu hỏi" = dải ô vuông kiểu answer-sheet (KHÔNG phải BarChart — cũ là BarChart mọi cột `value:1` chỉ khác màu): mỗi ô đánh số, màu theo result (emerald đúng / rose sai / muted bỏ qua / primary tự luận đã nộp), tooltip kèm confidence; bấm ô → `scrollIntoView` tới card chi tiết (`id="review-q-{q.id}"`, `scrollMarginTop: 80` trừ hao sticky header). Radar chart "Tự tin & Chính xác" giữ nguyên
 
 ### TeacherSessionPage
 - **StrictMode guard**: init trong `setTimeout(fn, 0)` + `cancelled` flag — StrictMode cleanup sync trước timeout, cancel mount đầu; mọi `await` đều guard `if (cancelled) return`

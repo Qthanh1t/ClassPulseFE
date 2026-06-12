@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import {
-  Avatar, Button, Card, Col, Progress, Row, Tag, Typography,
+  Avatar, Button, Card, Col, Progress, Row, Tag, Tooltip, Typography,
 } from 'antd';
 import {
   CheckCircleOutlined, CloseCircleOutlined, MinusCircleOutlined,
@@ -9,7 +9,6 @@ import {
 import {
   RadarChart, PolarGrid, PolarAngleAxis, Radar,
   ResponsiveContainer, Tooltip as RechartTooltip,
-  BarChart, Bar, XAxis, YAxis, Cell,
 } from 'recharts';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useAuthStore } from '../../store/authStore';
@@ -108,17 +107,6 @@ export default function StudentReviewPage() {
   const mcqQuestions = questions.filter((q) => q.type !== 'essay');
   const mcqTotal = mcqQuestions.length;
 
-  // Bar chart data — essay questions shown as indigo (submitted, not graded)
-  const questionChartData = questions.map((q, idx) => ({
-    name: `C${idx + 1}`,
-    value: 1,
-    result: q.result === 'correct' ? 'Đúng' : q.result === 'wrong' ? 'Sai' : q.result === 'pending_review' ? 'Đã nộp' : 'Bỏ qua',
-    isCorrect: q.result === 'correct',
-    isEssay: q.type === 'essay',
-    hasAnswer: hasAnsweredReview(q),
-    confLabel: q.confidence ? CONFIDENCE_LABEL[q.confidence] : 'Không TL',
-  }));
-
   // Radar chart data — "correct" counts MCQ correct only, not essay submissions
   const radarData = ['high', 'medium', 'low'].map((level) => ({
     subject: level === 'high' ? 'Tự tin cao' : level === 'medium' ? 'Tự tin TB' : 'Tự tin thấp',
@@ -204,35 +192,39 @@ export default function StudentReviewPage() {
         <Col xs={24} md={14}>
           <Card style={{ borderRadius: 16, border: `1px solid ${color.border}` }} styles={{ body: { padding: '18px 18px 10px' } }}>
             <div style={{ fontSize: 14, fontWeight: 700, color: color.text, marginBottom: 2 }}>Kết quả theo câu hỏi</div>
-            <div style={{ fontSize: 12, color: color.textMuted, marginBottom: 10 }}>Màu sắc thể hiện đúng / sai / bỏ qua</div>
-            <ResponsiveContainer width="100%" height={140}>
-              <BarChart data={questionChartData} margin={{ top: 4, right: 8, bottom: 0, left: -28 }}>
-                <XAxis dataKey="name" tick={{ fontSize: 11, fill: color.textMuted }} axisLine={false} tickLine={false} />
-                <YAxis hide domain={[0, 1]} />
-                <RechartTooltip
-                  formatter={(_value: unknown, _name: unknown, props: { payload?: { result?: string; confLabel?: string } }) => {
-                    const p = props.payload;
-                    return [p?.result ?? '-', `Tự tin: ${p?.confLabel ?? '-'}`];
-                  }}
-                  contentStyle={{ borderRadius: 10, border: `1px solid ${color.border}`, fontSize: 12 }}
-                />
-                <Bar dataKey="value" radius={[5, 5, 0, 0]} maxBarSize={36}>
-                  {questionChartData.map((entry, index) => (
-                    <Cell
-                      key={`q-bar-${index}`}
-                      fill={
-                        !entry.hasAnswer ? color.border
-                          : entry.isEssay ? color.primary
-                          : entry.isCorrect ? color.emerald
-                          : color.rose
-                      }
-                    />
-                  ))}
-                </Bar>
-              </BarChart>
-            </ResponsiveContainer>
-            <div style={{ display: 'flex', gap: 14, marginTop: 8, justifyContent: 'center', flexWrap: 'wrap' }}>
-              {[{ label: 'Đúng', color: color.emerald }, { label: 'Sai', color: color.rose }, { label: 'Bỏ qua', color: color.border }, { label: 'Đã nộp (TL)', color: color.primary }].map(({ label, color: c }) => (
+            <div style={{ fontSize: 12, color: color.textMuted, marginBottom: 12 }}>Bấm vào từng ô để xem chi tiết câu hỏi</div>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, minHeight: 120, alignContent: 'flex-start' }}>
+              {questions.map((q, idx) => {
+                const answered = hasAnsweredReview(q);
+                const isEssay = q.type === 'essay';
+                const meta = !answered
+                  ? { bg: color.surface2, border: color.borderStrong, text: color.textMuted, label: 'Bỏ qua' }
+                  : isEssay
+                    ? { bg: color.primaryLight, border: color.primary, text: color.primary, label: 'Đã nộp (tự luận)' }
+                    : q.result === 'correct'
+                      ? { bg: color.emeraldLight, border: color.emerald, text: color.emerald, label: 'Đúng' }
+                      : { bg: color.roseLight, border: color.rose, text: color.rose, label: 'Sai' };
+                const confSuffix = answered && q.confidence ? ` · Tự tin: ${CONFIDENCE_LABEL[q.confidence]}` : '';
+                return (
+                  <Tooltip key={q.id} title={`Câu ${idx + 1}: ${meta.label}${confSuffix}`}>
+                    <button
+                      className="sq-press sq-nums"
+                      onClick={() => document.getElementById(`review-q-${q.id}`)?.scrollIntoView({ behavior: 'smooth', block: 'start' })}
+                      style={{
+                        width: 36, height: 36, borderRadius: 9, cursor: 'pointer',
+                        background: meta.bg, border: `1.5px solid ${meta.border}`,
+                        color: meta.text, fontWeight: 700, fontSize: 12.5, fontFamily: 'inherit',
+                        display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 0,
+                      }}
+                    >
+                      {idx + 1}
+                    </button>
+                  </Tooltip>
+                );
+              })}
+            </div>
+            <div style={{ display: 'flex', gap: 14, marginTop: 12, justifyContent: 'center', flexWrap: 'wrap' }}>
+              {[{ label: 'Đúng', color: color.emerald }, { label: 'Sai', color: color.rose }, { label: 'Bỏ qua', color: color.borderStrong }, { label: 'Đã nộp (TL)', color: color.primary }].map(({ label, color: c }) => (
                 <div key={label} style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
                   <div style={{ width: 8, height: 8, borderRadius: 2, background: c }} />
                   <Text style={{ fontSize: 11, color: color.textMuted }}>{label}</Text>
@@ -284,7 +276,7 @@ export default function StudentReviewPage() {
           }
 
           return (
-            <div key={q.id} style={{ background: '#fff', borderRadius: 14, border: `1px solid ${color.border}`, overflow: 'hidden' }}>
+            <div key={q.id} id={`review-q-${q.id}`} style={{ background: '#fff', borderRadius: 14, border: `1px solid ${color.border}`, overflow: 'hidden', scrollMarginTop: 80 }}>
               {/* Question header */}
               <div style={{ background: headerBg, padding: '12px 16px', display: 'flex', alignItems: 'center', gap: 10, borderBottom: `1px solid ${color.border}`, borderLeft: `3px solid ${borderAccent}` }}>
                 {statusIcon}
