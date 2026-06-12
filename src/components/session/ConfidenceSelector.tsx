@@ -9,9 +9,9 @@ interface Props {
 }
 
 const OPTIONS: { value: ConfidenceLevel; label: string; color: string; activeColor: string; activeBg: string }[] = [
-  { value: 'low', label: 'Thấp', color: '#e23d6d', activeColor: '#fff', activeBg: '#e23d6d' },
-  { value: 'medium', label: 'Trung bình', color: '#e08c0b', activeColor: '#fff', activeBg: '#e08c0b' },
-  { value: 'high', label: 'Cao', color: '#0ea672', activeColor: '#fff', activeBg: '#0ea672' },
+  { value: 'low', label: 'Thấp', color: 'var(--sq-rose)', activeColor: '#fff', activeBg: 'var(--sq-rose)' },
+  { value: 'medium', label: 'Trung bình', color: 'var(--sq-amber)', activeColor: '#fff', activeBg: 'var(--sq-amber)' },
+  { value: 'high', label: 'Cao', color: 'var(--sq-emerald)', activeColor: '#fff', activeBg: 'var(--sq-emerald)' },
 ];
 
 export default function ConfidenceSelector({ value, onChange }: Props) {
@@ -30,7 +30,7 @@ export default function ConfidenceSelector({ value, onChange }: Props) {
               style={{
                 flex: 1,
                 height: 40,
-                background: active ? opt.activeBg : '#f3f1ec',
+                background: active ? opt.activeBg : 'var(--sq-surface-2)',
                 borderColor: active ? opt.activeBg : opt.color + '66',
                 color: active ? opt.activeColor : opt.color,
                 fontWeight: active ? 600 : 400,

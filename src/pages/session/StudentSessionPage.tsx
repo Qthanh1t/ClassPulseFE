@@ -7,7 +7,7 @@ import {
   CheckCircleOutlined, ClockCircleOutlined, TeamOutlined,
   SendOutlined, MessageOutlined, AudioOutlined, AudioMutedOutlined,
   VideoCameraOutlined, MinusOutlined, ExpandAltOutlined, ExclamationCircleOutlined,
-  ArrowLeftOutlined, DesktopOutlined, CompressOutlined, AimOutlined,
+  ArrowLeftOutlined, DesktopOutlined, CompressOutlined, AimOutlined, CloseCircleOutlined,
 } from '@ant-design/icons';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useAuthStore } from '../../store/authStore';
@@ -56,6 +56,10 @@ const Q_TYPE_LABEL: Record<string, string> = {
   essay: 'Tự luận',
 };
 
+function formatCountdown(s: number) {
+  return s >= 60 ? `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}` : `${s}s`;
+}
+
 export default function StudentSessionPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
@@ -74,6 +78,8 @@ export default function StudentSessionPage() {
   const [selectedOptions, setSelectedOptions] = useState<string[]>([]);
   const [essayText, setEssayText] = useState('');
   const [confidence, setConfidence] = useState<ConfidenceLevel | null>(null);
+  // Đáp án đúng — backend chỉ gửi kèm trong question_ended (question_started không còn isCorrect)
+  const [correctOptionIds, setCorrectOptionIds] = useState<string[] | null>(null);
 
   const [myRoom, setMyRoom] = useState<RoomDto | null>(null);
   // Students assigned to ANY breakout sub-room. For a main-room student these are the
@@ -261,7 +267,7 @@ export default function StudentSessionPage() {
               // NOT a QuestionDto — must map fields manually
               const raw = event.payload as {
                 questionId: string; type: QuestionType; content: string;
-                options?: { id: string; label: string; text: string; isCorrect: boolean; order: number }[];
+                options?: { id: string; label: string; text: string; isCorrect?: boolean; order: number }[];
                 endsAt?: string;
                 serverNow?: string;
               };
@@ -289,15 +295,17 @@ export default function StudentSessionPage() {
               setSelectedOptions([]);
               setEssayText('');
               setConfidence(null);
+              setCorrectOptionIds(null);
               setQuestionPanelOpen(true);
               setShowNewQuestionModal(true);
               break;
             }
             case 'question_ended': {
-              // Backend payload: { questionId }
-              const ended = event.payload as { questionId: string };
+              // Backend payload: { questionId, correctOptionIds } — đáp án đúng chỉ tiết lộ lúc này
+              const ended = event.payload as { questionId: string; correctOptionIds?: string[] };
               setRunningQuestion((prev) => (prev?.id === ended.questionId ? { ...prev, status: 'ended' } : prev));
-              // Mở lại panel để HS thấy trạng thái hết giờ ngay cả khi đã thu nhỏ
+              setCorrectOptionIds(ended.correctOptionIds ?? null);
+              // Mở lại panel để HS thấy kết quả/đáp án ngay cả khi đã thu nhỏ
               setQuestionPanelOpen(true);
               break;
             }
@@ -556,6 +564,21 @@ export default function StudentSessionPage() {
   // (chặn ngay trong khoảng chờ WS question_ended tới)
   const answerLocked = questionSubmitted || questionEnded || timeRemaining === 0;
 
+  // Reveal đáp án sau khi câu hỏi kết thúc — correctOptionIds chỉ có từ event question_ended
+  const revealAnswers = questionEnded && correctOptionIds !== null
+    && runningQuestion !== null && runningQuestion.type !== 'essay' && correctOptionIds.length > 0;
+  const correctLabels = revealAnswers
+    ? (runningQuestion.options ?? [])
+        .filter((o) => correctOptionIds.includes(o.id))
+        .map((o) => o.label)
+        .join(', ')
+    : '';
+  // Đúng khi tập lựa chọn trùng khớp tập đáp án đúng (cùng quy tắc chấm với backend)
+  const myAnswerCorrect = revealAnswers && questionSubmitted
+    ? correctOptionIds.length === selectedOptions.length
+      && correctOptionIds.every((cid) => selectedOptions.includes(cid))
+    : null;
+
   const essayHasContent = essayText.replace(/<[^>]*>/g, '').trim().length > 0;
   const canSubmit = selectedOptions.length > 0 || essayHasContent;
   const myRaisedHand = raisedHandIds.includes(me?.id ?? '');
@@ -563,6 +586,25 @@ export default function StudentSessionPage() {
   const iAmFocused = focusedStudentId === me?.id;
 
   const teacherPeer = teacherIdRef.current ? rtc.peers.get(teacherIdRef.current) : undefined;
+
+  // Style đè lên option khi reveal: đáp án đúng → emerald, mình chọn sai → rose
+  function optionRevealStyle(optId: string): React.CSSProperties | undefined {
+    if (!revealAnswers || !correctOptionIds) return undefined;
+    if (correctOptionIds.includes(optId)) return { border: '2px solid var(--sq-emerald)', background: 'var(--sq-emerald-light)' };
+    if (selectedOptions.includes(optId)) return { border: '2px solid var(--sq-rose)', background: 'var(--sq-rose-light)' };
+    return undefined;
+  }
+
+  function optionRevealIcon(optId: string) {
+    if (!revealAnswers || !correctOptionIds) return null;
+    if (correctOptionIds.includes(optId)) {
+      return <CheckCircleOutlined style={{ color: 'var(--sq-emerald)', marginLeft: 'auto', fontSize: 15 }} />;
+    }
+    if (selectedOptions.includes(optId)) {
+      return <CloseCircleOutlined style={{ color: 'var(--sq-rose)', marginLeft: 'auto', fontSize: 15 }} />;
+    }
+    return null;
+  }
 
   // ── Handlers ──────────────────────────────────────────────────────
   const handleSubmit = useCallback(async () => {
@@ -756,8 +798,14 @@ export default function StudentSessionPage() {
             </Tag>
           )}
           {runningQuestion && !questionPanelOpen && (
-            <Button size="small" type="primary" style={{ background: '#4f46e5', borderColor: '#4f46e5', fontSize: 12 }} onClick={() => setQuestionPanelOpen(true)}>
-              📝 Câu hỏi đang chờ
+            <Button
+              size="small"
+              type="primary"
+              className={timeRemaining !== null && timeRemaining > 0 && timeRemaining <= 10 ? 'sq-pulse-danger' : undefined}
+              style={{ background: 'var(--sq-primary)', borderColor: 'var(--sq-primary)', fontSize: 12 }}
+              onClick={() => setQuestionPanelOpen(true)}
+            >
+              📝 Câu hỏi đang chờ{timeRemaining !== null && timeRemaining > 0 ? ` · ${formatCountdown(timeRemaining)}` : ''}
             </Button>
           )}
           <Button size="small" type="text" icon={<ArrowLeftOutlined style={{ color: 'rgba(255,255,255,0.7)' }} />} style={{ background: 'rgba(255,255,255,0.1)' }} onClick={() => navigate(`/review/${joinInfo.sessionId}`)}>
@@ -824,7 +872,7 @@ export default function StudentSessionPage() {
                   </div>
 
                   {/* Focused student tile */}
-                  <div style={{ borderRadius: 12, overflow: 'hidden', border: '2px solid #4f46e5', position: 'relative' }}>
+                  <div style={{ borderRadius: 12, overflow: 'hidden', border: '2px solid var(--sq-primary)', position: 'relative' }}>
                     <VideoTile
                       stream={focusedStudentId === me?.id ? localMedia.stream : (rtc.peers.get(focusedStudentId)?.remoteStream ?? null)}
                       name={focusedStudentId === me?.id ? (me?.name ?? 'Bạn') : (presence.find((p) => p.studentId === focusedStudentId)?.name ?? 'Học sinh')}
@@ -859,7 +907,7 @@ export default function StudentSessionPage() {
                   >
                     {screenShareOn && (
                       <div style={{ position: 'absolute', top: 10, left: 12, background: 'rgba(0,0,0,0.6)', padding: '3px 10px', borderRadius: 6, display: 'flex', alignItems: 'center', gap: 6, zIndex: 3 }}>
-                        <DesktopOutlined style={{ color: '#0ea672', fontSize: 12 }} />
+                        <DesktopOutlined style={{ color: 'var(--sq-emerald)', fontSize: 12 }} />
                         <Text style={{ color: '#fff', fontSize: 12 }}>Đang chia sẻ màn hình</Text>
                       </div>
                     )}
@@ -927,7 +975,7 @@ export default function StudentSessionPage() {
           {isBreakout && myRoom && (
             <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 10, overflow: 'hidden' }}>
               <div style={{ background: '#4f46e522', border: '1px solid #4f46e544', borderRadius: 10, padding: '8px 16px', display: 'flex', alignItems: 'center', gap: 12, flexShrink: 0 }}>
-                <TeamOutlined style={{ color: '#4f46e5', fontSize: 16 }} />
+                <TeamOutlined style={{ color: 'var(--sq-primary)', fontSize: 16 }} />
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <Text strong style={{ color: '#a5b4fc', fontSize: 13 }}>{myRoom.name}</Text>
                   {myRoom.task && (
@@ -995,7 +1043,7 @@ export default function StudentSessionPage() {
           {runningQuestion && questionPanelOpen && (
             <div className={compact ? 'sq-panel-overlay-up' : undefined} style={questionPanelStyle}>
               {/* Header */}
-              <div style={{ padding: '10px 14px', background: '#4f46e5', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexShrink: 0 }}>
+              <div style={{ padding: '10px 14px', background: 'var(--sq-primary)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexShrink: 0 }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0 }}>
                   <Text strong style={{ color: '#fff', fontSize: 13, whiteSpace: 'nowrap' }}>📝 Câu hỏi</Text>
                   <Tag color="gold" style={{ fontSize: 11, padding: '0 6px', flexShrink: 0 }}>
@@ -1047,11 +1095,12 @@ export default function StudentSessionPage() {
                         <div
                           key={opt.id}
                           onClick={() => handleSelectSingle(opt.id)}
-                          style={{ padding: '10px 12px', border: `2px solid ${selectedOptions.includes(opt.id) ? '#4f46e5' : '#e7e3dc'}`, borderRadius: 8, cursor: answerLocked ? 'default' : 'pointer', opacity: answerLocked && !questionSubmitted ? 0.6 : 1, background: selectedOptions.includes(opt.id) ? '#eceafd' : '#f3f1ec', display: 'flex', alignItems: 'center', gap: 8, transition: 'all 0.15s' }}
+                          style={{ padding: '10px 12px', border: `2px solid ${selectedOptions.includes(opt.id) ? 'var(--sq-primary)' : 'var(--sq-border)'}`, borderRadius: 8, cursor: answerLocked ? 'default' : 'pointer', opacity: answerLocked && !questionSubmitted && !revealAnswers ? 0.6 : 1, background: selectedOptions.includes(opt.id) ? 'var(--sq-primary-light)' : 'var(--sq-surface-2)', display: 'flex', alignItems: 'center', gap: 8, transition: 'all 0.15s', ...optionRevealStyle(opt.id) }}
                         >
                           <Radio value={opt.id} disabled={answerLocked} />
                           <Tag style={{ minWidth: 24, textAlign: 'center', margin: 0, fontSize: 11 }}>{opt.label}</Tag>
                           <Text style={{ fontSize: 13 }}>{opt.text}</Text>
+                          {optionRevealIcon(opt.id)}
                         </div>
                       ))}
                     </div>
@@ -1064,11 +1113,12 @@ export default function StudentSessionPage() {
                       <div
                         key={opt.id}
                         onClick={() => handleSelectMultiple(opt.id)}
-                        style={{ padding: '10px 12px', border: `2px solid ${selectedOptions.includes(opt.id) ? '#4f46e5' : '#e7e3dc'}`, borderRadius: 8, cursor: answerLocked ? 'default' : 'pointer', opacity: answerLocked && !questionSubmitted ? 0.6 : 1, background: selectedOptions.includes(opt.id) ? '#eceafd' : '#f3f1ec', display: 'flex', alignItems: 'center', gap: 8 }}
+                        style={{ padding: '10px 12px', border: `2px solid ${selectedOptions.includes(opt.id) ? 'var(--sq-primary)' : 'var(--sq-border)'}`, borderRadius: 8, cursor: answerLocked ? 'default' : 'pointer', opacity: answerLocked && !questionSubmitted && !revealAnswers ? 0.6 : 1, background: selectedOptions.includes(opt.id) ? 'var(--sq-primary-light)' : 'var(--sq-surface-2)', display: 'flex', alignItems: 'center', gap: 8, ...optionRevealStyle(opt.id) }}
                       >
                         <Checkbox checked={selectedOptions.includes(opt.id)} disabled={answerLocked} />
                         <Tag style={{ minWidth: 24, textAlign: 'center', margin: 0, fontSize: 11 }}>{opt.label}</Tag>
                         <Text style={{ fontSize: 13 }}>{opt.text}</Text>
+                        {optionRevealIcon(opt.id)}
                       </div>
                     ))}
                   </div>
@@ -1078,8 +1128,8 @@ export default function StudentSessionPage() {
                   answerLocked ? (
                     <div
                       className="ck-content"
-                      style={{ fontSize: 13, lineHeight: 1.6, padding: '8px 12px', background: '#f3f1ec', borderRadius: 8, border: '1px solid #e7e3dc', minHeight: 64 }}
-                      dangerouslySetInnerHTML={{ __html: essayText || '<span style="color:#a8a29e">Không có câu trả lời</span>' }}
+                      style={{ fontSize: 13, lineHeight: 1.6, padding: '8px 12px', background: 'var(--sq-surface-2)', borderRadius: 8, border: '1px solid var(--sq-border)', minHeight: 64 }}
+                      dangerouslySetInnerHTML={{ __html: essayText || '<span style="color:var(--sq-text-muted)">Không có câu trả lời</span>' }}
                     />
                   ) : (
                     <RichTextEditor onChange={setEssayText} placeholder="Nhập câu trả lời của bạn..." minHeight={panelExpanded ? 180 : 100} uploadPurpose="answer_attachment" />
@@ -1094,12 +1144,41 @@ export default function StudentSessionPage() {
               </div>
 
               {/* Footer */}
-              <div style={{ padding: '12px 14px', borderTop: '1px solid #e7e3dc', flexShrink: 0 }}>
-                {!questionSubmitted && answerLocked ? (
+              <div style={{ padding: '12px 14px', borderTop: '1px solid var(--sq-border)', flexShrink: 0 }}>
+                {revealAnswers ? (
+                  <div style={{ textAlign: 'center' }}>
+                    {myAnswerCorrect === true ? (
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, marginBottom: 4 }}>
+                        <span style={{ fontSize: 18 }}>🎉</span>
+                        <Text strong style={{ color: 'var(--sq-emerald)' }}>Chính xác! Bạn đã trả lời đúng.</Text>
+                      </div>
+                    ) : myAnswerCorrect === false ? (
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, marginBottom: 4 }}>
+                        <CloseCircleOutlined style={{ color: 'var(--sq-rose)', fontSize: 18 }} />
+                        <Text strong style={{ color: 'var(--sq-rose)' }}>Chưa đúng — đáp án đúng: {correctLabels}</Text>
+                      </div>
+                    ) : (
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, marginBottom: 4 }}>
+                        <ClockCircleOutlined style={{ color: 'var(--sq-amber)', fontSize: 18 }} />
+                        <Text strong style={{ color: 'var(--sq-amber)' }}>Đáp án đúng: {correctLabels}</Text>
+                      </div>
+                    )}
+                    <Text type="secondary" style={{ fontSize: 12 }}>
+                      {myAnswerCorrect === null
+                        ? 'Bạn chưa gửi câu trả lời cho câu hỏi này.'
+                        : 'Câu hỏi đã kết thúc.'}
+                    </Text>
+                    <div style={{ marginTop: 8 }}>
+                      <Button size="small" icon={<MinusOutlined />} onClick={() => { setQuestionPanelOpen(false); setPanelExpanded(false); }}>
+                        Thu nhỏ, tiếp tục học
+                      </Button>
+                    </div>
+                  </div>
+                ) : !questionSubmitted && answerLocked ? (
                   <div style={{ textAlign: 'center' }}>
                     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, marginBottom: 4 }}>
-                      <ClockCircleOutlined style={{ color: '#f43f5e', fontSize: 18 }} />
-                      <Text strong style={{ color: '#f43f5e' }}>Đã hết thời gian!</Text>
+                      <ClockCircleOutlined style={{ color: 'var(--sq-rose)', fontSize: 18 }} />
+                      <Text strong style={{ color: 'var(--sq-rose)' }}>Đã hết thời gian!</Text>
                     </div>
                     <Text type="secondary" style={{ fontSize: 12 }}>
                       Câu hỏi đã kết thúc, không thể gửi câu trả lời nữa.
@@ -1117,8 +1196,8 @@ export default function StudentSessionPage() {
                 ) : (
                   <div style={{ textAlign: 'center' }}>
                     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, marginBottom: 4 }}>
-                      <CheckCircleOutlined style={{ color: '#0ea672', fontSize: 18 }} />
-                      <Text strong style={{ color: '#0ea672' }}>Đã gửi câu trả lời!</Text>
+                      <CheckCircleOutlined style={{ color: 'var(--sq-emerald)', fontSize: 18 }} />
+                      <Text strong style={{ color: 'var(--sq-emerald)' }}>Đã gửi câu trả lời!</Text>
                     </div>
                     <Text type="secondary" style={{ fontSize: 12 }}>
                       <ClockCircleOutlined style={{ marginRight: 4 }} />
@@ -1180,11 +1259,16 @@ export default function StudentSessionPage() {
         {runningQuestion && (
           <CtrlBtn
             active={questionPanelOpen}
+            // Panel đang thu nhỏ + sắp hết giờ → nhấp nháy đỏ kéo sự chú ý
+            className={!questionPanelOpen && timeRemaining !== null && timeRemaining > 0 && timeRemaining <= 10 ? 'sq-pulse-danger' : undefined}
             onClick={() => setQuestionPanelOpen(!questionPanelOpen)}
             title={questionPanelOpen ? 'Thu nhỏ câu hỏi' : 'Mở câu hỏi'}
             icon={questionPanelOpen ? <MinusOutlined /> : <ExpandAltOutlined />}
           >
-            {questionSubmitted ? '✓ Đã trả lời' : answerLocked ? '⏱ Hết giờ' : '📝 Câu hỏi'}
+            {questionSubmitted ? '✓ Đã trả lời'
+              : answerLocked ? '⏱ Hết giờ'
+              : timeRemaining !== null ? `📝 ${formatCountdown(timeRemaining)}`
+              : '📝 Câu hỏi'}
           </CtrlBtn>
         )}
 
@@ -1204,7 +1288,7 @@ export default function StudentSessionPage() {
 
       {/* ── Leave confirm modal ── */}
       <Modal
-        title={<div style={{ display: 'flex', alignItems: 'center', gap: 8 }}><ExclamationCircleOutlined style={{ color: '#e08c0b', fontSize: 18 }} /><span>Rời khỏi lớp học?</span></div>}
+        title={<div style={{ display: 'flex', alignItems: 'center', gap: 8 }}><ExclamationCircleOutlined style={{ color: 'var(--sq-amber)', fontSize: 18 }} /><span>Rời khỏi lớp học?</span></div>}
         open={leaveOpen}
         onOk={handleLeave}
         onCancel={() => setLeaveOpen(false)}
@@ -1214,7 +1298,7 @@ export default function StudentSessionPage() {
         centered
         width={400}
       >
-        <p style={{ color: '#57534e', margin: '8px 0' }}>Bạn sẽ rời buổi học và xem lại kết quả của mình.</p>
+        <p style={{ color: 'var(--sq-text-secondary)', margin: '8px 0' }}>Bạn sẽ rời buổi học và xem lại kết quả của mình.</p>
       </Modal>
 
       {/* ── New question notification ── */}

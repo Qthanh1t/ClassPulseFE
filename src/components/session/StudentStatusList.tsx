@@ -33,7 +33,7 @@ export default function StudentStatusList({
 
   return (
     <div style={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
-      <div style={{ padding: '12px 16px', borderBottom: '1px solid #e7e3dc' }}>
+      <div style={{ padding: '12px 16px', borderBottom: '1px solid var(--sq-border)' }}>
         <Text strong style={{ fontSize: 14 }}>Thành viên</Text>
         <div>
           <Text type="secondary" style={{ fontSize: 12 }}>
@@ -44,7 +44,7 @@ export default function StudentStatusList({
         </div>
         {raisedHandIds.length > 0 && (
           <div style={{ marginTop: 2 }}>
-            <Text style={{ fontSize: 11, color: '#e08c0b' }}>
+            <Text style={{ fontSize: 11, color: 'var(--sq-amber)' }}>
               ✋ {raisedHandIds.length} đang giơ tay
             </Text>
           </div>
@@ -68,7 +68,7 @@ export default function StudentStatusList({
                 alignItems: 'center',
                 gap: 10,
                 padding: '7px 16px',
-                background: hasRaisedHand ? '#fbf0db' : isSilent ? '#fceaef' : 'transparent',
+                background: hasRaisedHand ? '#fbf0db' : isSilent ? 'var(--sq-rose-light)' : 'transparent',
                 opacity: online ? 1 : 0.45,
                 transition: 'background 0.2s, opacity 0.2s',
               }}
@@ -86,7 +86,7 @@ export default function StudentStatusList({
                     height: 10,
                     borderRadius: '50%',
                     border: '2px solid #fff',
-                    background: online ? '#0ea672' : '#a8a29e',
+                    background: online ? 'var(--sq-emerald)' : 'var(--sq-text-muted)',
                   }}
                 />
               </div>
@@ -114,14 +114,14 @@ export default function StudentStatusList({
                   )}
                   {isSilent && !hasRaisedHand && (
                     <Tooltip title="Không tương tác">
-                      <WarningOutlined style={{ color: '#e23d6d', fontSize: 13 }} />
+                      <WarningOutlined style={{ color: 'var(--sq-rose)', fontSize: 13 }} />
                     </Tooltip>
                   )}
                   {questionActive && (
                     <Badge
                       status={answered ? 'success' : 'default'}
                       text={
-                        <Text style={{ fontSize: 11, color: answered ? '#0ea672' : '#a8a29e' }}>
+                        <Text style={{ fontSize: 11, color: answered ? 'var(--sq-emerald)' : 'var(--sq-text-muted)' }}>
                           {answered ? '✓' : '○'}
                         </Text>
                       }
@@ -138,20 +138,20 @@ export default function StudentStatusList({
         <div
           style={{
             padding: '8px 16px',
-            borderTop: '1px solid #e7e3dc',
+            borderTop: '1px solid var(--sq-border)',
             display: 'flex',
             flexDirection: 'column',
             gap: 4,
           }}
         >
           {raisedHandIds.length > 0 && (
-            <Text style={{ fontSize: 12, color: '#e08c0b' }}>
+            <Text style={{ fontSize: 12, color: 'var(--sq-amber)' }}>
               ✋ {raisedHandIds.length} HS đang giơ tay
             </Text>
           )}
           {silentStudentIds.length > 0 && (
             <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-              <WarningOutlined style={{ color: '#e23d6d', fontSize: 12 }} />
+              <WarningOutlined style={{ color: 'var(--sq-rose)', fontSize: 12 }} />
               <Text style={{ fontSize: 12, color: '#be123c' }}>
                 {silentStudentIds.length} HS không tương tác
               </Text>

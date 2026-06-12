@@ -276,10 +276,11 @@ export default function TeacherSessionPage() {
             break;
           }
           case 'question_started': {
-            // Backend payload: { questionId, type, content, options[{id,label,text,isCorrect,order}], endsAt }
+            // Backend payload: { questionId, type, content, options[{id,label,text,order}], endsAt }
+            // — options KHÔNG còn isCorrect (broadcast chung cho cả lớp, chống lộ đáp án)
             const raw = event.payload as {
               questionId: string; type: string; content: string;
-              options?: { id: string; label: string; text: string; isCorrect: boolean; order: number }[];
+              options?: { id: string; label: string; text: string; isCorrect?: boolean; order: number }[];
               endsAt?: string;
               serverNow?: string;
             };
@@ -288,6 +289,7 @@ export default function TeacherSessionPage() {
             }
             // Use setQuestions updater to read the LATEST state (avoids stale questionsRef causing duplicates)
             let resolvedQ: QuestionDto | null = null;
+            let usedFallback = false;
             setQuestions((current) => {
               const existing = current.find((x) => x.id === raw.questionId);
               if (existing) {
@@ -305,6 +307,7 @@ export default function TeacherSessionPage() {
                 endsAt: raw.endsAt,
               };
               resolvedQ = fallback;
+              usedFallback = true;
               return [...current, fallback];
             });
             const q = resolvedQ ?? questionsRef.current.find((x) => x.id === raw.questionId) ?? null;
@@ -315,10 +318,21 @@ export default function TeacherSessionPage() {
                 totalStudents: presenceRef.current.length,
                 answeredCount: 0, skippedCount: 0, correctCount: 0, wrongCount: 0,
                 optionDistribution: (q.options ?? []).map((o) => ({
-                  optionId: o.id, label: o.label, text: o.text, isCorrect: o.isCorrect, count: 0,
+                  optionId: o.id, label: o.label, text: o.text, isCorrect: o.isCorrect ?? false, count: 0,
                 })),
                 confidenceBreakdown: { high: 0, medium: 0, low: 0, none: 0 },
                 silentStudents: presenceRef.current.map((p) => ({ id: p.studentId, name: p.name, avatarColor: p.avatarColor, avatarUrl: p.avatarUrl })),
+              });
+            }
+            if (usedFallback) {
+              // WS payload không có isCorrect — refetch qua REST (owner thấy đầy đủ) để GV
+              // vẫn thấy highlight đáp án đúng sau khi reconnect giữa câu hỏi
+              void questionService.list(sess.id).then((r) => {
+                const full = r.data?.find((x) => x.id === raw.questionId);
+                if (!full) return;
+                const merged: QuestionDto = { ...full, status: 'running', endsAt: raw.endsAt ?? full.endsAt };
+                setQuestions((prev) => prev.map((x) => (x.id === merged.id ? merged : x)));
+                setRunningQuestion((prev) => (prev?.id === merged.id ? merged : prev));
               });
             }
             break;
@@ -534,7 +548,7 @@ export default function TeacherSessionPage() {
         correctCount: 0,
         wrongCount: 0,
         optionDistribution: (newQ.options ?? []).map((o) => ({
-          optionId: o.id, label: o.label, text: o.text, isCorrect: o.isCorrect, count: 0,
+          optionId: o.id, label: o.label, text: o.text, isCorrect: o.isCorrect ?? false, count: 0,
         })),
         confidenceBreakdown: { high: 0, medium: 0, low: 0, none: 0 },
         silentStudents: presenceRef.current.map((p) => ({ id: p.studentId, name: p.name, avatarColor: p.avatarColor, avatarUrl: p.avatarUrl })),
@@ -695,7 +709,7 @@ export default function TeacherSessionPage() {
           <div
             style={{
               width: 26, height: 26,
-              background: '#4f46e5',
+              background: 'var(--sq-primary)',
               borderRadius: 6,
               display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
             }}
@@ -816,7 +830,7 @@ export default function TeacherSessionPage() {
                     >
                       {screenShareOn && (
                         <div style={{ position: 'absolute', top: 8, left: 8, background: 'rgba(0,0,0,0.6)', padding: '2px 8px', borderRadius: 5, display: 'flex', alignItems: 'center', gap: 5, zIndex: 3 }}>
-                          <DesktopOutlined style={{ color: '#0ea672', fontSize: 11 }} />
+                          <DesktopOutlined style={{ color: 'var(--sq-emerald)', fontSize: 11 }} />
                           <Text style={{ color: '#fff', fontSize: 11 }}>Đang chia sẻ màn hình</Text>
                         </div>
                       )}
@@ -824,7 +838,7 @@ export default function TeacherSessionPage() {
                   </div>
 
                   {/* Focused student tile */}
-                  <div style={{ borderRadius: 12, overflow: 'hidden', border: '2px solid #4f46e5', position: 'relative' }}>
+                  <div style={{ borderRadius: 12, overflow: 'hidden', border: '2px solid var(--sq-primary)', position: 'relative' }}>
                     <VideoTile
                       stream={rtc.peers.get(focusedStudent.studentId)?.remoteStream ?? null}
                       name={focusedStudent.name}
@@ -859,7 +873,7 @@ export default function TeacherSessionPage() {
                   >
                     {screenShareOn && (
                       <div style={{ position: 'absolute', top: 10, left: 12, background: 'rgba(0,0,0,0.6)', padding: '3px 10px', borderRadius: 6, display: 'flex', alignItems: 'center', gap: 6, zIndex: 3 }}>
-                        <DesktopOutlined style={{ color: '#0ea672', fontSize: 12 }} />
+                        <DesktopOutlined style={{ color: 'var(--sq-emerald)', fontSize: 12 }} />
                         <Text style={{ color: '#fff', fontSize: 12 }}>Đang chia sẻ màn hình</Text>
                       </div>
                     )}
@@ -951,6 +965,7 @@ export default function TeacherSessionPage() {
                         size={44}
                         percent={Math.round((timeRemaining / runningQuestion.timerSeconds) * 100)}
                         strokeColor={
+                          /* hex literal (= token emerald/amber/rose): Progress circle vẽ SVG, stroke không nhận var() */
                           timeRemaining / runningQuestion.timerSeconds > 0.5 ? '#0ea672'
                             : timeRemaining / runningQuestion.timerSeconds > 0.2 ? '#e08c0b'
                               : '#e23d6d'
@@ -981,9 +996,9 @@ export default function TeacherSessionPage() {
                         key={opt.id}
                         style={{
                           padding: '10px 14px',
-                          border: `1px solid ${opt.isCorrect ? '#a7e3cd' : '#e7e3dc'}`,
+                          border: `1px solid ${opt.isCorrect ? '#a7e3cd' : 'var(--sq-border)'}`,
                           borderRadius: 8,
-                          background: opt.isCorrect ? '#e7f6ef' : '#f3f1ec',
+                          background: opt.isCorrect ? 'var(--sq-emerald-light)' : 'var(--sq-surface-2)',
                           display: 'flex', gap: 10, alignItems: 'center',
                         }}
                       >
@@ -991,7 +1006,7 @@ export default function TeacherSessionPage() {
                           {opt.label}
                         </Tag>
                         <Text>{opt.text}</Text>
-                        {opt.isCorrect && <CheckCircleOutlined style={{ color: '#0ea672', marginLeft: 'auto' }} />}
+                        {opt.isCorrect && <CheckCircleOutlined style={{ color: 'var(--sq-emerald)', marginLeft: 'auto' }} />}
                       </div>
                     ))}
                   </div>
@@ -1015,7 +1030,7 @@ export default function TeacherSessionPage() {
             <Card style={{ borderRadius: 12 }}>
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                  <CheckCircleOutlined style={{ color: '#0ea672', fontSize: 18 }} />
+                  <CheckCircleOutlined style={{ color: 'var(--sq-emerald)', fontSize: 18 }} />
                   <Text strong style={{ fontSize: 15 }}>Kết quả câu {runningQuestion.questionOrder}</Text>
                 </div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -1116,7 +1131,7 @@ export default function TeacherSessionPage() {
               {breakout && !teacherJoinedRoom && (
                 <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 10, minHeight: 180 }}>
                   <div style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.12)', borderRadius: 12, padding: '10px 16px', display: 'flex', alignItems: 'center', gap: 12, flexShrink: 0 }}>
-                    <TeamOutlined style={{ color: '#a8a29e', fontSize: 18 }} />
+                    <TeamOutlined style={{ color: 'var(--sq-text-muted)', fontSize: 18 }} />
                     <Text strong style={{ color: '#fff', fontSize: 14, flex: 1 }}>Phòng chính</Text>
                     <Text style={{ color: 'rgba(255,255,255,0.55)', fontSize: 12 }}>
                       Vào một phòng nhóm bên dưới để trao đổi riêng
@@ -1170,7 +1185,7 @@ export default function TeacherSessionPage() {
                   (hidden, not unmounted) so its internal room selection survives collapse. */}
               <Card style={{ borderRadius: 12, flexShrink: 0 }} styles={{ body: { padding: 0 } }}>
                 {breakout && (
-                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 16px', borderBottom: breakoutPanelCollapsed ? 'none' : '1px solid #e7e3dc' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 16px', borderBottom: breakoutPanelCollapsed ? 'none' : '1px solid var(--sq-border)' }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0 }}>
                       <Badge status="processing" />
                       <Text strong>Bảng điều khiển breakout</Text>
@@ -1254,17 +1269,17 @@ export default function TeacherSessionPage() {
                   key={q.id}
                   style={{
                     padding: '6px 10px', borderRadius: 6,
-                    background: runningQuestion?.id === q.id ? '#eceafd' : '#f3f1ec',
-                    border: `1px solid ${runningQuestion?.id === q.id ? '#c7d2fe' : '#e7e3dc'}`,
+                    background: runningQuestion?.id === q.id ? 'var(--sq-primary-light)' : 'var(--sq-surface-2)',
+                    border: `1px solid ${runningQuestion?.id === q.id ? '#c7d2fe' : 'var(--sq-border)'}`,
                     display: 'flex', alignItems: 'center', gap: 6,
                   }}
                 >
-                  <Text style={{ fontSize: 12, color: '#57534e', minWidth: 16 }}>{q.questionOrder}.</Text>
+                  <Text style={{ fontSize: 12, color: 'var(--sq-text-secondary)', minWidth: 16 }}>{q.questionOrder}.</Text>
                   <Text style={{ fontSize: 12 }} ellipsis>
                     {q.type === 'single' ? '●' : q.type === 'multiple' ? '☑' : '✏'} Câu {q.questionOrder}
                   </Text>
                   {q.status === 'ended' && (
-                    <CheckCircleOutlined style={{ color: '#0ea672', fontSize: 11, marginLeft: 'auto' }} />
+                    <CheckCircleOutlined style={{ color: 'var(--sq-emerald)', fontSize: 11, marginLeft: 'auto' }} />
                   )}
                 </div>
               ))}
@@ -1394,7 +1409,7 @@ export default function TeacherSessionPage() {
       <Drawer
         title={
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <BarChartOutlined style={{ color: '#4f46e5' }} />
+            <BarChartOutlined style={{ color: 'var(--sq-primary)' }} />
             <span>Kết quả phiên học</span>
           </div>
         }
@@ -1405,20 +1420,20 @@ export default function TeacherSessionPage() {
         mask={false}
       >
         {questions.length === 0 ? (
-          <div style={{ textAlign: 'center', color: '#57534e', padding: 40 }}>
+          <div style={{ textAlign: 'center', color: 'var(--sq-text-secondary)', padding: 40 }}>
             Chưa có câu hỏi nào trong phiên này.
           </div>
         ) : (
           <>
             <div style={{ display: 'flex', gap: 12, marginBottom: 20 }}>
-              <div style={{ flex: 1, background: '#eceafd', borderRadius: 10, padding: '10px 14px', textAlign: 'center' }}>
-                <Text strong style={{ fontSize: 22, color: '#4f46e5' }}>
+              <div style={{ flex: 1, background: 'var(--sq-primary-light)', borderRadius: 10, padding: '10px 14px', textAlign: 'center' }}>
+                <Text strong style={{ fontSize: 22, color: 'var(--sq-primary)' }}>
                   {questions.filter((q) => q.status === 'ended').length}
                 </Text>
                 <div><Text type="secondary" style={{ fontSize: 12 }}>Câu đã kết thúc</Text></div>
               </div>
-              <div style={{ flex: 1, background: '#e7f6ef', borderRadius: 10, padding: '10px 14px', textAlign: 'center' }}>
-                <Text strong style={{ fontSize: 22, color: '#0ea672' }}>
+              <div style={{ flex: 1, background: 'var(--sq-emerald-light)', borderRadius: 10, padding: '10px 14px', textAlign: 'center' }}>
+                <Text strong style={{ fontSize: 22, color: 'var(--sq-emerald)' }}>
                   {presence.filter((p) => p.isOnline).length}
                 </Text>
                 <div><Text type="secondary" style={{ fontSize: 12 }}>Học sinh online</Text></div>
@@ -1459,8 +1474,8 @@ export default function TeacherSessionPage() {
                         dangerouslySetInnerHTML={{ __html: q.content }}
                         style={{
                           fontSize: 14, fontWeight: 500, lineHeight: 1.6, marginBottom: 12,
-                          padding: '10px 12px', background: '#f3f1ec', borderRadius: 8,
-                          border: '1px solid #e7e3dc',
+                          padding: '10px 12px', background: 'var(--sq-surface-2)', borderRadius: 8,
+                          border: '1px solid var(--sq-border)',
                         }}
                       />
                       {/* Options (MCQ) */}
@@ -1472,15 +1487,15 @@ export default function TeacherSessionPage() {
                               style={{
                                 display: 'flex', gap: 8, alignItems: 'center',
                                 padding: '6px 10px', borderRadius: 6,
-                                background: opt.isCorrect ? '#e7f6ef' : '#f3f1ec',
-                                border: `1px solid ${opt.isCorrect ? '#a7e3cd' : '#e7e3dc'}`,
+                                background: opt.isCorrect ? 'var(--sq-emerald-light)' : 'var(--sq-surface-2)',
+                                border: `1px solid ${opt.isCorrect ? '#a7e3cd' : 'var(--sq-border)'}`,
                               }}
                             >
                               <Tag color={opt.isCorrect ? 'success' : 'default'} style={{ minWidth: 24, textAlign: 'center', margin: 0, fontSize: 11 }}>
                                 {opt.label}
                               </Tag>
                               <Text style={{ fontSize: 13 }}>{opt.text}</Text>
-                              {opt.isCorrect && <CheckCircleOutlined style={{ color: '#0ea672', marginLeft: 'auto', fontSize: 13 }} />}
+                              {opt.isCorrect && <CheckCircleOutlined style={{ color: 'var(--sq-emerald)', marginLeft: 'auto', fontSize: 13 }} />}
                             </div>
                           ))}
                         </div>
@@ -1494,7 +1509,7 @@ export default function TeacherSessionPage() {
                           presence={presence}
                         />
                       ) : (
-                        <div style={{ color: '#57534e', fontSize: 13, textAlign: 'center', padding: '12px 0' }}>
+                        <div style={{ color: 'var(--sq-text-secondary)', fontSize: 13, textAlign: 'center', padding: '12px 0' }}>
                           {q.status === 'draft' ? 'Câu hỏi chưa bắt đầu' : 'Đang tải kết quả...'}
                         </div>
                       )}
@@ -1517,7 +1532,7 @@ export default function TeacherSessionPage() {
       <Modal
         title={
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <ExclamationCircleOutlined style={{ color: '#e08c0b', fontSize: 18 }} />
+            <ExclamationCircleOutlined style={{ color: 'var(--sq-amber)', fontSize: 18 }} />
             <span>Kết thúc buổi học?</span>
           </div>
         }
@@ -1531,10 +1546,10 @@ export default function TeacherSessionPage() {
         width={420}
       >
         <div style={{ padding: '8px 0' }}>
-          <p style={{ marginBottom: 12, color: '#57534e' }}>
+          <p style={{ marginBottom: 12, color: 'var(--sq-text-secondary)' }}>
             Buổi học sẽ kết thúc và tất cả học sinh sẽ nhận được kết quả.
           </p>
-          <div style={{ background: '#f3f1ec', borderRadius: 8, padding: '10px 16px', display: 'flex', gap: 24 }}>
+          <div style={{ background: 'var(--sq-surface-2)', borderRadius: 8, padding: '10px 16px', display: 'flex', gap: 24 }}>
             <div>
               <Text type="secondary" style={{ fontSize: 12 }}>Thời gian học</Text>
               <div><Text strong style={{ fontFamily: 'monospace', fontSize: 16 }}>{formatElapsed(elapsedSeconds)}</Text></div>

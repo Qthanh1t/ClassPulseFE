@@ -252,6 +252,20 @@ select:focus-visible,
   to   { opacity: 1; transform: translateY(0); }
 }
 
+/* Sắp hết giờ câu hỏi (≤10s, panel thu nhỏ) — nút nhấp nháy đỏ kéo sự chú ý */
+@keyframes sq-pulse-danger {
+  0%   { box-shadow: 0 0 0 0 rgba(226, 61, 109, 0.55); }
+  70%  { box-shadow: 0 0 0 9px rgba(226, 61, 109, 0); }
+  100% { box-shadow: 0 0 0 0 rgba(226, 61, 109, 0); }
+}
+.sq-pulse-danger,
+.sq-pulse-danger.ant-btn {
+  animation: sq-pulse-danger 1s ease-out infinite;
+  background: var(--sq-rose) !important;
+  border-color: var(--sq-rose) !important;
+  color: #fff !important;
+}
+
 /* ── Reduced motion: kill perpetual loops (LIVE pulse, skeleton shimmer)
    and collapse entrance/hover motion to instant. Accessibility (a11y). ── */
 @media (prefers-reduced-motion: reduce) {

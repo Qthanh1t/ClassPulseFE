@@ -241,7 +241,7 @@ export default function BreakoutPanel({
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
             <Badge status="processing" />
             <Title level={5} style={{ margin: 0 }}>Breakout đang hoạt động</Title>
-            <Badge count={sortedRooms.length} color="#4f46e5" />
+            <Badge count={sortedRooms.length} color="var(--sq-primary)" />
           </div>
           <div style={{ display: 'flex', gap: 8 }}>
             <Button size="small" icon={<MessageOutlined />} onClick={() => setBroadcastOpen(true)}>
@@ -271,7 +271,7 @@ export default function BreakoutPanel({
                   </Tag>
                   <Badge
                     status="processing"
-                    text={<Text style={{ fontSize: 12, color: '#0ea672' }}>Đang thảo luận</Text>}
+                    text={<Text style={{ fontSize: 12, color: 'var(--sq-emerald)' }}>Đang thảo luận</Text>}
                   />
                   {isTeacherHere && (
                     <Tag color="purple" style={{ borderRadius: 20, fontSize: 11 }}>
@@ -305,14 +305,14 @@ export default function BreakoutPanel({
                           <Avatar
                             size={24}
                             style={{
-                              background: '#4f46e5',
+                              background: 'var(--sq-primary)',
                               fontSize: 11,
-                              border: '2px solid #4f46e5',
+                              border: '2px solid var(--sq-primary)',
                             }}
                           >
                             G
                           </Avatar>
-                          <Text style={{ fontSize: 12, color: '#4f46e5', fontWeight: 600 }}>GV</Text>
+                          <Text style={{ fontSize: 12, color: 'var(--sq-primary)', fontWeight: 600 }}>GV</Text>
                         </div>
                       </Tooltip>
                     )}
@@ -321,11 +321,11 @@ export default function BreakoutPanel({
                   {room.task && (
                     <Card
                       size="small"
-                      style={{ background: '#eceafd', border: '1px solid #c7d2fe', borderRadius: 8, marginBottom: 10 }}
+                      style={{ background: 'var(--sq-primary-light)', border: '1px solid #c7d2fe', borderRadius: 8, marginBottom: 10 }}
                       styles={{ body: { padding: '8px 12px' } }}
                     >
                       <Text style={{ fontSize: 12 }}>
-                        <span style={{ color: '#4f46e5', fontWeight: 600 }}>Nhiệm vụ: </span>
+                        <span style={{ color: 'var(--sq-primary)', fontWeight: 600 }}>Nhiệm vụ: </span>
                         {room.task}
                       </Text>
                     </Card>
@@ -337,7 +337,7 @@ export default function BreakoutPanel({
                       type={isTeacherHere ? 'default' : 'primary'}
                       ghost={!isTeacherHere}
                       icon={isTeacherHere ? <LogoutOutlined /> : <LoginOutlined />}
-                      style={!isTeacherHere ? { borderColor: '#4f46e5', color: '#4f46e5' } : {}}
+                      style={!isTeacherHere ? { borderColor: 'var(--sq-primary)', color: 'var(--sq-primary)' } : {}}
                       onClick={() => (isTeacherHere ? handleLeaveRoom(room.id) : handleJoinRoom(room.id))}
                     >
                       {isTeacherHere ? 'Rời phòng' : 'Vào phòng'}
@@ -355,7 +355,7 @@ export default function BreakoutPanel({
         />
 
         <Modal
-          title={<><MessageOutlined style={{ color: '#4f46e5', marginRight: 8 }} />Thông báo đến tất cả nhóm</>}
+          title={<><MessageOutlined style={{ color: 'var(--sq-primary)', marginRight: 8 }} />Thông báo đến tất cả nhóm</>}
           open={broadcastOpen}
           onCancel={() => setBroadcastOpen(false)}
           onOk={handleBroadcast}
@@ -380,7 +380,7 @@ export default function BreakoutPanel({
     <div style={{ padding: '0 0 16px' }}>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <TeamOutlined style={{ color: '#4f46e5', fontSize: 16 }} />
+          <TeamOutlined style={{ color: 'var(--sq-primary)', fontSize: 16 }} />
           <Title level={5} style={{ margin: 0 }}>Thiết lập phòng nhỏ</Title>
         </div>
         <div style={{ display: 'flex', gap: 8 }}>
@@ -399,7 +399,7 @@ export default function BreakoutPanel({
           styles={{ body: { padding: '10px 14px' } }}
         >
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-            <ThunderboltOutlined style={{ color: '#f59e0b', fontSize: 15 }} />
+            <ThunderboltOutlined style={{ color: 'var(--sq-amber)', fontSize: 15 }} />
             <Text style={{ fontSize: 13, fontWeight: 600 }}>Chia ngẫu nhiên nhanh</Text>
             <InputNumber
               size="small"
@@ -414,7 +414,7 @@ export default function BreakoutPanel({
               size="small"
               icon={<ThunderboltOutlined />}
               onClick={handleRandomSplit}
-              style={{ borderColor: '#f59e0b', color: '#b45309' }}
+              style={{ borderColor: 'var(--sq-amber)', color: '#b45309' }}
             >
               Chia ngẫu nhiên
             </Button>
@@ -432,7 +432,7 @@ export default function BreakoutPanel({
         styles={{ body: { padding: '12px 14px' } }}
       >
         <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 10 }}>
-          <Text style={{ fontSize: 13, fontWeight: 600, color: '#4f46e5' }}>Phòng chính</Text>
+          <Text style={{ fontSize: 13, fontWeight: 600, color: 'var(--sq-primary)' }}>Phòng chính</Text>
           <Tag style={{ borderRadius: 20, fontSize: 11 }}>{mainRoomStudents.length} học sinh</Tag>
           {allStudents.length > 0 && (
             <Text type="secondary" style={{ fontSize: 11 }}>Chọn phòng để phân công từng HS</Text>
@@ -453,8 +453,8 @@ export default function BreakoutPanel({
                 key={s.id}
                 style={{
                   display: 'flex', alignItems: 'center', gap: 5,
-                  background: '#f3f1ec', borderRadius: 20,
-                  padding: '3px 6px 3px 4px', border: '1px solid #e7e3dc',
+                  background: 'var(--sq-surface-2)', borderRadius: 20,
+                  padding: '3px 6px 3px 4px', border: '1px solid var(--sq-border)',
                 }}
               >
                 <Avatar size={20} src={s.avatarUrl ?? undefined} style={{ background: s.avatarColor ?? '#4f46e5', fontSize: 10, flexShrink: 0 }}>
@@ -482,7 +482,7 @@ export default function BreakoutPanel({
           <Card
             key={room.localId}
             size="small"
-            style={{ borderRadius: 10, border: '1px solid #e7e3dc' }}
+            style={{ borderRadius: 10, border: '1px solid var(--sq-border)' }}
             styles={{ body: { padding: '10px 14px' } }}
             title={
               <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
@@ -510,7 +510,7 @@ export default function BreakoutPanel({
                   <Button
                     type="text" size="small"
                     icon={<UsergroupAddOutlined />}
-                    style={{ color: mainRoomStudents.length === 0 ? undefined : '#4f46e5' }}
+                    style={{ color: mainRoomStudents.length === 0 ? undefined : 'var(--sq-primary)' }}
                     disabled={mainRoomStudents.length === 0}
                     onClick={() => openBulkAdd(room.localId)}
                   />
@@ -529,7 +529,7 @@ export default function BreakoutPanel({
               {room.studentIds.length === 0 ? (
                 mainRoomStudents.length > 0 ? (
                   <Text
-                    style={{ fontSize: 12, fontStyle: 'italic', color: '#4f46e5', cursor: 'pointer' }}
+                    style={{ fontSize: 12, fontStyle: 'italic', color: 'var(--sq-primary)', cursor: 'pointer' }}
                     onClick={() => openBulkAdd(room.localId)}
                   >
                     <UsergroupAddOutlined style={{ marginRight: 4 }} />
@@ -548,7 +548,7 @@ export default function BreakoutPanel({
                       key={sid}
                       style={{
                         display: 'flex', alignItems: 'center', gap: 3,
-                        background: '#eceafd', borderRadius: 20,
+                        background: 'var(--sq-primary-light)', borderRadius: 20,
                         padding: '2px 8px 2px 4px', border: '1px solid #c7d2fe',
                       }}
                     >
@@ -557,7 +557,7 @@ export default function BreakoutPanel({
                       </Avatar>
                       <Text style={{ fontSize: 12 }}>{s.name.split(' ').pop()}</Text>
                       <CloseOutlined
-                        style={{ fontSize: 10, color: '#a8a29e', cursor: 'pointer', marginLeft: 2 }}
+                        style={{ fontSize: 10, color: 'var(--sq-text-muted)', cursor: 'pointer', marginLeft: 2 }}
                         onClick={() => removeStudentFromRoom(sid, room.localId)}
                       />
                     </div>
@@ -592,7 +592,7 @@ export default function BreakoutPanel({
           loading={starting}
           disabled={rooms.every((r) => r.studentIds.length === 0)}
           style={{
-            background: '#4f46e5',
+            background: 'var(--sq-primary)',
             border: 'none', fontWeight: 600, borderRadius: 10,
           }}
           onClick={handleStartBreakout}
@@ -605,7 +605,7 @@ export default function BreakoutPanel({
       <Modal
         title={
           <>
-            <UsergroupAddOutlined style={{ color: '#4f46e5', marginRight: 8 }} />
+            <UsergroupAddOutlined style={{ color: 'var(--sq-primary)', marginRight: 8 }} />
             Thêm học sinh vào {rooms.find((r) => r.localId === bulkRoomId)?.name ?? 'phòng'}
           </>
         }
@@ -650,7 +650,7 @@ export default function BreakoutPanel({
                     style={{
                       display: 'flex', alignItems: 'center', gap: 10,
                       padding: '6px 10px', borderRadius: 8, cursor: 'pointer',
-                      background: checked ? '#eceafd' : 'transparent',
+                      background: checked ? 'var(--sq-primary-light)' : 'transparent',
                       border: checked ? '1px solid #c7d2fe' : '1px solid transparent',
                     }}
                   >

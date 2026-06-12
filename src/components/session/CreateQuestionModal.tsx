@@ -20,19 +20,19 @@ const TEMPLATES: { type: QuestionType; label: string; desc: string; icon: React.
     type: 'single',
     label: 'Trắc nghiệm (1 đáp án)',
     desc: 'Học sinh chọn 1 đáp án đúng',
-    icon: <UnorderedListOutlined style={{ fontSize: 24, color: '#4f46e5' }} />,
+    icon: <UnorderedListOutlined style={{ fontSize: 24, color: 'var(--sq-primary)' }} />,
   },
   {
     type: 'multiple',
     label: 'Trắc nghiệm (nhiều đáp án)',
     desc: 'Học sinh chọn tất cả đáp án đúng',
-    icon: <CheckSquareOutlined style={{ fontSize: 24, color: '#0ea672' }} />,
+    icon: <CheckSquareOutlined style={{ fontSize: 24, color: 'var(--sq-emerald)' }} />,
   },
   {
     type: 'essay',
     label: 'Câu hỏi tự luận',
     desc: 'Học sinh trả lời bằng văn bản tự do',
-    icon: <FormOutlined style={{ fontSize: 24, color: '#e08c0b' }} />,
+    icon: <FormOutlined style={{ fontSize: 24, color: 'var(--sq-amber)' }} />,
   },
 ];
 
@@ -70,7 +70,7 @@ function KatexSpan({ latex, display }: { latex: string; display: boolean }) {
     return <span dangerouslySetInnerHTML={{ __html: html }} />;
   } catch (e) {
     return (
-      <span style={{ color: '#e23d6d', fontSize: 11, fontStyle: 'italic' }}>
+      <span style={{ color: 'var(--sq-rose)', fontSize: 11, fontStyle: 'italic' }}>
         [Lỗi: {(e as Error).message.split('\n')[0]}]
       </span>
     );
@@ -115,7 +115,7 @@ function OptionRow({ opt, idx, selectedType, canRemove, onToggle, onTextChange, 
         ) : (
           <Checkbox checked={opt.isCorrect} onChange={onToggle} />
         )}
-        <span style={{ fontWeight: 600, minWidth: 20, color: '#4f46e5', fontSize: 14 }}>
+        <span style={{ fontWeight: 600, minWidth: 20, color: 'var(--sq-primary)', fontSize: 14 }}>
           {LABELS[idx] ?? String(idx + 1)}
         </span>
         <Input
@@ -129,7 +129,7 @@ function OptionRow({ opt, idx, selectedType, canRemove, onToggle, onTextChange, 
               <Button
                 size="small"
                 type="text"
-                icon={<FunctionOutlined style={{ color: '#4f46e5', fontSize: 13 }} />}
+                icon={<FunctionOutlined style={{ color: 'var(--sq-primary)', fontSize: 13 }} />}
                 onClick={insertLatex}
                 style={{ padding: '0 2px' }}
               />
@@ -144,8 +144,8 @@ function OptionRow({ opt, idx, selectedType, canRemove, onToggle, onTextChange, 
         <div style={{
           marginLeft: 56,
           padding: '4px 10px',
-          background: '#f3f1ec',
-          border: '1px solid #e7e3dc',
+          background: 'var(--sq-surface-2)',
+          border: '1px solid var(--sq-border)',
           borderRadius: 6,
           fontSize: 13,
           lineHeight: '1.6',
@@ -286,8 +286,8 @@ export default function CreateQuestionModal({ open, onClose, onSubmit }: Props) 
                     style={{
                       borderRadius: 8,
                       cursor: 'pointer',
-                      border: selectedType === t.type ? '2px solid #4f46e5' : '1px solid #e7e3dc',
-                      background: selectedType === t.type ? '#eceafd' : '#fff',
+                      border: selectedType === t.type ? '2px solid var(--sq-primary)' : '1px solid var(--sq-border)',
+                      background: selectedType === t.type ? 'var(--sq-primary-light)' : '#fff',
                       marginLeft: 8,
                     }}
                     styles={{ body: { padding: '10px 14px' } }}
@@ -379,7 +379,7 @@ export default function CreateQuestionModal({ open, onClose, onSubmit }: Props) 
           <Divider style={{ margin: '16px 0 12px' }} />
           <div>
             <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: timerEnabled ? 12 : 0 }}>
-              <ClockCircleOutlined style={{ color: timerEnabled ? '#4f46e5' : '#57534e' }} />
+              <ClockCircleOutlined style={{ color: timerEnabled ? 'var(--sq-primary)' : 'var(--sq-text-secondary)' }} />
               <Text strong style={{ fontSize: 13, flex: 1 }}>Giới hạn thời gian</Text>
               <Switch
                 checked={timerEnabled}

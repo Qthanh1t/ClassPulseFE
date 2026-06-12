@@ -7,9 +7,10 @@ interface CtrlBtnProps {
   title: string;
   icon?: React.ReactNode;
   children?: React.ReactNode;
+  className?: string;
 }
 
-export default function CtrlBtn({ active, danger, onClick, title, icon, children }: CtrlBtnProps) {
+export default function CtrlBtn({ active, danger, onClick, title, icon, children, className }: CtrlBtnProps) {
   return (
     <Tooltip title={title}>
       <Button
@@ -17,6 +18,7 @@ export default function CtrlBtn({ active, danger, onClick, title, icon, children
         type={active ? 'primary' : 'default'}
         danger={danger}
         icon={icon}
+        className={className}
         onClick={onClick}
         style={
           !active && !danger

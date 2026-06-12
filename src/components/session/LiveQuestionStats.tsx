@@ -25,9 +25,9 @@ export default function LiveQuestionStats({ stats, questionType }: Props) {
   }));
 
   const confidenceData = [
-    { name: 'Cao', count: stats.confidenceBreakdown.high, color: '#0ea672' },
-    { name: 'TB', count: stats.confidenceBreakdown.medium, color: '#e08c0b' },
-    { name: 'Thấp', count: stats.confidenceBreakdown.low, color: '#e23d6d' },
+    { name: 'Cao', count: stats.confidenceBreakdown.high, color: 'var(--sq-emerald)' },
+    { name: 'TB', count: stats.confidenceBreakdown.medium, color: 'var(--sq-amber)' },
+    { name: 'Thấp', count: stats.confidenceBreakdown.low, color: 'var(--sq-rose)' },
   ];
 
   return (
@@ -37,13 +37,13 @@ export default function LiveQuestionStats({ stats, questionType }: Props) {
         <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6 }}>
           <Text strong style={{ fontSize: 13 }}>Tiến độ trả lời</Text>
           <Text style={{ fontSize: 13 }}>
-            <span style={{ color: '#4f46e5', fontWeight: 600 }}>{answeredCount}</span>
-            <span style={{ color: '#57534e' }}>/{totalStudents} học sinh</span>
+            <span style={{ color: 'var(--sq-primary)', fontWeight: 600 }}>{answeredCount}</span>
+            <span style={{ color: 'var(--sq-text-secondary)' }}>/{totalStudents} học sinh</span>
           </Text>
         </div>
         <Progress
           percent={totalStudents > 0 ? Math.round((answeredCount / totalStudents) * 100) : 0}
-          strokeColor="#4f46e5"
+          strokeColor="var(--sq-primary)"
           size="small"
         />
       </div>
@@ -54,7 +54,7 @@ export default function LiveQuestionStats({ stats, questionType }: Props) {
           <div
             style={{
               flex: 1,
-              background: '#e7f6ef',
+              background: 'var(--sq-emerald-light)',
               border: '1px solid #a7e3cd',
               borderRadius: 8,
               padding: '10px 14px',
@@ -63,7 +63,7 @@ export default function LiveQuestionStats({ stats, questionType }: Props) {
               gap: 8,
             }}
           >
-            <CheckCircleOutlined style={{ color: '#0ea672', fontSize: 18 }} />
+            <CheckCircleOutlined style={{ color: 'var(--sq-emerald)', fontSize: 18 }} />
             <div>
               <div style={{ fontWeight: 600, fontSize: 20, lineHeight: 1 }}>{correctCount}</div>
               <Text type="secondary" style={{ fontSize: 12 }}>
@@ -74,7 +74,7 @@ export default function LiveQuestionStats({ stats, questionType }: Props) {
           <div
             style={{
               flex: 1,
-              background: '#fceaef',
+              background: 'var(--sq-rose-light)',
               border: '1px solid #f6c6d4',
               borderRadius: 8,
               padding: '10px 14px',
@@ -83,7 +83,7 @@ export default function LiveQuestionStats({ stats, questionType }: Props) {
               gap: 8,
             }}
           >
-            <CloseCircleOutlined style={{ color: '#e23d6d', fontSize: 18 }} />
+            <CloseCircleOutlined style={{ color: 'var(--sq-rose)', fontSize: 18 }} />
             <div>
               <div style={{ fontWeight: 600, fontSize: 20, lineHeight: 1 }}>{wrongCount}</div>
               <Text type="secondary" style={{ fontSize: 12 }}>
@@ -131,16 +131,16 @@ export default function LiveQuestionStats({ stats, questionType }: Props) {
                   <div
                     style={{
                       width: 12, height: 12, borderRadius: 2,
-                      background: opt.isCorrect ? '#0ea672' : '#e7e3dc',
+                      background: opt.isCorrect ? 'var(--sq-emerald)' : 'var(--sq-border)',
                       border: '1px solid',
-                      borderColor: opt.isCorrect ? '#a7e3cd' : '#e7e3dc',
+                      borderColor: opt.isCorrect ? '#a7e3cd' : 'var(--sq-border)',
                       fontSize: 10,
                       display: 'flex', alignItems: 'center', justifyContent: 'center',
-                      color: opt.isCorrect ? '#0ea672' : '#57534e',
+                      color: opt.isCorrect ? 'var(--sq-emerald)' : 'var(--sq-text-secondary)',
                       fontWeight: 600,
                     }}
                   />
-                  <Text style={{ fontSize: 11, color: '#57534e' }}>
+                  <Text style={{ fontSize: 11, color: 'var(--sq-text-secondary)' }}>
                     {opt.name}: {opt.count} ({pct}%)
                   </Text>
                 </div>

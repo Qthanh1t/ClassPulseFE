@@ -165,7 +165,7 @@ export default function VideoTile({
 
         {isTeacher && !compact && (
           <span style={{
-            background: '#4f46e5',
+            background: 'var(--sq-primary)',
             color: '#fff',
             fontSize: 8,
             padding: '2px 6px',
@@ -181,7 +181,7 @@ export default function VideoTile({
         {isTeacher && compact && (
           <span style={{
             width: 5, height: 5,
-            background: '#4f46e5',
+            background: 'var(--sq-primary)',
             borderRadius: '50%',
             flexShrink: 0,
             boxShadow: '0 0 5px rgba(79,70,229,0.8)',
@@ -189,7 +189,7 @@ export default function VideoTile({
         )}
         {isMuted && (
           <AudioMutedOutlined style={{
-            color: '#e23d6d',
+            color: 'var(--sq-rose)',
             fontSize: compact ? 9 : 11,
             flexShrink: 0,
           }} />

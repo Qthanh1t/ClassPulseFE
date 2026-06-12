@@ -280,7 +280,9 @@ export interface OptionDto {
   id: string;
   label: string;
   text: string;
-  isCorrect: boolean;
+  // Backend ẩn isCorrect với học sinh (REST list + broadcast question_started);
+  // đáp án đúng chỉ tiết lộ qua correctOptionIds trong question_ended
+  isCorrect?: boolean;
   optionOrder: number;
 }
 

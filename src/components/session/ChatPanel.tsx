@@ -99,7 +99,7 @@ export default function ChatPanel({ messages, currentUser, onSend, onClose, heig
         height,
         display: 'flex',
         flexDirection: 'column',
-        borderLeft: '1px solid #e7e3dc',
+        borderLeft: '1px solid var(--sq-border)',
         background: '#fff',
       }}
     >
@@ -107,7 +107,7 @@ export default function ChatPanel({ messages, currentUser, onSend, onClose, heig
       <div
         style={{
           padding: '10px 14px',
-          borderBottom: '1px solid #e7e3dc',
+          borderBottom: '1px solid var(--sq-border)',
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'space-between',
@@ -146,7 +146,7 @@ export default function ChatPanel({ messages, currentUser, onSend, onClose, heig
                   <Text
                     style={{
                       fontSize: 11,
-                      color: msg.isTeacher ? '#4f46e5' : '#57534e',
+                      color: msg.isTeacher ? 'var(--sq-primary)' : 'var(--sq-text-secondary)',
                       display: 'block',
                       marginBottom: 2,
                       fontWeight: msg.isTeacher ? 600 : 400,
@@ -158,7 +158,7 @@ export default function ChatPanel({ messages, currentUser, onSend, onClose, heig
                 )}
                 <div
                   style={{
-                    background: isSelf ? '#4f46e5' : msg.isTeacher ? '#eceafd' : '#f3f1ec',
+                    background: isSelf ? 'var(--sq-primary)' : msg.isTeacher ? 'var(--sq-primary-light)' : 'var(--sq-surface-2)',
                     color: isSelf ? '#fff' : '#1c1917',
                     padding: '7px 11px',
                     borderRadius: isSelf ? '12px 12px 2px 12px' : '12px 12px 12px 2px',
@@ -172,7 +172,7 @@ export default function ChatPanel({ messages, currentUser, onSend, onClose, heig
                 <Text
                   style={{
                     fontSize: 10,
-                    color: '#a8a29e',
+                    color: 'var(--sq-text-muted)',
                     display: 'block',
                     marginTop: 2,
                     textAlign: isSelf ? 'right' : 'left',
@@ -191,7 +191,7 @@ export default function ChatPanel({ messages, currentUser, onSend, onClose, heig
       <div
         style={{
           padding: '8px 10px',
-          borderTop: '1px solid #e7e3dc',
+          borderTop: '1px solid var(--sq-border)',
           display: 'flex',
           gap: 6,
           flexShrink: 0,

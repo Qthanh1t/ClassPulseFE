@@ -8,9 +8,9 @@ import type { QuestionDto, QuestionStatsDto, PresenceDto, StudentAnswerDto } fro
 const { Text } = Typography;
 
 const CONFIDENCE_CONFIG = {
-  high: { bg: '#e7f6ef', border: '#a7e3cd', color: '#0ea672', label: 'Tự tin cao' },
+  high: { bg: 'var(--sq-emerald-light)', border: '#a7e3cd', color: 'var(--sq-emerald)', label: 'Tự tin cao' },
   medium: { bg: '#fbf0db', border: '#ecc15f', color: '#b87309', label: 'Trung bình' },
-  low: { bg: '#fceaef', border: '#f1a8bd', color: '#be123c', label: 'Chưa chắc' },
+  low: { bg: 'var(--sq-rose-light)', border: '#f1a8bd', color: '#be123c', label: 'Chưa chắc' },
 };
 
 function formatAt(iso: string) {
@@ -31,12 +31,12 @@ function StudentAnswerCard({ name, avatarColor, avatarUrl, answer, question }: C
   const answered = !!answer;
   const conf = answer?.confidence ? CONFIDENCE_CONFIG[answer.confidence] : null;
 
-  let borderColor = '#e7e3dc';
-  let bgColor = '#f3f1ec';
+  let borderColor = 'var(--sq-border)';
+  let bgColor = 'var(--sq-surface-2)';
   if (answered) {
-    if (answer.isCorrect === true) { borderColor = '#a7e3cd'; bgColor = '#e7f6ef'; }
-    else if (answer.isCorrect === false) { borderColor = '#f6c6d4'; bgColor = '#fceaef'; }
-    else { borderColor = '#c7d2fe'; bgColor = '#eceafd'; }
+    if (answer.isCorrect === true) { borderColor = '#a7e3cd'; bgColor = 'var(--sq-emerald-light)'; }
+    else if (answer.isCorrect === false) { borderColor = '#f6c6d4'; bgColor = 'var(--sq-rose-light)'; }
+    else { borderColor = '#c7d2fe'; bgColor = 'var(--sq-primary-light)'; }
   }
 
   return (
@@ -70,10 +70,10 @@ function StudentAnswerCard({ name, avatarColor, avatarUrl, answer, question }: C
         )}
 
         {answered && answer.isCorrect === true && (
-          <CheckCircleOutlined style={{ color: '#0ea672', fontSize: 15, flexShrink: 0 }} />
+          <CheckCircleOutlined style={{ color: 'var(--sq-emerald)', fontSize: 15, flexShrink: 0 }} />
         )}
         {answered && answer.isCorrect === false && (
-          <CloseCircleOutlined style={{ color: '#e23d6d', fontSize: 15, flexShrink: 0 }} />
+          <CloseCircleOutlined style={{ color: 'var(--sq-rose)', fontSize: 15, flexShrink: 0 }} />
         )}
 
         {!answered && (
@@ -81,7 +81,7 @@ function StudentAnswerCard({ name, avatarColor, avatarUrl, answer, question }: C
         )}
 
         {answered && (
-          <Text style={{ fontSize: 11, color: '#a8a29e', flexShrink: 0 }}>
+          <Text style={{ fontSize: 11, color: 'var(--sq-text-muted)', flexShrink: 0 }}>
             {formatAt(answer.answeredAt)}
           </Text>
         )}
@@ -110,7 +110,7 @@ function StudentAnswerCard({ name, avatarColor, avatarUrl, answer, question }: C
             style={{
               fontSize: 13, lineHeight: 1.6, color: '#1c1917',
               background: 'rgba(255,255,255,0.8)',
-              border: '1px solid #e7e3dc',
+              border: '1px solid var(--sq-border)',
               borderRadius: 6,
               padding: '7px 10px',
               maxHeight: 220,
@@ -176,7 +176,7 @@ export default function StudentAnswersPanel({ sessionId, question, stats, presen
   const silentUrlMap = new Map(stats.silentStudents.map((s) => [s.id, s.avatarUrl]));
 
   const getColor = (id: string) =>
-    presenceColorMap.get(id) ?? silentColorMap.get(id) ?? '#4f46e5';
+    presenceColorMap.get(id) ?? silentColorMap.get(id) ?? 'var(--sq-primary)';
   const getUrl = (id: string) =>
     presenceUrlMap.get(id) ?? silentUrlMap.get(id) ?? undefined;
 
@@ -219,7 +219,7 @@ export default function StudentAnswersPanel({ sessionId, question, stats, presen
         <span
           style={{
             marginLeft: 6, fontSize: 11,
-            background: '#4f46e5', color: '#fff',
+            background: 'var(--sq-primary)', color: '#fff',
             borderRadius: 10, padding: '1px 6px',
             fontWeight: 600,
           }}
@@ -259,11 +259,11 @@ export default function StudentAnswersPanel({ sessionId, question, stats, presen
                   {/* Summary + refresh */}
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
                     <Text type="secondary" style={{ fontSize: 12 }}>
-                      <span style={{ color: '#0ea672', fontWeight: 600 }}>{answeredStudents.length}</span>
+                      <span style={{ color: 'var(--sq-emerald)', fontWeight: 600 }}>{answeredStudents.length}</span>
                       /{allStudents.length} học sinh đã trả lời
                     </Text>
                     <Text
-                      style={{ fontSize: 12, color: '#4f46e5', cursor: 'pointer' }}
+                      style={{ fontSize: 12, color: 'var(--sq-primary)', cursor: 'pointer' }}
                       onClick={() => void fetchAnswers()}
                     >
                       Làm mới
@@ -274,8 +274,8 @@ export default function StudentAnswersPanel({ sessionId, question, stats, presen
                   {answeredStudents.length > 0 && (
                     <div style={{ marginBottom: 10 }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 6 }}>
-                        <div style={{ width: 3, height: 13, borderRadius: 2, background: '#0ea672' }} />
-                        <Text style={{ fontSize: 11, color: '#0ea672', fontWeight: 700, letterSpacing: 0.3 }}>
+                        <div style={{ width: 3, height: 13, borderRadius: 2, background: 'var(--sq-emerald)' }} />
+                        <Text style={{ fontSize: 11, color: 'var(--sq-emerald)', fontWeight: 700, letterSpacing: 0.3 }}>
                           ĐÃ TRẢ LỜI ({answeredStudents.length})
                         </Text>
                       </div>
@@ -300,7 +300,7 @@ export default function StudentAnswersPanel({ sessionId, question, stats, presen
                       {answeredStudents.length > 0 && <Divider style={{ margin: '8px 0' }} />}
                       <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 6 }}>
                         <div style={{ width: 3, height: 13, borderRadius: 2, background: '#d8d3c9' }} />
-                        <Text style={{ fontSize: 11, color: '#a8a29e', fontWeight: 700, letterSpacing: 0.3 }}>
+                        <Text style={{ fontSize: 11, color: 'var(--sq-text-muted)', fontWeight: 700, letterSpacing: 0.3 }}>
                           CHƯA TRẢ LỜI ({unansweredStudents.length})
                         </Text>
                       </div>

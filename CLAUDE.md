@@ -32,44 +32,43 @@ Triết lý: **tối đa hóa tương tác hai chiều** — mọi kênh (video,
 
 ## Design system
 
-**Không dùng `#1677ff` (AntD blue mặc định) trong code mới.**
+**Palette hiện hành: warm-neutral (stone) + 1 accent ink-indigo, flat — không gradient kiểu AI, không dùng `#1677ff` (AntD blue mặc định).**
 
-### Color tokens (`src/index.css`)
+**Hai nguồn token đồng bộ giá trị (đổi theme phải sửa cả 2):**
+- `src/index.css` — CSS variables `--sq-*` (dùng trong inline style qua `var(--sq-*)` — toàn bộ UI session dùng cách này)
+- `src/theme/tokens.ts` — object `color` / `radius` / `shadow` / `mono` mirror cùng giá trị (các trang list/detail/dashboard import trực tiếp)
+
+### Color tokens
 
 | Token | Giá trị | Dùng cho |
 |---|---|---|
-| `--sq-primary` | `#6366f1` | Indigo — màu chính |
-| `--sq-primary-dark` | `#4f46e5` | Hover/pressed |
-| `--sq-primary-light` | `#eef2ff` | Background active nav, tag |
-| `--sq-bg` | `#f8fafc` | Background trang |
+| `--sq-primary` | `#4f46e5` | Ink-indigo — accent duy nhất |
+| `--sq-primary-dark` | `#4338ca` | Hover/pressed |
+| `--sq-primary-light` | `#eceafd` | Bg active nav, tag, option đang chọn |
+| `--sq-bg` | `#f7f6f3` | Background trang (warm) |
 | `--sq-surface` | `#ffffff` | Card, modal, sidebar |
-| `--sq-border` | `#e2e8f0` | Border toàn bộ |
-| `--sq-text` | `#0f172a` | Text chính |
-| `--sq-text-secondary` | `#64748b` | Text phụ |
-| `--sq-text-muted` | `#94a3b8` | Text mờ/label |
-| `--sq-emerald` | `#10b981` | Đúng, thành công, online |
-| `--sq-amber` | `#f59e0b` | Cảnh báo, trung bình |
-| `--sq-rose` | `#f43f5e` | Sai, lỗi |
+| `--sq-surface-2` | `#f3f1ec` | Bg phụ (option, panel con) |
+| `--sq-border` | `#e7e3dc` | Border toàn bộ (`-strong` `#d8d3c9`) |
+| `--sq-text` | `#1c1917` | Text chính (stone) |
+| `--sq-text-secondary` | `#57534e` | Text phụ |
+| `--sq-text-muted` | `#a8a29e` | Text mờ/label |
+| `--sq-emerald` | `#0ea672` | Đúng, thành công, online (`-light` `#e7f6ef`) |
+| `--sq-amber` | `#e08c0b` | Cảnh báo, trung bình (`-light` `#fbf0db`) |
+| `--sq-rose` | `#e23d6d` | Sai, lỗi (`-light` `#fceaef`) |
+
+**Ngoại lệ phải giữ hex literal (không dùng `var()`):** giá trị bị nối chuỗi alpha (`${avatarColor}dd` trong VideoTile — vì vậy mọi default `avatarColor` vẫn là `'#4f46e5'`), hex 8 ký tự có alpha (`#4f46e522`), SVG attribute (Recharts `fill`, AntD Progress `type="circle"` `strokeColor`).
 
 ### Typography
-Font: **Be Vietnam Pro** (Google Fonts — hỗ trợ đầy đủ dấu tiếng Việt; Outfit cũ chỉ có Latin subset nên chữ có dấu bị fallback font hệ thống). Heading: weight 700 `#0f172a` | Body: 14px `#374151` | Secondary: 13px `#64748b` | Muted: 12–13px `#94a3b8`.
+Font: **Be Vietnam Pro** (Google Fonts — hỗ trợ đầy đủ dấu tiếng Việt; Outfit cũ chỉ có Latin subset nên chữ có dấu bị fallback font hệ thống). Mono: **JetBrains Mono** (`--sq-mono`, `.sq-mono`, `.sq-nums` tabular).
 
-### Subject gradients (card banner)
-`Frontend` → `#6366f1,#8b5cf6` | `Database` → `#0ea5e9,#0369a1` | `Architecture` → `#f59e0b,#dc2626` | Default → `#10b981,#059669`
+### AntD ConfigProvider (`App.tsx`)
+`colorPrimary: '#4f46e5'`, `borderRadius: 8`, font Be Vietnam Pro. Component overrides: Card 14, Button 8, Tag 6, Table 12, Modal 16.
 
-### AntD ConfigProvider
-`colorPrimary: '#6366f1'`, `borderRadius: 10`, font Be Vietnam Pro. Component overrides: Card 16, Button 10, Tag 6, Tabs inkBar indigo, Progress indigo.
-
-### Border radius
-Page/hero 20 · card 16 · post/schedule item 14 · button/input/tag 10 · pill 20
-
-### Gradient primary button
-```
-style={{ background: 'linear-gradient(135deg, #6366f1, #8b5cf6)', border: 'none', fontWeight: 600 }}
-```
+### Border radius (`theme/tokens.ts` → `radius`)
+page 16 · card 14 · control (button/input) 8 · tag 6 · pill 999
 
 ### CSS utilities (`index.css`)
-`.sq-card-hover` hover lift | `.sq-nav-item` / `.sq-nav-item.active` sidebar nav | `.sq-stat-card` hover shadow
+`.sq-card-hover` hover lift | `.sq-nav-item(.active)` sidebar nav | `.sq-stat-card` hover shadow | `.sq-press` press feedback | `.sq-skeleton` shimmer | `.sq-noise` grain overlay | `.sq-rich`/`.ck-content` render rich text | `.sq-live-dot` LIVE pulse | `.sq-panel-overlay(-right/-up)` slide-in panel session | `.sq-pulse-danger` nút nhấp nháy đỏ khi câu hỏi sắp hết giờ | `.no-scrollbar` | tôn trọng `prefers-reduced-motion`
 
 ## Commands
 
@@ -211,6 +210,13 @@ Nav dùng custom `<button>` (không phải AntD `Menu`) với `.sq-nav-item`. Ac
 - Student: `answerLocked = questionSubmitted || status==='ended' || timeRemaining===0` — khóa chọn đáp án/editor/confidence, footer hiện "Đã hết thời gian"; `question_ended` mở lại panel
 - Auto-submit khi còn ≤1s (KHÔNG phải 0s — server auto-end đúng `endsAt`, gửi tại 0s thua race bị `QUESTION_NOT_RUNNING`) và chỉ khi có nội dung (không ghi nhận answer rỗng)
 - `handleSubmit` catch `QUESTION_NOT_RUNNING` → bỏ flag submitted + set status ended + message.error (không hiện "Đã gửi" giả)
+- **Countdown khi panel thu nhỏ** (Student): nút question trên control bar + pill "Câu hỏi đang chờ" trên header hiện thời gian còn lại (`formatCountdown`); ≤10s và panel đang đóng → class `.sq-pulse-danger` nhấp nháy đỏ (CtrlBtn nhận prop `className`)
+
+### Chống lộ đáp án + reveal sau khi kết thúc (Q&A)
+- **Backend KHÔNG gửi `isCorrect` cho học sinh**: broadcast `question_started` strip isCorrect (`OptionDto.withoutCorrect()` — topic chung cả lớp); REST `GET /questions` sanitize khi caller không phải owner (`QuestionDto.sanitized()`). FE `OptionDto.isCorrect` là optional
+- **`question_ended` payload = `{ questionId, correctOptionIds }`** (cả end thủ công lẫn auto-end timer) — đáp án đúng chỉ tiết lộ lúc này
+- **StudentSessionPage reveal**: state `correctOptionIds` set từ `question_ended` (reset khi `question_started`); option đúng tô emerald + check, option mình chọn sai tô rose + X (`optionRevealStyle`/`optionRevealIcon`); footer hiện "Chính xác!/Chưa đúng — đáp án đúng: A, B/Đáp án đúng: ..." — đúng = tập `selectedOptions` trùng khớp tập `correctOptionIds` (cùng quy tắc chấm exact-set với backend `computeIsCorrect`). Essay không reveal. Reload sau khi ended thì không khôi phục reveal (chỉ câu running được restore)
+- **TeacherSessionPage**: fallback dựng question từ WS payload (reconnect) giờ thiếu isCorrect → `usedFallback` flag refetch `questionService.list` (owner thấy đầy đủ) để highlight đáp án đúng
 
 ## TypeScript config
 
@@ -263,6 +269,9 @@ Lưu `userName` + `userAvatarColor` vào WS session attributes → `PresenceEven
 
 ### Breakout `teacherRoomId` (`BreakoutSession` / `BreakoutService`)
 Cột `teacher_room_id` (nullable, FK `breakout_rooms` ON DELETE SET NULL — migration `V13__breakout_teacher_room.sql`). `joinRoom` persist, `leaveRoom` clear (cả 2 đổi từ `readOnly=true` sang transactional ghi). `BreakoutSessionDto` trả `teacherRoomId` để FE khôi phục vị trí GV sau reload.
+
+### Question — ẩn đáp án (`QuestionController` / `QuestionService` / `QuestionTimerService`)
+`OptionDto.isCorrect` đổi sang `Boolean` + `@JsonInclude(NON_NULL)`; `withoutCorrect()` trả bản null. `QuestionController.start` broadcast options đã strip; `list` sanitize khi `!sessionSecurity.isOwner`. `question_ended` (controller.end + timer auto-end + recover sau restart) gửi kèm `correctOptionIds` — `QuestionService.getCorrectOptionIds`; trong `QuestionTimerService.autoEndQuestion` đọc options bên trong `transactionTemplate` (lazy) rồi trả ra cho broadcast.
 
 ### `UserService.listUsers` (admin list users)
 `Role` map qua `AttributeConverter` (lowercase string). JPQL kiểu `(:role IS NULL OR u.role = :role)` bind NULL cho param enum đã convert → PostgreSQL `could not determine data type of parameter $1` → **500** khi gọi `/users` không kèm filter. **Fix**: dùng `JpaSpecificationExecutor` + `Specification` (chỉ thêm predicate khi filter có giá trị), không so sánh NULL với param untyped. `UserRepository` bỏ `findFiltered`, extends thêm `JpaSpecificationExecutor<User>`.
