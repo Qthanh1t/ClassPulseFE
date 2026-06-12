@@ -52,13 +52,13 @@ Triết lý: **tối đa hóa tương tác hai chiều** — mọi kênh (video,
 | `--sq-rose` | `#f43f5e` | Sai, lỗi |
 
 ### Typography
-Font: **Outfit** (Google Fonts). Heading: weight 700 `#0f172a` | Body: 14px `#374151` | Secondary: 13px `#64748b` | Muted: 12–13px `#94a3b8`.
+Font: **Be Vietnam Pro** (Google Fonts — hỗ trợ đầy đủ dấu tiếng Việt; Outfit cũ chỉ có Latin subset nên chữ có dấu bị fallback font hệ thống). Heading: weight 700 `#0f172a` | Body: 14px `#374151` | Secondary: 13px `#64748b` | Muted: 12–13px `#94a3b8`.
 
 ### Subject gradients (card banner)
 `Frontend` → `#6366f1,#8b5cf6` | `Database` → `#0ea5e9,#0369a1` | `Architecture` → `#f59e0b,#dc2626` | Default → `#10b981,#059669`
 
 ### AntD ConfigProvider
-`colorPrimary: '#6366f1'`, `borderRadius: 10`, font Outfit. Component overrides: Card 16, Button 10, Tag 6, Tabs inkBar indigo, Progress indigo.
+`colorPrimary: '#6366f1'`, `borderRadius: 10`, font Be Vietnam Pro. Component overrides: Card 16, Button 10, Tag 6, Tabs inkBar indigo, Progress indigo.
 
 ### Border radius
 Page/hero 20 · card 16 · post/schedule item 14 · button/input/tag 10 · pill 20
@@ -116,7 +116,7 @@ src/
   types/
     index.ts        # dead code — không còn import ở đâu
     api.ts          # DTO types: ApiResponse, AuthResponse, ClassroomDto, PostDto, ...
-  index.css         # Outfit import, CSS tokens (:root), .sq-* utilities
+  index.css         # Be Vietnam Pro import, CSS tokens (:root), .sq-* utilities
   App.tsx           # Router + AntD ConfigProvider + AuthBootstrap + ProtectedRoute
   main.tsx          # bootstrap authStore (wire axios interceptors trước khi render)
   lib/

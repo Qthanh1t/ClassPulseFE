@@ -56,7 +56,7 @@ export default function App() {
     <ConfigProvider
       theme={{
         token: {
-          fontFamily: "'Outfit', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif",
+          fontFamily: "'Be Vietnam Pro', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif",
           colorPrimary: '#4f46e5',
           borderRadius: 8,
           colorBgContainer: '#ffffff',

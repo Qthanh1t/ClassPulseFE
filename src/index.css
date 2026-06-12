@@ -1,4 +1,4 @@
-@import url('https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;600&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;600&display=swap');
 @import "tailwindcss";
 /* KaTeX styles — global so rendered math looks right on every page (review,
    dashboard, session), not only where the editor module happens to be loaded. */
@@ -55,7 +55,7 @@ html {
 
 body {
   margin: 0;
-  font-family: 'Outfit', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  font-family: 'Be Vietnam Pro', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
   background: var(--sq-bg);
   color: var(--sq-text);
   -webkit-font-smoothing: antialiased;
