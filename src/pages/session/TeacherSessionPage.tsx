@@ -130,10 +130,17 @@ export default function TeacherSessionPage() {
   const rtc = useWebRTC(user?.id ?? '', wsRef, localMedia.streamRef);
 
   // ── Timers ──────────────────────────────────────────────────────────
+  // Tính elapsed từ session.startedAt (server) thay vì đếm từ 0 — reload không bị reset;
+  // cộng clockOffsetRef để bù lệch đồng hồ client (có giá trị sau question_started đầu tiên)
   useEffect(() => {
-    const timer = setInterval(() => setElapsedSeconds((prev) => prev + 1), 1000);
+    if (!session?.startedAt) return;
+    const startedMs = new Date(session.startedAt).getTime();
+    const tick = () =>
+      setElapsedSeconds(Math.max(0, Math.floor((Date.now() + clockOffsetRef.current - startedMs) / 1000)));
+    tick();
+    const timer = setInterval(tick, 1000);
     return () => clearInterval(timer);
-  }, []);
+  }, [session?.startedAt]);
 
   useEffect(() => {
     if (!runningQuestion?.endsAt) return;

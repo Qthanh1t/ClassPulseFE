@@ -191,6 +191,7 @@ Nav dùng custom `<button>` (không phải AntD `Menu`) với `.sq-nav-item`. Ac
 - **`viewMode`** (derived, không phải state): `showBreakoutPanel → 'breakout'` | `runningQuestion?.status === 'running' → 'running'` | `'ended'` | `'idle'`
 - **`presenceRef`**: `useRef<PresenceDto[]>` sync với `presence` state để WS handler đọc latest value không stale
 - Init: `sessionService.start(classroomId)` — backend trả về session hiện có nếu đã active
+- **Đồng hồ buổi học**: `elapsedSeconds` tính từ `session.startedAt` (server Instant) + `clockOffsetRef`, KHÔNG đếm từ 0 — reload không bị reset
 
 ### StudentSessionPage
 - Cùng **StrictMode guard** pattern với TeacherSessionPage
