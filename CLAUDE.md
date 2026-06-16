@@ -243,7 +243,17 @@ Nav dùng custom `<button>` (không phải AntD `Menu`) với `.sq-nav-item`. Ac
 - Subscriptions: `/topic/session/{id}` + `/user/queue/private`; `subscribeRoom/unsubscribeRoom` cho breakout
 - `subscribeRoom` gọi được TRƯỚC khi STOMP connect (handler lưu vào `roomHandlers`); `onConnect` (re)subscribe toàn bộ room topic — vừa phục vụ khôi phục breakout khi reload, vừa giữ room subscription sau reconnect
 
-## WebRTC (`src/config/webrtc.ts`, `src/hooks/useWebRTC.ts`)
+## ⚠️ LiveKit SFU migration — ĐANG TRIỂN KHAI (nhánh `feat/livekit-sfu`)
+
+Đang thay media plane mesh P2P → LiveKit SFU để scale lớp 30 HS. Kế hoạch chi tiết: `docs/livekit-migration-plan.md`. STOMP nghiệp vụ (Q&A/chat/presence/breakout state) GIỮ NGUYÊN — LiveKit chỉ thay video/audio.
+
+- `src/services/livekit.service.ts` — `getToken(sessionId, roomName?)` → `POST /sessions/{id}/livekit-token`
+- `src/hooks/useLiveKitRoom.ts` — adapter giữ ĐÚNG shape `peers: Map<id,{remoteStream,isCameraOff,isMuted,isScreenShare}>` để thay `useWebRTC` ít sửa render; tự sở hữu local media (camera/mic/screen-share); `connect(sessionId, roomName)` đổi room cho breakout. **`adaptiveStream/dynacast` đang TẮT** — chúng dựa vào `track.attach()` để biết track hiển thị, mà VideoTile gán `srcObject` thủ công → bật sẽ làm LiveKit dừng track "không ai xem" → tile đen. Bật lại sau khi chuyển VideoTile sang `track.attach()`
+- `identity = userId` → map participant ↔ presence STOMP (tên/màu avatar lấy từ presence, không nhồi token)
+- **2 session page đã rewire sang LiveKit** (Phase 3+4): bỏ `useWebRTC`/`useLocalMedia`/`callPeer`/`handleOffer`/4 case WS (`webrtc_offer/answer/ice`, `camera_state_changed`). Breakout = `rtc.connect(sessionId, 'session-{id}-room-{roomId}')`, kết thúc → `session-{id}`. Spotlight = chỉ đổi layout (focus_changed giữ nguyên, stream từ peers map). Screen share = track riêng LiveKit
+- **Trạng thái**: Phase 0–4 code xong (typecheck/build/lint sạch), **CHỜ test runtime 2 browser**. Phase 5 (xóa `useWebRTC.ts`/`config/webrtc.ts`/WS `webrtc_*` methods+events/relay backend, cập nhật doc) CHƯA làm — code mesh cũ GIỮ tạm làm fallback tới khi verify runtime xong
+
+## WebRTC (`src/config/webrtc.ts`, `src/hooks/useWebRTC.ts`) — mesh hiện hành (sẽ bị thay ở Phase 5)
 
 - ICE: Google STUN + local STUN/TURN tại `${VITE_TURN_HOST}:3478`; credentials `classpulse`/`secret123` (phải khớp `turnserver.conf`: `lt-cred-mech`)
 - `pcsRef: Map<peerId, PeerEntry>` — source of truth; `peers` state là bản sao để trigger re-render

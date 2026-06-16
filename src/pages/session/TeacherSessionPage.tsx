@@ -34,8 +34,7 @@ import type {
   BreakoutSessionDto, ChatMessageDto, CreateQuestionRequest,
 } from '../../types/api';
 import { useAuthStore } from '../../store/authStore';
-import { useLocalMedia } from '../../hooks/useLocalMedia';
-import { useWebRTC } from '../../hooks/useWebRTC';
+import { useLiveKitRoom } from '../../hooks/useLiveKitRoom';
 import { useBreakpoint } from '../../hooks/useBreakpoint';
 
 const { Text } = Typography;
@@ -92,7 +91,6 @@ export default function TeacherSessionPage() {
   const [unreadChat, setUnreadChat] = useState(0);
 
   // ── UI state ────────────────────────────────────────────────────────
-  const [screenShareOn, setScreenShareOn] = useState(false);
   const [showStudentList, setShowStudentList] = useState(() => window.innerWidth >= 640);
   const [showQuickActions, setShowQuickActions] = useState(() => window.innerWidth >= 1024);
   const [showChat, setShowChat] = useState(false);
@@ -111,7 +109,6 @@ export default function TeacherSessionPage() {
   const wsRef = useRef<SessionWsClient | null>(null);
   const presenceRef = useRef<PresenceDto[]>([]);
   const questionsRef = useRef<QuestionDto[]>([]);
-  const screenTrackRef = useRef<MediaStreamTrack | null>(null);
   // Server clock − local clock (ms), từ serverNow trong question_started — countdown bám
   // theo đồng hồ server để khớp với phía học sinh
   const clockOffsetRef = useRef(0);
@@ -125,9 +122,8 @@ export default function TeacherSessionPage() {
   useEffect(() => { breakoutRef.current = breakout; }, [breakout]);
   useEffect(() => { teacherJoinedRoomIdRef.current = teacherJoinedRoomId; }, [teacherJoinedRoomId]);
 
-  // ── WebRTC hooks ────────────────────────────────────────────────────
-  const localMedia = useLocalMedia();
-  const rtc = useWebRTC(user?.id ?? '', wsRef, localMedia.streamRef);
+  // ── LiveKit (media plane) — thay mesh useWebRTC + useLocalMedia ──────
+  const rtc = useLiveKitRoom();
 
   // ── Timers ──────────────────────────────────────────────────────────
   // Tính elapsed từ session.startedAt (server) thay vì đếm từ 0 — reload không bị reset;
@@ -212,19 +208,6 @@ export default function TeacherSessionPage() {
         });
       }
 
-      // Start camera/mic BEFORE connecting WS so localStreamRef is ready when
-      // the first student_presence event fires and callPeer creates a PeerConnection.
-      // If media fails, we still connect WS (teacher can receive but not send video).
-      if (!localMedia.streamRef.current) {
-        const stream = await localMedia.startMedia(true, true);
-        if (!stream && !cancelled) {
-          notification.warning({
-            message: 'Không truy cập được camera/mic',
-            description: 'Bạn vẫn tham gia được nhưng sẽ không hiển thị video.',
-            placement: 'topRight',
-          });
-        }
-      }
       if (cancelled) return;
 
       function handleEvent(event: WsEvent) {
@@ -234,16 +217,13 @@ export default function TeacherSessionPage() {
               studentId: string; name: string; avatarColor?: string; avatarUrl?: string; action: 'joined' | 'left';
             };
             if (p.action === 'left') {
-              rtc.closePeer(p.studentId);
+              // LiveKit tự bỏ tile khi participant rời room — chỉ cập nhật presence
               setPresence((prev) => {
                 const updated = prev.filter((x) => x.studentId !== p.studentId);
                 presenceRef.current = updated;
                 return updated;
               });
             } else {
-              // Do NOT call callPeer here — backend broadcasts student_presence at STOMP CONNECT,
-              // BEFORE student subscribes to /user/queue/private. Teacher's offer would be dropped.
-              // Student always initiates WebRTC to teacher in their onConnected callback.
               // Optimistically mark online (may have partial info from WS payload)
               setPresence((prev) => {
                 if (prev.some((x) => x.studentId === p.studentId)) {
@@ -393,40 +373,14 @@ export default function TeacherSessionPage() {
             break;
           }
           case 'breakout_ended': {
+            const wasVisiting = teacherJoinedRoomIdRef.current;
             setBreakout(null);
             setShowBreakoutPanel(false);
             setTeacherJoinedRoomId(null);
             setBreakoutPanelCollapsed(false);
-            // Close all PCs — some are stale (students closed their side during breakout).
-            // Without this, callPeer skips students whose PC still shows 'connected' on our side.
-            rtc.closeAllPeers();
-            void (async () => {
-              for (const p of presenceRef.current.filter((x) => x.isOnline)) {
-                await rtc.callPeer(p.studentId);
-              }
-            })();
-            break;
-          }
-          case 'camera_state_changed': {
-            const { fromId, isCameraOff } = event.payload as { fromId: string; isCameraOff: boolean };
-            rtc.updatePeerCameraState(fromId, isCameraOff);
-            break;
-          }
-          case 'webrtc_offer': {
-            const raw = event.payload as Record<string, unknown>;
-            console.log('[RTC-WS] webrtc_offer keys:', Object.keys(raw), '| fromId:', raw.fromId);
-            void rtc.handleOffer(raw.fromId as string, raw.sdp as string);
-            break;
-          }
-          case 'webrtc_answer': {
-            const raw = event.payload as Record<string, unknown>;
-            console.log('[RTC-WS] webrtc_answer keys:', Object.keys(raw), '| fromId:', raw.fromId);
-            void rtc.handleAnswer(raw.fromId as string, raw.sdp as string);
-            break;
-          }
-          case 'webrtc_ice_candidate': {
-            const raw = event.payload as Record<string, unknown>;
-            void rtc.handleIceCandidate(raw.fromId as string, raw.candidate as RTCIceCandidateInit);
+            // GV đang thăm phòng nhóm → quay lại LiveKit room chính. Nếu đang ở phòng chính thì
+            // không cần làm gì (HS đã phân phòng sẽ tự quay lại room chính ở phía họ).
+            if (wasVisiting) void rtc.connect(sess.id, `session-${sess.id}`);
             break;
           }
         }
@@ -438,8 +392,9 @@ export default function TeacherSessionPage() {
         sess.id,
         async () => (await authService.getWsTicket()).ticket,
         async () => {
+          // STOMP (re)connected. Media do LiveKit lo (kết nối riêng, tự reconnect) —
+          // chỉ refresh presence phòng khi bỏ lỡ event lúc WS rớt.
           if (cancelled) return;
-          // On reconnect: refresh presence in case events were missed while WS was down
           try {
             const pRes = await sessionService.getPresence(sess.id);
             if (!cancelled && pRes.data) {
@@ -448,30 +403,18 @@ export default function TeacherSessionPage() {
               presenceRef.current = online;
             }
           } catch { /* ignore */ }
-          if (cancelled) return;
-          const bo = breakoutRef.current;
-          const visitingRoomId = teacherJoinedRoomIdRef.current;
-          if (bo && visitingRoomId) {
-            // Đang ở trong một phòng nhóm (reload trang / WS reconnect): gọi lại joinRoom
-            // để backend re-broadcast teacher_joined_room — HS trong phòng đóng PC cũ và
-            // gửi offer mới tới kết nối vừa tạo của GV. Không tự callPeer (HS là bên offer).
-            try {
-              await breakoutService.joinRoom(sess.id, bo.breakoutSessionId, visitingRoomId);
-            } catch { /* phòng/breakout có thể vừa kết thúc — bỏ qua */ }
-            return;
-          }
-          // Re-offer WebRTC to online students — skip những HS đang ở phòng nhóm
-          const assignedIds = bo
-            ? new Set(bo.rooms.flatMap((r) => r.students.map((s) => s.id)))
-            : null;
-          for (const p of presenceRef.current.filter((x) => x.isOnline)) {
-            if (assignedIds?.has(p.studentId)) continue;
-            await rtc.callPeer(p.studentId);
-          }
         },
       );
       ws.subscribe(handleEvent);
       wsRef.current = ws;
+
+      // Kết nối LiveKit (media): nếu reload giữa lúc đang thăm phòng nhóm → vào room đó,
+      // ngược lại vào phòng chính. Token lấy qua REST, connect publish camera/mic luôn.
+      const restoreRoomId = bRes.data?.teacherRoomId ?? null;
+      void rtc.connect(
+        sess.id,
+        restoreRoomId ? `session-${sess.id}-room-${restoreRoomId}` : `session-${sess.id}`,
+      );
     }
 
     // setTimeout đảm bảo StrictMode cleanup cancel được trước khi init chạy
@@ -480,8 +423,7 @@ export default function TeacherSessionPage() {
       cancelled = true;
       clearTimeout(timer);
       wsRef.current?.disconnect();
-      rtc.closeAllPeers();
-      localMedia.stopMedia();
+      void rtc.disconnect();
     };
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id]);
@@ -585,36 +527,10 @@ export default function TeacherSessionPage() {
     wsRef.current?.sendChat(text);
   }
 
-  function handleToggleCamera() {
-    localMedia.toggleCamera();
-    const track = localMedia.streamRef.current?.getVideoTracks()[0];
-    if (track) wsRef.current?.sendCameraState(!track.enabled);
-  }
-
   async function handleToggleScreenShare() {
-    if (screenShareOn) {
-      screenTrackRef.current?.stop();
-      screenTrackRef.current = null;
-      const cameraTrack = localMedia.streamRef.current?.getVideoTracks()[0] ?? null;
-      await rtc.replaceVideoTrack(cameraTrack);
-      setScreenShareOn(false);
-    } else {
-      try {
-        const displayStream = await navigator.mediaDevices.getDisplayMedia({ video: true, audio: false });
-        const screenTrack = displayStream.getVideoTracks()[0];
-        screenTrackRef.current = screenTrack;
-        await rtc.replaceVideoTrack(screenTrack);
-        setScreenShareOn(true);
-        screenTrack.onended = async () => {
-          screenTrackRef.current = null;
-          const cameraTrack = localMedia.streamRef.current?.getVideoTracks()[0] ?? null;
-          await rtc.replaceVideoTrack(cameraTrack);
-          setScreenShareOn(false);
-        };
-      } catch {
-        // User cancelled screen share picker — ignore
-      }
-    }
+    // LiveKit: screen share là track riêng; SDK tự xử lý "Stop sharing" của trình duyệt.
+    if (rtc.isScreenSharing) await rtc.stopScreenShare();
+    else await rtc.startScreenShare();
   }
 
   function handleFocusStudent(studentId: string | null) {
@@ -818,17 +734,17 @@ export default function TeacherSessionPage() {
                   {/* Teacher's own tile */}
                   <div style={{ borderRadius: 12, overflow: 'hidden', position: 'relative', border: '2px solid rgba(79,70,229,0.4)' }}>
                     <VideoTile
-                      stream={localMedia.stream}
+                      stream={rtc.localStream}
                       name={user?.name ?? 'Giáo viên'}
                       avatarColor={user?.avatarColor ?? '#4f46e5'}
                       avatarUrl={user?.avatarUrl ?? undefined}
                       isTeacher
                       isLocal
-                      isMuted={!localMedia.isMicOn}
-                      isCameraOff={!localMedia.isCameraOn}
+                      isMuted={!rtc.isMicOn}
+                      isCameraOff={!rtc.isCameraOn}
                       borderRadius={10}
                     >
-                      {screenShareOn && (
+                      {rtc.isScreenSharing && (
                         <div style={{ position: 'absolute', top: 8, left: 8, background: 'rgba(0,0,0,0.6)', padding: '2px 8px', borderRadius: 5, display: 'flex', alignItems: 'center', gap: 5, zIndex: 3 }}>
                           <DesktopOutlined style={{ color: 'var(--sq-emerald)', fontSize: 11 }} />
                           <Text style={{ color: '#fff', fontSize: 11 }}>Đang chia sẻ màn hình</Text>
@@ -861,17 +777,17 @@ export default function TeacherSessionPage() {
                 /* ── Normal mode: Teacher's video fills center ── */
                 <div style={{ flex: 1, borderRadius: 12, overflow: 'hidden', position: 'relative', minHeight: 280 }}>
                   <VideoTile
-                    stream={localMedia.stream}
+                    stream={rtc.localStream}
                     name={user?.name ?? 'Giáo viên'}
                     avatarColor={user?.avatarColor ?? '#4f46e5'}
                     avatarUrl={user?.avatarUrl ?? undefined}
                     isTeacher
                     isLocal
-                    isMuted={!localMedia.isMicOn}
-                    isCameraOff={!localMedia.isCameraOn}
+                    isMuted={!rtc.isMicOn}
+                    isCameraOff={!rtc.isCameraOn}
                     borderRadius={12}
                   >
-                    {screenShareOn && (
+                    {rtc.isScreenSharing && (
                       <div style={{ position: 'absolute', top: 10, left: 12, background: 'rgba(0,0,0,0.6)', padding: '3px 10px', borderRadius: 6, display: 'flex', alignItems: 'center', gap: 6, zIndex: 3 }}>
                         <DesktopOutlined style={{ color: 'var(--sq-emerald)', fontSize: 12 }} />
                         <Text style={{ color: '#fff', fontSize: 12 }}>Đang chia sẻ màn hình</Text>
@@ -1090,14 +1006,14 @@ export default function TeacherSessionPage() {
                     {/* Teacher self */}
                     <div style={{ aspectRatio: '4/3' }}>
                       <VideoTile
-                        stream={localMedia.stream}
+                        stream={rtc.localStream}
                         name={user?.name ?? 'Giáo viên'}
                         avatarColor={user?.avatarColor ?? '#4f46e5'}
                         avatarUrl={user?.avatarUrl ?? undefined}
                         isTeacher
                         isLocal
-                        isMuted={!localMedia.isMicOn}
-                        isCameraOff={!localMedia.isCameraOn}
+                        isMuted={!rtc.isMicOn}
+                        isCameraOff={!rtc.isCameraOn}
                         borderRadius={10}
                       />
                     </div>
@@ -1146,14 +1062,14 @@ export default function TeacherSessionPage() {
                       {/* Teacher self */}
                       <div style={{ aspectRatio: '4/3' }}>
                         <VideoTile
-                          stream={localMedia.stream}
+                          stream={rtc.localStream}
                           name={user?.name ?? 'Giáo viên'}
                           avatarColor={user?.avatarColor ?? '#4f46e5'}
                           avatarUrl={user?.avatarUrl ?? undefined}
                           isTeacher
                           isLocal
-                          isMuted={!localMedia.isMicOn}
-                          isCameraOff={!localMedia.isCameraOn}
+                          isMuted={!rtc.isMicOn}
+                          isCameraOff={!rtc.isCameraOn}
                           borderRadius={10}
                         />
                       </div>
@@ -1219,12 +1135,14 @@ export default function TeacherSessionPage() {
                     // teacher's audio no longer leaks to students outside this room. Then
                     // reveal the live grid by collapsing the panel.
                     onTeacherJoinRoom={(roomId) => {
-                      rtc.closeAllPeers();
+                      // Vào phòng nhóm → chuyển sang LiveKit room riêng của phòng đó
+                      void rtc.connect(session.id, `session-${session.id}-room-${roomId}`);
                       setTeacherJoinedRoomId(roomId);
                       setBreakoutPanelCollapsed(true);
                     }}
                     onTeacherLeaveRoom={() => {
-                      rtc.closeAllPeers();
+                      // Rời phòng nhóm → quay lại LiveKit room chính
+                      void rtc.connect(session.id, `session-${session.id}`);
                       setTeacherJoinedRoomId(null);
                       setBreakoutPanelCollapsed(false);
                     }}
@@ -1338,23 +1256,23 @@ export default function TeacherSessionPage() {
         }}
       >
         <CtrlBtn
-          active={!localMedia.isMicOn}
-          danger={!localMedia.isMicOn}
-          onClick={localMedia.toggleMic}
-          title={localMedia.isMicOn ? 'Tắt mic' : 'Bật mic'}
-          icon={localMedia.isMicOn ? <AudioOutlined /> : <AudioMutedOutlined />}
+          active={!rtc.isMicOn}
+          danger={!rtc.isMicOn}
+          onClick={rtc.toggleMic}
+          title={rtc.isMicOn ? 'Tắt mic' : 'Bật mic'}
+          icon={rtc.isMicOn ? <AudioOutlined /> : <AudioMutedOutlined />}
         />
         <CtrlBtn
-          active={!localMedia.isCameraOn}
-          danger={!localMedia.isCameraOn}
-          onClick={handleToggleCamera}
-          title={localMedia.isCameraOn ? 'Tắt camera' : 'Bật camera'}
+          active={!rtc.isCameraOn}
+          danger={!rtc.isCameraOn}
+          onClick={rtc.toggleCamera}
+          title={rtc.isCameraOn ? 'Tắt camera' : 'Bật camera'}
           icon={<VideoCameraOutlined />}
         />
         <CtrlBtn
-          active={screenShareOn}
+          active={rtc.isScreenSharing}
           onClick={() => { void handleToggleScreenShare(); }}
-          title={screenShareOn ? 'Dừng chia sẻ' : 'Chia sẻ màn hình'}
+          title={rtc.isScreenSharing ? 'Dừng chia sẻ' : 'Chia sẻ màn hình'}
           icon={<DesktopOutlined />}
         />
 
