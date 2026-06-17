@@ -38,7 +38,7 @@
 | **Container** | Docker + Docker Compose | — | Phát triển local + deploy |
 | **API Docs** | Springdoc OpenAPI (Swagger) | 2.x | Auto-gen từ annotations |
 | **Auth** | Spring Security + JWT (JJWT) | 6.x | Chi tiết → 05_Auth_Authorization.md |
-| **WebRTC relay** | Coturn (TURN/STUN) | Latest | NAT traversal; deploy riêng, không qua Spring |
+| **Video SFU** | LiveKit | Latest | Media plane (publish/subscribe WebRTC tracks); deploy riêng, không qua Spring |
 | **Testing** | JUnit 5 + Mockito + Testcontainers | — | |
 
 ---
@@ -52,7 +52,7 @@
 │   React Browser                                                        │
 │   ├── REST (HTTP/HTTPS) ──────────────────────────────────────────┐   │
 │   ├── WebSocket/STOMP ────────────────────────────────────────┐   │   │
-│   └── WebRTC (P2P media, signaling qua WS) ───────────────┐   │   │   │
+│   └── WebRTC media (LiveKit SFU) ─────────────────────────┐   │   │   │
 │                                                           │   │   │   │
 └───────────────────────────────────────────────────────────┼───┼───┼───┘
                                                             │   │   │
@@ -98,8 +98,8 @@
     │  - chat_messages    │  │  - refresh token cache│  │                  │
     └─────────────────────┘  └─────────────────────┘  └─────────────────┘
 
-                              Coturn (TURN/STUN)
-                              - WebRTC relay cho NAT traversal
+                              LiveKit SFU
+                              - Media plane (publish/subscribe WebRTC tracks)
                               - Deployed riêng, không qua Spring
 ```
 
@@ -340,11 +340,12 @@ services:
     volumes:
       - minio_data:/data
 
-  coturn:
-    image: coturn/coturn
+  livekit:
+    image: livekit/livekit-server:latest
+    command: --config /etc/livekit.yaml --node-ip <HOST_LAN_IP>
     network_mode: host
     volumes:
-      - ./turnserver.conf:/etc/coturn/turnserver.conf
+      - ./livekit.yaml:/etc/livekit.yaml
 
 volumes:
   postgres_data:

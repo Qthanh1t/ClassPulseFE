@@ -538,7 +538,7 @@ public ResponseEntity<ApiResponse<BreakoutSessionDto>> startBreakout(...) {
 | **Package structure** | Feature-first | Dễ tìm code liên quan, dễ tách module sau |
 | **Auth** | JWT (stateless) + httpOnly refresh cookie | Secure, không cần session store |
 | **Realtime** | Spring STOMP + Redis relay | Tích hợp tốt với Spring Security |
-| **WebRTC** | Mesh P2P + Coturn | Đủ cho ≤ 30 người, không cần SFU |
+| **Video/Audio** | LiveKit SFU | Scale lớp 30 HS; client publish 1 stream, server forward |
 | **Timer** | Server-side ScheduledExecutorService | Authoritative — không tin client clock |
 | **DB** | PostgreSQL + Flyway | Relational, migrations versioned |
 | **Cache** | Redis | Presence, tickets, pub/sub |

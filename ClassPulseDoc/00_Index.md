@@ -1,7 +1,7 @@
 # ClassPulse Backend — Tài liệu thiết kế
 
 > **Project:** ClassPulse / StudyQuest (đồ án tốt nghiệp)  
-> **Stack:** Java 21 + Spring Boot 3.x + PostgreSQL + Redis + WebSocket/STOMP + WebRTC  
+> **Stack:** Java 21 + Spring Boot 3.x + PostgreSQL + Redis + WebSocket/STOMP + LiveKit SFU  
 > **Date:** 2026-04-25
 
 ---
@@ -14,15 +14,13 @@
 | 01 | [01_System_Overview.md](01_System_Overview.md) | Mô tả hệ thống, roles, features, 5 main workflows, NFRs |
 | 02 | [02_Database_Design.md](02_Database_Design.md) | 19 bảng PostgreSQL, ERD, DDL, index strategy, design decisions |
 | 03 | [03_API_Design.md](03_API_Design.md) | ~58 REST endpoints theo 17 module + WebSocket event contract |
-| 04 | [04_Realtime_Architecture.md](04_Realtime_Architecture.md) | Spring STOMP, Redis Pub/Sub, authoritative timer, WebRTC Mesh + Coturn |
+| 04 | [04_Realtime_Architecture.md](04_Realtime_Architecture.md) | Spring STOMP, Redis Pub/Sub, authoritative timer, LiveKit SFU (media) |
 | 05 | [05_Auth_Authorization.md](05_Auth_Authorization.md) | JWT flow, Spring Security, RBAC, WS Ticket, refresh token |
 | 06 | [06_System_Architecture.md](06_System_Architecture.md) | Monolith vs Microservices, tech stack đầy đủ, folder structure, Docker |
 | 07 | [07_Best_Practices.md](07_Best_Practices.md) | Naming, error handling, API versioning, logging, transaction, security |
 | 08a | [08_Frontend_Integration_Guide.md](08_Frontend_Integration_Guide.md) | Frontend Integration Phase 1–2: Auth, User, Classroom, Post, Schedule, Document, Upload |
 | 08b | [08_Frontend_Integration_Phase3.md](08_Frontend_Integration_Phase3.md) | Frontend Integration Phase 3: Session, Question, Student Answer |
 | 08c | [08_Frontend_Integration_Phase4.md](08_Frontend_Integration_Phase4.md) | Frontend Integration Phase 4: Breakout, WebSocket (đầy đủ), Dashboard, Review, Admin |
-| 09 | [09_WebRTC_Frontend_Guide.md](09_WebRTC_Frontend_Guide.md) | WebRTC Frontend: Mesh P2P, useWebRTC hook, signaling, video grid, spotlight, breakout, error handling |
-| — | [TODO.md](TODO.md) | Danh sách việc còn lại: FE fixes, backend requirements, ưu tiên |
 
 ---
 
@@ -49,9 +47,9 @@ Hiểu hệ thống → kiến trúc → DB → auth → API → realtime → co
 03 (Module 15 — WS event contract) → 04 (implementation) → 05 (WS Ticket)
 ```
 
-### Nếu bạn đang implement WebRTC video call
+### Nếu bạn đang implement video call (LiveKit SFU)
 ```
-04 §6 (architecture + signaling flow) → 09 (frontend implementation guide đầy đủ)
+04 §6 (SFU architecture, token endpoint, room mapping cho breakout)
 ```
 
 ---
@@ -62,7 +60,7 @@ Hiểu hệ thống → kiến trúc → DB → auth → API → realtime → co
 React Frontend
   ├── REST (HTTP)      → Spring Boot API (/api/v1/*)
   ├── WebSocket/STOMP  → Spring WebSocket (/ws)
-  └── WebRTC (P2P)    → Coturn TURN/STUN
+  └── WebRTC media    → LiveKit SFU (publish/subscribe tracks)
 
 Spring Boot (Modular Monolith — 15 feature modules)
   ├── PostgreSQL 16    (primary datastore — 19 tables)
@@ -114,7 +112,7 @@ Spring Boot (Modular Monolith — 15 feature modules)
 | Direction | Events |
 |-----------|--------|
 | Server → All | `session_started`, `session_ended`, `question_started`, `question_ended`, `answer_aggregate`, `breakout_started`, `breakout_ended`, `broadcast_message`, `student_presence`, `raise_hand_changed`, `chat_message`, `focus_changed`, `silent_alert` |
-| Client → Server | `raise_hand`, `chat_send`, `focus_student`, `webrtc_offer`, `webrtc_answer`, `webrtc_ice_candidate`, `heartbeat` |
+| Client → Server | `raise_hand`, `chat_send`, `focus_student`, `heartbeat` (video/audio qua LiveKit SFU, không qua STOMP) |
 
 > Chi tiết payload: [03_API_Design.md → Module 15](03_API_Design.md)  
 > Implementation: [04_Realtime_Architecture.md](04_Realtime_Architecture.md)
@@ -128,7 +126,7 @@ Spring Boot (Modular Monolith — 15 feature modules)
 | Architecture | Modular Monolith | Team nhỏ (đồ án), WS dễ quản lý hơn microservice |
 | Auth | JWT stateless + httpOnly refresh cookie | Secure, không cần session store |
 | Realtime | Spring STOMP + Redis relay | Native Spring Security integration |
-| WebRTC | Mesh P2P + Coturn | Đủ cho ≤ 30 người, không cần SFU |
+| Video/Audio | LiveKit SFU | Scale lớp 30 HS; media bypass Spring (chỉ cấp token) |
 | Timer | Server-side ScheduledExecutorService | Authoritative — không tin client clock |
 | DB schema | UUID PK, Flyway migrations | Không lộ ID, versioned schema |
 | File storage | MinIO + Presigned URL | File bypass server, giảm bandwidth |

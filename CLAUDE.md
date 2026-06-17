@@ -8,7 +8,7 @@ Triết lý: **tối đa hóa tương tác hai chiều** — mọi kênh (video,
 
 **Roles**: Teacher (quản lý lớp, điều phối, dashboard) | Student (tham gia, tương tác, review cá nhân) | Admin (quản lý user/lớp/hệ thống)
 
-**Core features** (tất cả xảy ra trong 1 phiên realtime): Classroom Management, Live Video (WebRTC), Confidence-based Q&A (timer + auto-end), Silent Student Detection, Raise Hand, Live Chat, Dynamic Breakout Rooms, Focus Mode (Spotlight 1-1), Micro Task, Broadcast, Quick Actions, Teacher Dashboard, Student Session Review.
+**Core features** (tất cả xảy ra trong 1 phiên realtime): Classroom Management, Live Video (LiveKit SFU), Confidence-based Q&A (timer + auto-end), Silent Student Detection, Raise Hand, Live Chat, Dynamic Breakout Rooms, Focus Mode (Spotlight 1-1), Micro Task, Broadcast, Quick Actions, Teacher Dashboard, Student Session Review.
 
 ## System architecture
 
@@ -17,7 +17,7 @@ Triết lý: **tối đa hóa tương tác hai chiều** — mọi kênh (video,
 | Frontend (this repo) | React 19 + TypeScript + Vite |
 | Backend | Java (`C:\code\datn\classpulse`) |
 | Realtime | WebSocket / STOMP + SockJS |
-| Video | WebRTC |
+| Video | LiveKit SFU (WebRTC) |
 | Database | PostgreSQL |
 
 ## Frontend stack
@@ -120,7 +120,7 @@ src/
   main.tsx          # bootstrap authStore (wire axios interceptors trước khi render)
   lib/
     api.ts          # Axios instance; Bearer interceptor; silent 401 refresh (queue pattern)
-    websocket.ts    # STOMP/SockJS; createSessionWsClient (session) + createAppWsClient (app-level); 15 event types; heartbeat; auto-reconnect
+    websocket.ts    # STOMP/SockJS; createSessionWsClient (session) + createAppWsClient (app-level); 14 event types; heartbeat; auto-reconnect
   store/
     authStore.ts    # Zustand: { user, accessToken, setAuth, setToken, clearAuth }
   services/
@@ -243,26 +243,15 @@ Nav dùng custom `<button>` (không phải AntD `Menu`) với `.sq-nav-item`. Ac
 - Subscriptions: `/topic/session/{id}` + `/user/queue/private`; `subscribeRoom/unsubscribeRoom` cho breakout
 - `subscribeRoom` gọi được TRƯỚC khi STOMP connect (handler lưu vào `roomHandlers`); `onConnect` (re)subscribe toàn bộ room topic — vừa phục vụ khôi phục breakout khi reload, vừa giữ room subscription sau reconnect
 
-## ⚠️ LiveKit SFU migration — ĐANG TRIỂN KHAI (nhánh `feat/livekit-sfu`)
+## Video — LiveKit SFU (media plane)
 
-Đang thay media plane mesh P2P → LiveKit SFU để scale lớp 30 HS. Kế hoạch chi tiết: `docs/livekit-migration-plan.md`. STOMP nghiệp vụ (Q&A/chat/presence/breakout state) GIỮ NGUYÊN — LiveKit chỉ thay video/audio.
+Media plane chạy trên **LiveKit SFU** (scale lớp 30 HS). Migration mesh P2P → LiveKit đã **HOÀN TẤT** trên nhánh `feat/livekit-sfu` (verify runtime 2 browser 2026-06-17: phòng chính + breakout + spotlight + reload OK). Code mesh cũ (`useWebRTC.ts`/`useLocalMedia.ts`/`config/webrtc.ts`/WS `webrtc_*` methods+events) đã xóa. STOMP nghiệp vụ (Q&A/chat/presence/breakout state) GIỮ NGUYÊN — LiveKit chỉ thay video/audio. Kế hoạch gốc: `docs/livekit-migration-plan.md`.
 
 - `src/services/livekit.service.ts` — `getToken(sessionId, roomName?)` → `POST /sessions/{id}/livekit-token`
-- `src/hooks/useLiveKitRoom.ts` — adapter giữ ĐÚNG shape `peers: Map<id,{remoteStream,isCameraOff,isMuted,isScreenShare}>` để thay `useWebRTC` ít sửa render; tự sở hữu local media (camera/mic/screen-share); `connect(sessionId, roomName)` đổi room cho breakout. **`adaptiveStream/dynacast` đang TẮT** — chúng dựa vào `track.attach()` để biết track hiển thị, mà VideoTile gán `srcObject` thủ công → bật sẽ làm LiveKit dừng track "không ai xem" → tile đen. Bật lại sau khi chuyển VideoTile sang `track.attach()`
+- `src/hooks/useLiveKitRoom.ts` — adapter expose shape `peers: Map<id,{remoteStream,isCameraOff,isMuted,isScreenShare}>` (VideoTile render từ map này); tự sở hữu local media (camera/mic/screen-share); `connect(sessionId, roomName)` đổi room cho breakout. **`adaptiveStream/dynacast` đang TẮT** — chúng dựa vào `track.attach()` để biết track hiển thị, mà VideoTile gán `srcObject` thủ công → bật sẽ làm LiveKit dừng track "không ai xem" → tile đen. Bật lại sau khi chuyển VideoTile sang `track.attach()`
 - `identity = userId` → map participant ↔ presence STOMP (tên/màu avatar lấy từ presence, không nhồi token)
-- **2 session page đã rewire sang LiveKit** (Phase 3+4): bỏ `useWebRTC`/`useLocalMedia`/`callPeer`/`handleOffer`/4 case WS (`webrtc_offer/answer/ice`, `camera_state_changed`). Breakout = `rtc.connect(sessionId, 'session-{id}-room-{roomId}')`, kết thúc → `session-{id}`. Spotlight = chỉ đổi layout (focus_changed giữ nguyên, stream từ peers map). Screen share = track riêng LiveKit
-- **Trạng thái**: Phase 0–4 code xong (typecheck/build/lint sạch), **CHỜ test runtime 2 browser**. Phase 5 (xóa `useWebRTC.ts`/`config/webrtc.ts`/WS `webrtc_*` methods+events/relay backend, cập nhật doc) CHƯA làm — code mesh cũ GIỮ tạm làm fallback tới khi verify runtime xong
-
-## WebRTC (`src/config/webrtc.ts`, `src/hooks/useWebRTC.ts`) — mesh hiện hành (sẽ bị thay ở Phase 5)
-
-- ICE: Google STUN + local STUN/TURN tại `${VITE_TURN_HOST}:3478`; credentials `classpulse`/`secret123` (phải khớp `turnserver.conf`: `lt-cred-mech`)
-- `pcsRef: Map<peerId, PeerEntry>` — source of truth; `peers` state là bản sao để trigger re-render
-- `ontrack` dùng `event.track` trực tiếp, không `event.streams[0].getTracks()` — tránh duplicate add
-- ICE buffering: buffer vào `iceBuf` nếu `remoteDescription` chưa set; drain sau `setRemoteDescription`
-- Glare: rollback `setLocalDescription({type:'rollback'})` khi nhận offer trong trạng thái `have-local-offer`
-- **`callPeer` skip PC "usable"** (chưa `closed`/`failed` — kể cả `disconnected`): peer reload thì PC cũ phía mình vẫn 'connected' nhiều giây → muốn ép re-offer phải `closePeer` trước (xem Breakout reload)
-- Teacher: `callPeer(studentId)` khi nhận `student_presence` joined
-- Student `onConnected`: `callPeer` tất cả (teacher + HS online); student join SAU mình: polite-peer (UUID nhỏ hơn offer trước)
+- **Cách ly media theo phòng = LiveKit room name** (không phải WS): WS chỉ báo "vào phòng X" → client gọi `rtc.connect(sessionId, 'session-{id}-room-{roomId}')` cho breakout, kết thúc → `session-{id}`. Spotlight = chỉ đổi layout (`focus_changed` giữ nguyên, stream từ peers map). Screen share = track riêng LiveKit
+- **Còn lại (backend)**: relay handler các message `webrtc_*` + endpoint `/app/session/{id}/webrtc/*`, `/camera-state` ở backend chưa gỡ (không còn FE nào gọi — dead nhưng vô hại). Coturn/TURN (`turnserver.conf`) không còn cần cho LiveKit cùng-LAN (STUN đủ)
 
 ## Backend notes (`C:\code\datn\classpulse`)
 

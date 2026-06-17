@@ -883,6 +883,31 @@ Danh sách HS đang online trong phòng.
 }
 ```
 
+### POST `/api/v1/sessions/:sessionId/livekit-token` `[AUTH]`
+
+Cấp **LiveKit access token** để client kết nối tới SFU. Backend chỉ ký token (không nằm trên đường media). `identity = userId` để map participant ↔ presence STOMP.
+
+**Request body (tùy chọn):**
+```json
+{ "roomName": "session-<sessionId>-room-<breakoutRoomId>" }
+```
+- Bỏ trống `roomName` → mặc định phòng chính `session-<sessionId>`.
+- Breakout → truyền room name của phòng nhóm.
+
+**Response `200`:**
+```json
+{
+  "success": true,
+  "data": {
+    "token": "<livekit-jwt>",
+    "url": "ws://<livekit-host>:7880",
+    "identity": "<userId>"
+  }
+}
+```
+
+> SDP/ICE signaling do LiveKit SDK ↔ server tự xử lý — **không** đi qua Spring/STOMP.
+
 ---
 
 ## Module 8: Questions (Câu hỏi)
@@ -1471,10 +1496,9 @@ Client dùng `uploadUrl` để PUT file trực tiếp. Sau khi upload xong, gọ
 | `raise_hand` | Student | `{ raised: boolean }` |
 | `chat_send` | Teacher/Student | `{ content, breakoutRoomId: null \| "uuid" }` |
 | `focus_student` | Teacher | `{ studentId: "uuid" \| null }` |
-| `webrtc_offer` | Cả hai | `{ targetId, sdp }` |
-| `webrtc_answer` | Cả hai | `{ targetId, sdp }` |
-| `webrtc_ice_candidate` | Cả hai | `{ targetId, candidate }` |
 | `heartbeat` | Cả hai | `{}` — giữ connection alive mỗi 25s |
+
+> **Video/audio không dùng STOMP:** media chạy trên **LiveKit SFU**, SDP/ICE signaling do LiveKit SDK ↔ server tự xử lý. Client lấy token qua REST `POST /api/v1/sessions/{sessionId}/livekit-token` (Module 7).
 
 ---
 
