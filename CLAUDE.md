@@ -92,6 +92,18 @@ npm run preview    # xem bản build
 
 - `define: { global: 'globalThis' }` — polyfill `global` cho `sockjs-client`
 - `server.proxy` — forward `/api` và `/ws` tới `VITE_BACKEND_TARGET`; `ws: true` cho WebSocket upgrade
+- **Proxy chỉ áp dụng cho dev server** (`npm run dev`). Production: `npm run build` ra `dist/` tĩnh, Caddy thay vai trò proxy (xem Deployment).
+
+## Production deployment (full Docker + Caddy auto-HTTPS)
+
+Bộ file deploy nằm ở **backend repo** `C:\code\datn\classpulse` (chạy lệnh ở đó); FE build từ `../ClassPulseFE`. Hướng dẫn đầy đủ: `classpulse/DEPLOY.md`.
+
+- **Edge = Caddy** (`ClassPulseFE/Dockerfile`: Vite build → `caddy:2-alpine` serve `/srv` + `classpulse/Caddyfile`). Tự xin Let's Encrypt cho 3 domain.
+- **3 subdomain**: `APP_DOMAIN` (SPA + `/api` + `/ws` + `/storage` GET), `LIVEKIT_DOMAIN` (signaling wss → `livekit:7880`), `MINIO_DOMAIN` (presigned **PUT** — chữ ký SigV4 ký theo `MINIO_ENDPOINT=https://minio.<dom>` nên phải khớp host browser gọi; GET vẫn qua `/storage` tương đối).
+- **`ClassPulseFE/.env.production`** (committed, không secret): `VITE_API_BASE_URL=/api/v1`, `VITE_WS_URL=/ws`. BẮT BUỘC có — fallback trong `lib/api.ts`/`websocket.ts` là `http://localhost:8080` (bake sai nếu thiếu).
+- **LiveKit media đi thẳng IP public**: mở firewall UDP 7882 + TCP 7881; `LIVEKIT_NODE_IP` = IP public VPS; `LIVEKIT_API_SECRET` phải khớp `keys:` trong `classpulse/livekit.prod.yaml`.
+- **Cookie**: `APP_COOKIE_SECURE=true` (mặc định) — refresh token chỉ gửi qua HTTPS cùng domain.
+- Files: `classpulse/{Dockerfile, docker-compose.prod.yml, Caddyfile, livekit.prod.yaml, .env.prod.example, DEPLOY.md}` + `ClassPulseFE/{Dockerfile, .env.production}`. Chạy: `docker compose -f docker-compose.prod.yml --env-file .env.prod up -d --build`.
 
 ## Routing
 
