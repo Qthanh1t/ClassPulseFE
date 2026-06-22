@@ -285,8 +285,12 @@ Cột `teacher_room_id` (nullable, FK `breakout_rooms` ON DELETE SET NULL — mi
 ### Question — ẩn đáp án (`QuestionController` / `QuestionService` / `QuestionTimerService`)
 `OptionDto.isCorrect` đổi sang `Boolean` + `@JsonInclude(NON_NULL)`; `withoutCorrect()` trả bản null. `QuestionController.start` broadcast options đã strip; `list` sanitize khi `!sessionSecurity.isOwner`. `question_ended` (controller.end + timer auto-end + recover sau restart) gửi kèm `correctOptionIds` — `QuestionService.getCorrectOptionIds`; trong `QuestionTimerService.autoEndQuestion` đọc options bên trong `transactionTemplate` (lazy) rồi trả ra cho broadcast.
 
-### CORS origins (`SecurityConfig.java`) — 403 khi đăng ký/đăng nhập sau deploy
-`corsConfigurationSource()` đăng ký CORS cho `/api/**` + `/ws/**`. Browser gửi `Origin` cả với POST same-origin → nếu origin production không khớp `allowedOriginPatterns`, Spring CorsFilter chặn **403 "Invalid CORS request"** (cả `/auth/register` lẫn `/auth/login` dù đã `permitAll`). **Fix**: origins đọc từ property `app.cors.allowed-origins` (env `APP_CORS_ALLOWED_ORIGINS`, comma-separated), default = host dev. `docker-compose.prod.yml` set `APP_CORS_ALLOWED_ORIGINS: https://${APP_DOMAIN}`. Đổi domain production phải set lại env này, không hardcode trong code.
+### CORS / allowed-origins (`SecurityConfig.java` + `WebSocketConfig.java`) — 403 REST & lỗi WS sau deploy
+Origin production phải nằm trong allowed-origins ở **CẢ HAI** chỗ, nếu không khớp đều vỡ:
+- **REST** (`SecurityConfig.corsConfigurationSource`, đăng ký cho `/api/**` + `/ws/**`): browser gửi `Origin` cả với POST same-origin → không khớp → Spring CorsFilter chặn **403 "Invalid CORS request"** (cả `/auth/register` lẫn `/auth/login` dù đã `permitAll`).
+- **WebSocket** (`WebSocketConfig.registerStompEndpoints` → `setAllowedOriginPatterns`): SockJS handshake từ domain không khớp bị reject → WS không kết nối được.
+
+**Fix**: cả hai đọc chung property `app.cors.allowed-origins` (env `APP_CORS_ALLOWED_ORIGINS`, comma-separated), default = host dev. `docker-compose.prod.yml` set `APP_CORS_ALLOWED_ORIGINS: https://${APP_DOMAIN}`. Đổi domain production chỉ cần set lại env này — không hardcode trong code (trước đây hardcode `https://classpulse.app` ở cả 2 file nên domain thật bị chặn).
 
 ### `UserService.listUsers` (admin list users)
 `Role` map qua `AttributeConverter` (lowercase string). JPQL kiểu `(:role IS NULL OR u.role = :role)` bind NULL cho param enum đã convert → PostgreSQL `could not determine data type of parameter $1` → **500** khi gọi `/users` không kèm filter. **Fix**: dùng `JpaSpecificationExecutor` + `Specification` (chỉ thêm predicate khi filter có giá trị), không so sánh NULL với param untyped. `UserRepository` bỏ `findFiltered`, extends thêm `JpaSpecificationExecutor<User>`.
