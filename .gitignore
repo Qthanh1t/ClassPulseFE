@@ -23,4 +23,5 @@ dist-ssr
 *.sln
 *.sw?
 /.env
-.env.production
+# .env.production is committed on purpose (no secrets — only relative /api/v1, /ws).
+# Without it the Docker build falls back to http://localhost:8080 and breaks prod.
