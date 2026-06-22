@@ -1,7 +1,7 @@
 # ClassPulse — Realtime Architecture
 
 > **Note:** WebSocket event contract (payload schema) → [03_API_Design.md → Module 15](03_API_Design.md).  
-> File này tập trung vào **implementation** — Spring STOMP, Redis Pub/Sub, WebRTC signaling, Timer.
+> File này tập trung vào **implementation** — Spring STOMP, Redis Pub/Sub, LiveKit SFU (media), Timer.
 
 ---
 
@@ -9,15 +9,15 @@
 
 ```
 Browser ──WebSocket/STOMP──► Spring WebSocket Broker ──► Redis Pub/Sub ──► Other Spring instances
-Browser ──WebRTC (P2P)─────► Coturn TURN/STUN (relay)
+Browser ──WebRTC media─────► LiveKit SFU (publish/subscribe tracks)
 ```
 
 | Kênh | Công nghệ | Dùng cho |
 |------|-----------|---------|
 | **Control events** | WebSocket + STOMP | Question lifecycle, breakout, focus, raise hand, presence |
 | **Chat** | WebSocket + STOMP | Tin nhắn text realtime |
-| **Video/Audio** | WebRTC | Stream media peer-to-peer (với TURN relay) |
-| **WebRTC Signaling** | WebSocket (qua STOMP) | offer/answer/ICE candidate exchange |
+| **Video/Audio** | LiveKit SFU (WebRTC) | Client publish track lên SFU; server forward (selective) tới subscriber |
+| **Media signaling** | LiveKit (nội bộ) | SDP/ICE do LiveKit client SDK ↔ server tự xử lý; STOMP không tham gia |
 
 ---
 
@@ -239,113 +239,88 @@ public void detectSilentStudents() {
 
 ---
 
-## 6. WebRTC Architecture
+## 6. Video/Audio Architecture — LiveKit SFU
 
-### Topology: Mesh (P2P) — đủ cho ≤ 30 người
+### Topology: SFU (Selective Forwarding Unit)
 
-Với lớp học ≤ 30 HS, **Mesh P2P** (mỗi client kết nối trực tiếp với nhau) là giải pháp đơn giản nhất, không cần SFU server.
-
-```
-GV ─────────────── HS1
-│  ╲               │
-│   ╲              │
-│    ╲─────────── HS2
-│                  │
-└──────────────── HS3
-```
-
-> **Lưu ý về scale:** Nếu sau này cần > 30 người hoặc muốn tiết kiệm bandwidth, có thể thêm [mediasoup](https://mediasoup.org/) SFU mà không thay đổi signaling protocol.
-
-### Signaling Flow (qua WebSocket/STOMP)
+Media video/audio chạy trên **LiveKit SFU**. Mỗi client **publish** track (camera/mic/screen-share) **một lần** lên LiveKit server; server **forward** (selective) tới các client subscribe. Khác mesh P2P (mỗi client phải mở N-1 kết nối và encode video N-1 lần), SFU giữ upload của mỗi client cố định ở 1 stream bất kể số người trong phòng → scale tốt cho lớp 30 HS.
 
 ```
-GV Browser                    Spring Server                   HS Browser
-    │                               │                               │
-    │── webrtc_offer {targetId:HS} ─►│                               │
-    │                               │── forward to HS ─────────────►│
-    │                               │                               │
-    │                               │◄── webrtc_answer {targetId:GV}─│
-    │◄── forward to GV ─────────────│                               │
-    │                               │                               │
-    │── webrtc_ice_candidate ───────►│── forward to HS ─────────────►│
-    │◄─ webrtc_ice_candidate ────────│◄─────────────────────────────│
-    │                               │                               │
-    │═══════════════════════════════════ WebRTC P2P connected ══════│
-    │                               │ (media bypasses server)       │
+   publish 1 lần                 forward selective
+HS1 ──────────────►┐            ┌──────────────► GV
+HS2 ──────────────►│  LiveKit   │──────────────► HS1
+GV  ──────────────►│    SFU     │──────────────► HS2
+                   └────────────┘
+   (mỗi client upload 1 stream, không phụ thuộc số người)
 ```
 
-### WebRTC Signaling Controller
+> **Scale:** LiveKit hỗ trợ `adaptiveStream` (tự giảm/ngừng nhận video của tile không hiển thị) và `dynacast` (server ngừng forward layer không ai xem) — giảm mạnh bandwidth khi lớp đông. Tầng STOMP nghiệp vụ không đổi khi scale media.
+
+### Phòng (Room) & ánh xạ breakout
+
+- Mỗi phiên học = một LiveKit **room** tên `session-{sessionId}` (phòng chính).
+- Breakout = **đổi room**: client `connect` tới `session-{sessionId}-room-{breakoutRoomId}`; kết thúc breakout → về `session-{sessionId}`.
+- **Cách ly media theo phòng do room name của LiveKit quyết định**, không phải STOMP. STOMP chỉ phát event "ai vào phòng nào" (`breakout_started`, `teacher_joined_room`, …); client đọc event để biết cần connect tới room LiveKit nào.
+- `participant.identity = userId` → map participant LiveKit ↔ presence STOMP (tên/màu avatar lấy từ presence, không nhồi vào token).
+- **Spotlight/Focus** trong phòng chính chỉ là **đổi layout UI** (phóng to tile HS được focus) — `focus_changed` qua STOMP, media không đổi room.
+
+### Token Endpoint (Backend)
+
+LiveKit token là JWT ký bằng `LIVEKIT_API_SECRET`, chứa video grant. Backend chỉ **cấp token** — không nằm trên đường truyền media.
 
 ```java
-@Controller
+@RestController
 @RequiredArgsConstructor
-public class WebRtcSignalingController {
+public class LiveKitTokenController {
 
-    private final SimpMessagingTemplate messagingTemplate;
+    @Value("${livekit.api-key}")    private String apiKey;
+    @Value("${livekit.api-secret}") private String apiSecret;
+    @Value("${livekit.url}")        private String livekitUrl;
 
-    @MessageMapping("/session/{sessionId}/webrtc/offer")
-    public void handleOffer(@Payload WebRtcOfferDto dto,
-                            @DestinationVariable String sessionId,
-                            Principal principal) {
-        // Forward offer đến target user
-        messagingTemplate.convertAndSendToUser(
-            dto.getTargetId(), "/queue/private",
-            Map.of("type", "webrtc_offer",
-                   "payload", Map.of("fromId", principal.getName(), "sdp", dto.getSdp()))
-        );
-    }
+    @PostMapping("/api/v1/sessions/{sessionId}/livekit-token")
+    public ApiResponse<LiveKitTokenDto> token(@PathVariable String sessionId,
+                                              @RequestBody(required = false) TokenRequest req,
+                                              @AuthenticationPrincipal UserPrincipal user) {
+        // Kiểm tra user thuộc session trước khi cấp token
+        String room = (req != null && req.roomName() != null)
+                ? req.roomName() : "session-" + sessionId;
 
-    @MessageMapping("/session/{sessionId}/webrtc/answer")
-    public void handleAnswer(@Payload WebRtcAnswerDto dto,
-                             @DestinationVariable String sessionId,
-                             Principal principal) {
-        messagingTemplate.convertAndSendToUser(
-            dto.getTargetId(), "/queue/private",
-            Map.of("type", "webrtc_answer",
-                   "payload", Map.of("fromId", principal.getName(), "sdp", dto.getSdp()))
-        );
-    }
+        AccessToken token = new AccessToken(apiKey, apiSecret);
+        token.setIdentity(user.getId());            // identity = userId → map với presence STOMP
+        token.setName(user.getName());
+        token.addGrants(new RoomJoin(true), new RoomName(room));
+        // canPublish = true, canSubscribe = true
 
-    @MessageMapping("/session/{sessionId}/webrtc/ice-candidate")
-    public void handleIce(@Payload WebRtcIceDto dto,
-                          @DestinationVariable String sessionId,
-                          Principal principal) {
-        messagingTemplate.convertAndSendToUser(
-            dto.getTargetId(), "/queue/private",
-            Map.of("type", "webrtc_ice_candidate",
-                   "payload", Map.of("fromId", principal.getName(), "candidate", dto.getCandidate()))
-        );
+        return ApiResponse.ok(new LiveKitTokenDto(token.toJwt(), livekitUrl, user.getId()));
     }
 }
 ```
 
-### Coturn Configuration (TURN/STUN Server)
+Media signaling (SDP offer/answer, ICE) **do LiveKit client SDK ↔ LiveKit server tự xử lý** — Spring và STOMP **không** trung chuyển SDP/ICE.
 
-```conf
-# /etc/turnserver.conf
-listening-port=3478
-tls-listening-port=5349
-realm=classpulse.app
-server-name=turn.classpulse.app
-lt-cred-mech
-user=classpulse:secret123
-fingerprint
-no-multicast-peers
-denied-peer-ip=10.0.0.0-10.255.255.255  # block internal IPs
+### LiveKit Server Deployment
+
+LiveKit chạy như service riêng (Docker hoặc binary native), không qua Spring:
+
+```yaml
+# livekit.yaml
+port: 7880
+rtc:
+  port_range_start: 50000
+  port_range_end: 50100
+  use_external_ip: true        # quan trọng khi client ở thiết bị/LAN khác
+keys:
+  <API_KEY>: <API_SECRET>
 ```
 
-Frontend cấu hình ICE servers:
+> **Đa thiết bị LAN:** đặt `node_ip` / `use_external_ip` theo IP máy host để client thiết bị khác route tới được. Cùng LAN, STUN nội bộ của LiveKit là đủ — không bắt buộc TURN riêng.
+
+Frontend chỉ cần URL + token (LiveKit SDK lo phần còn lại):
 ```typescript
-const peerConnection = new RTCPeerConnection({
-  iceServers: [
-    { urls: 'stun:turn.classpulse.app:3478' },
-    {
-      urls: 'turn:turn.classpulse.app:3478',
-      username: 'classpulse',
-      credential: 'secret123'
-    }
-  ]
-});
+import { Room } from 'livekit-client';
+
+const room = new Room({ adaptiveStream: true, dynacast: true });
+await room.connect(livekitUrl, token);   // token từ POST /sessions/{id}/livekit-token
 ```
 
 ---

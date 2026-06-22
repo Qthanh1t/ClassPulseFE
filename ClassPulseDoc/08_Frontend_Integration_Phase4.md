@@ -394,7 +394,7 @@ function connectWebSocket(wsTicket: string, sessionId: string) {
         handleSessionEvent(event.type, event.payload);
       });
 
-      // Subscribe unicast (WebRTC signals)
+      // Subscribe unicast (answer_aggregate cho teacher)
       client.subscribe('/user/queue/private', (msg) => {
         const event = JSON.parse(msg.body);
         handlePrivateEvent(event.type, event.payload);
@@ -470,9 +470,6 @@ roomSub.unsubscribe();
 | Event type | Payload | Ghi chú |
 |---|---|---|
 | `answer_aggregate` | `{ questionId, answeredCount, optionDistribution[] }` | Chỉ teacher nhận — cập nhật live chart |
-| `webrtc_offer` | `{ fromId, sdp }` | WebRTC — signaling P2P |
-| `webrtc_answer` | `{ fromId, sdp }` | WebRTC — signaling P2P |
-| `webrtc_ice_candidate` | `{ fromId, candidate }` | WebRTC — ICE candidate |
 
 ---
 
@@ -519,47 +516,35 @@ client.publish({
 
 ---
 
-### 4.5 WebRTC Signaling qua WebSocket
+### 4.5 Video/Audio qua LiveKit SFU
 
-Signaling P2P — tất cả đều đi qua `/user/queue/private` của người nhận.
+Video/audio **không dùng STOMP**. Client lấy token rồi connect tới LiveKit room; SDP/ICE do LiveKit SDK ↔ server tự xử lý.
 
 ```typescript
-// Gửi SDP offer đến peer
-client.publish({
-  destination: `/app/session/${sessionId}/webrtc/offer`,
-  body: JSON.stringify({
-    targetId: 'target-user-uuid',
-    sdp: peerConnection.localDescription.sdp,
-  }),
-});
+import { Room } from 'livekit-client';
 
-// Gửi SDP answer
-client.publish({
-  destination: `/app/session/${sessionId}/webrtc/answer`,
-  body: JSON.stringify({ targetId, sdp }),
-});
+// 1. Lấy token từ backend (phòng chính; breakout truyền roomName khác)
+const { token, url } = await livekitService.getToken(sessionId);
 
-// Gửi ICE candidate
-client.publish({
-  destination: `/app/session/${sessionId}/webrtc/ice-candidate`,
-  body: JSON.stringify({
-    targetId: 'target-user-uuid',
-    candidate: iceEvent.candidate,
-  }),
-});
+// 2. Connect tới LiveKit room + publish camera/mic
+const room = new Room({ adaptiveStream: true, dynacast: true });
+await room.connect(url, token);
+await room.localParticipant.setCameraEnabled(true);
+await room.localParticipant.setMicrophoneEnabled(true);
 
-// Nhận events từ /user/queue/private
+// 3. Breakout = đổi room (kết thúc breakout → về session-{id})
+//    await room.disconnect();
+//    const t = await livekitService.getToken(sessionId, `session-${sessionId}-room-${roomId}`);
+//    await room.connect(url, t.token);
+```
+
+> `participant.identity = userId` → map track ↔ presence STOMP (tên/màu avatar lấy từ presence). Cách ly media theo phòng do **room name** LiveKit quyết định, không phải STOMP.
+
+#### Events `/user/queue/private` (unicast — chỉ còn nghiệp vụ)
+
+```typescript
 function handlePrivateEvent(type: string, payload: any) {
   switch (type) {
-    case 'webrtc_offer':
-      handleRemoteOffer(payload.fromId, payload.sdp);
-      break;
-    case 'webrtc_answer':
-      handleRemoteAnswer(payload.fromId, payload.sdp);
-      break;
-    case 'webrtc_ice_candidate':
-      handleRemoteIce(payload.fromId, payload.candidate);
-      break;
     case 'answer_aggregate':
       updateLiveChart(payload);    // Teacher view
       break;
@@ -901,25 +886,21 @@ Student:
    → Hiển thị kết quả cá nhân, đáp án đúng/sai
 ```
 
-### Luồng WebRTC Video Call (Mesh P2P)
+### Luồng Video Call (LiveKit SFU)
 
 ```
-Tất cả participants đều kết nối trực tiếp với nhau (mesh).
+Media không qua STOMP — client publish/subscribe track tới LiveKit SFU.
 
-1. Mỗi user A cần kết nối với user B:
-   A tạo RTCPeerConnection
-   A.createOffer()
-   → Gửi WS: /webrtc/offer { targetId: B, sdp }
-   → B nhận event "webrtc_offer" tại /user/queue/private
+1. Client lấy token: POST /sessions/{id}/livekit-token
+   → { token, url, identity: userId }
 
-2. B.setRemoteDescription(offer)
-   B.createAnswer()
-   → Gửi WS: /webrtc/answer { targetId: A, sdp }
-   → A nhận "webrtc_answer"
+2. room.connect(url, token)
+   → publish camera/mic (1 stream lên SFU)
+   → SFU forward track tới các participant khác trong cùng room
+   → SDP/ICE do LiveKit SDK ↔ server tự xử lý
 
-3. ICE negotiation (song song):
-   A,B gửi /webrtc/ice-candidate khi có candidate mới
-   → Peer nhận "webrtc_ice_candidate"
+3. Breakout = đổi room:
+   room.disconnect() → token mới cho session-{id}-room-{roomId} → room.connect()
 ```
 
 ---

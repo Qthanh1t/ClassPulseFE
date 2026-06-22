@@ -23,6 +23,7 @@
     "axios": "^1.16.0",
     "ckeditor5": "^48.0.0",
     "katex": "^0.16.45",
+    "livekit-client": "^2.19.2",
     "react": "^19.2.4",
     "react-dom": "^19.2.4",
     "react-router-dom": "^7.14.0",

@@ -271,6 +271,12 @@ export interface StartSessionRequest {
   scheduleId?: string;
 }
 
+export interface LiveKitTokenResponse {
+  token: string;
+  url: string;
+  identity: string;
+}
+
 // ── Question (M10) ─────────────────────────────────────────────────
 
 export type QuestionType = 'single' | 'multiple' | 'essay';

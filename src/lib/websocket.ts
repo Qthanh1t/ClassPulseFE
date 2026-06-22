@@ -17,12 +17,8 @@ export type WsEventType =
   | 'broadcast_message'
   | 'chat_message'
   | 'answer_aggregate'
-  | 'webrtc_offer'
-  | 'webrtc_answer'
-  | 'webrtc_ice_candidate'
   | 'teacher_joined_room'
-  | 'teacher_left_room'
-  | 'camera_state_changed';
+  | 'teacher_left_room';
 
 export interface WsEvent<T = unknown> {
   type: WsEventType;
@@ -40,10 +36,6 @@ export interface SessionWsClient {
   sendChat: (content: string, breakoutRoomId?: string | null) => void;
   sendRaiseHand: (raised: boolean) => void;
   sendFocus: (studentId: string | null) => void;
-  sendWebRtcOffer: (targetId: string, sdp: string) => void;
-  sendWebRtcAnswer: (targetId: string, sdp: string) => void;
-  sendWebRtcIceCandidate: (targetId: string, candidate: RTCIceCandidate) => void;
-  sendCameraState: (isCameraOff: boolean) => void;
   disconnect: () => void;
 }
 
@@ -58,7 +50,7 @@ export function createSessionWsClient(
    * Student: call POST /sessions/{id}/join
    */
   onReconnect: () => Promise<string>,
-  /** Called once STOMP subscriptions are ready — use to kick off WebRTC init */
+  /** Called once STOMP subscriptions are ready — use to kick off LiveKit connect */
   onConnected?: () => void,
 ): SessionWsClient {
   let mainHandler: WsEventHandler | null = null;
@@ -105,7 +97,7 @@ export function createSessionWsClient(
         mainHandler?.(event);
       });
 
-      // Subscribe unicast (answer_aggregate, webrtc signals)
+      // Subscribe unicast (answer_aggregate, etc.)
       privateSub = client.subscribe('/user/queue/private', (msg: IMessage) => {
         const event = JSON.parse(msg.body) as WsEvent;
         mainHandler?.(event);
@@ -125,7 +117,7 @@ export function createSessionWsClient(
         }
       }, 25_000);
 
-      // Notify caller that subscriptions are ready (used for WebRTC init)
+      // Notify caller that subscriptions are ready (used for LiveKit connect)
       onConnected?.();
     },
 
@@ -185,34 +177,6 @@ export function createSessionWsClient(
       client.publish({
         destination: `/app/session/${sessionId}/focus`,
         body: JSON.stringify({ studentId }),
-      });
-    },
-
-    sendWebRtcOffer(targetId, sdp) {
-      client.publish({
-        destination: `/app/session/${sessionId}/webrtc/offer`,
-        body: JSON.stringify({ targetId, sdp }),
-      });
-    },
-
-    sendWebRtcAnswer(targetId, sdp) {
-      client.publish({
-        destination: `/app/session/${sessionId}/webrtc/answer`,
-        body: JSON.stringify({ targetId, sdp }),
-      });
-    },
-
-    sendWebRtcIceCandidate(targetId, candidate) {
-      client.publish({
-        destination: `/app/session/${sessionId}/webrtc/ice-candidate`,
-        body: JSON.stringify({ targetId, candidate }),
-      });
-    },
-
-    sendCameraState(isCameraOff) {
-      client.publish({
-        destination: `/app/session/${sessionId}/camera-state`,
-        body: JSON.stringify({ isCameraOff }),
       });
     },
 

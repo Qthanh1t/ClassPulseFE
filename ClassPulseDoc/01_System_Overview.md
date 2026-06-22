@@ -8,7 +8,7 @@
 
 ## 1. Mô tả hệ thống
 
-ClassPulse là nền tảng tương tác thời gian thực cho lớp học nhỏ (≤ 30 học sinh). Trong mỗi buổi học online, giáo viên (GV) quản lý toàn bộ tương tác — video WebRTC, đặt câu hỏi kèm timer, xem kết quả live, chia nhóm breakout, spotlight từng học sinh, và gửi broadcast — tất cả trong cùng một phiên. Học sinh trả lời câu hỏi (trắc nghiệm / tự luận) kèm mức tự tin, giơ tay, chat realtime, và xem lại kết quả sau buổi học.
+ClassPulse là nền tảng tương tác thời gian thực cho lớp học nhỏ (≤ 30 học sinh). Trong mỗi buổi học online, giáo viên (GV) quản lý toàn bộ tương tác — video qua LiveKit SFU, đặt câu hỏi kèm timer, xem kết quả live, chia nhóm breakout, spotlight từng học sinh, và gửi broadcast — tất cả trong cùng một phiên. Học sinh trả lời câu hỏi (trắc nghiệm / tự luận) kèm mức tự tin, giơ tay, chat realtime, và xem lại kết quả sau buổi học.
 
 Backend hỗ trợ hai lớp vận hành song song:
 - **CRUD bất đồng bộ** — quản lý lớp, tài liệu, lịch học (REST API)
@@ -42,7 +42,7 @@ Backend hỗ trợ hai lớp vận hành song song:
 
 | Feature | Mô tả |
 |---------|-------|
-| Video / Audio | WebRTC Mesh P2P; signaling qua WebSocket |
+| Video / Audio | LiveKit SFU (WebRTC); token cấp qua REST, media qua SFU |
 | Session lifecycle | `waiting → active → ended` |
 | Q&A với confidence | GV tạo câu hỏi (single / multiple / essay) + timer tùy chọn; HS trả lời kèm mức tự tin (low / medium / high); server tự đóng khi hết giờ |
 | Silent student detection | Phát hiện HS chưa trả lời, cảnh báo GV kèm tên cụ thể |
@@ -77,7 +77,7 @@ GV đăng bài / upload file / thêm lịch
 GV bấm "Bắt đầu buổi học"
   → POST /api/v1/classrooms/:id/sessions
   → Server tạo Session (status=active), trả wsTicket
-  → GV connect WebSocket, WebRTC P2P với từng HS
+  → GV connect WebSocket + LiveKit room `session-{id}` (publish camera/mic)
 
 GV tạo câu hỏi + bấm "Phát câu hỏi"
   → POST /api/v1/sessions/:id/questions
@@ -101,7 +101,7 @@ GV bấm "Kết thúc buổi học"
 
 ```
 HS nhận [session_started] event qua WebSocket
-  → HS connect WebSocket + WebRTC
+  → HS connect WebSocket + LiveKit room `session-{id}`
   → Vào StudentSessionPage
 
 HS nhận [question_started] event
@@ -171,7 +171,7 @@ HS navigate /review/:sessionId
 | Session data retention | Vĩnh viễn (audit + review) |
 | Authentication | JWT access token (15 phút) + refresh token (30 ngày, httpOnly cookie) |
 | Authorization | Role-based: teacher / student / admin |
-| WebRTC media | Peer-to-peer (Mesh); Coturn TURN/STUN cho NAT traversal |
+| Video/Audio media | LiveKit SFU — client publish/subscribe track tới SFU; scale lớp 30 HS |
 
 ---
 
@@ -181,7 +181,7 @@ HS navigate /review/:sessionId
 |------|---------|
 | [02_Database_Design.md](02_Database_Design.md) | Schema 19 bảng, ERD, DDL, index strategy |
 | [03_API_Design.md](03_API_Design.md) | ~58 REST endpoints + WebSocket event contract |
-| [04_Realtime_Architecture.md](04_Realtime_Architecture.md) | Spring STOMP, Redis Pub/Sub, WebRTC signaling, Silent Detection |
+| [04_Realtime_Architecture.md](04_Realtime_Architecture.md) | Spring STOMP, Redis Pub/Sub, LiveKit SFU (media), Silent Detection |
 | [05_Auth_Authorization.md](05_Auth_Authorization.md) | JWT flow, Spring Security config, RBAC, WS Ticket |
 | [06_System_Architecture.md](06_System_Architecture.md) | Tech stack, folder structure, Docker Compose, app config |
 | [07_Best_Practices.md](07_Best_Practices.md) | Naming conventions, error handling, logging, API versioning |

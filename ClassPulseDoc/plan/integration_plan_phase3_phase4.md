@@ -672,9 +672,6 @@ export type WsEventType =
   | 'broadcast_message'
   | 'chat_message'
   | 'answer_aggregate'
-  | 'webrtc_offer'
-  | 'webrtc_answer'
-  | 'webrtc_ice_candidate'
   | 'teacher_joined_room'
   | 'teacher_left_room';
 
@@ -693,9 +690,6 @@ export interface SessionWsClient {
   sendRaiseHand: (raised: boolean) => void;
   sendFocus: (studentId: string | null) => void;
   sendHeartbeat: () => void;
-  sendWebRtcOffer: (targetId: string, sdp: string) => void;
-  sendWebRtcAnswer: (targetId: string, sdp: string) => void;
-  sendWebRtcIceCandidate: (targetId: string, candidate: RTCIceCandidate) => void;
   disconnect: () => void;
 }
 
@@ -720,7 +714,7 @@ export function createSessionWsClient(
         mainHandler?.(event);
       });
 
-      // Subscribe unicast (answer_aggregate, webrtc signals)
+      // Subscribe unicast (answer_aggregate)
       client.subscribe('/user/queue/private', (msg: IMessage) => {
         const event = JSON.parse(msg.body) as WsEvent;
         mainHandler?.(event);
@@ -797,27 +791,6 @@ export function createSessionWsClient(
       client.publish({
         destination: `/app/session/${sessionId}/heartbeat`,
         body: '{}',
-      });
-    },
-
-    sendWebRtcOffer(targetId, sdp) {
-      client.publish({
-        destination: `/app/session/${sessionId}/webrtc/offer`,
-        body: JSON.stringify({ targetId, sdp }),
-      });
-    },
-
-    sendWebRtcAnswer(targetId, sdp) {
-      client.publish({
-        destination: `/app/session/${sessionId}/webrtc/answer`,
-        body: JSON.stringify({ targetId, sdp }),
-      });
-    },
-
-    sendWebRtcIceCandidate(targetId, candidate) {
-      client.publish({
-        destination: `/app/session/${sessionId}/webrtc/ice-candidate`,
-        body: JSON.stringify({ targetId, candidate }),
       });
     },
 
