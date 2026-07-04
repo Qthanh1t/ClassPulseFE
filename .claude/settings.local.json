@@ -8,7 +8,9 @@
       "Bash(Get-ChildItem -Path . -Force)",
       "Bash(Select-Object Name, Mode)",
       "Bash(node *)",
-      "PowerShell(npm run *)"
+      "PowerShell(npm run *)",
+      "Read(//c/code/datn/classpulse/src/main/resources/db/migration//**)",
+      "Read(//c/code/datn/classpulse/**)"
     ]
   },
   "hooks": {

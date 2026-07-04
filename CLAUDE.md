@@ -10,6 +10,8 @@ Triết lý: **tối đa hóa tương tác hai chiều** — mọi kênh (video,
 
 **Core features** (tất cả xảy ra trong 1 phiên realtime): Classroom Management, Live Video (LiveKit SFU), Confidence-based Q&A (timer + auto-end), Silent Student Detection, Raise Hand, Live Chat, Dynamic Breakout Rooms, Focus Mode (Spotlight 1-1), Micro Task, Broadcast, Quick Actions, Teacher Dashboard, Student Session Review.
 
+**Tài liệu giải thích luồng end-to-end của mọi tính năng (FE ↔ BE, sự kiện WS, DB schema, Redis keys)**: `docs/TAI-LIEU-HE-THONG.md`.
+
 ## System architecture
 
 | Layer | Technology |
