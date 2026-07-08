@@ -265,7 +265,7 @@ Media plane chạy trên **LiveKit SFU** (scale lớp 30 HS). Migration mesh P2P
 - `src/hooks/useLiveKitRoom.ts` — adapter expose shape `peers: Map<id,{remoteStream,isCameraOff,isMuted,isScreenShare}>` (VideoTile render từ map này); tự sở hữu local media (camera/mic/screen-share); `connect(sessionId, roomName)` đổi room cho breakout. **`adaptiveStream/dynacast` đang TẮT** — chúng dựa vào `track.attach()` để biết track hiển thị, mà VideoTile gán `srcObject` thủ công → bật sẽ làm LiveKit dừng track "không ai xem" → tile đen. Bật lại sau khi chuyển VideoTile sang `track.attach()`
 - `identity = userId` → map participant ↔ presence STOMP (tên/màu avatar lấy từ presence, không nhồi token)
 - **Cách ly media theo phòng = LiveKit room name** (không phải WS): WS chỉ báo "vào phòng X" → client gọi `rtc.connect(sessionId, 'session-{id}-room-{roomId}')` cho breakout, kết thúc → `session-{id}`. Spotlight = chỉ đổi layout (`focus_changed` giữ nguyên, stream từ peers map). Screen share = track riêng LiveKit
-- **Còn lại (backend)**: relay handler các message `webrtc_*` + endpoint `/app/session/{id}/webrtc/*`, `/camera-state` ở backend chưa gỡ (không còn FE nào gọi — dead nhưng vô hại). Coturn/TURN (`turnserver.conf`) không còn cần cho LiveKit cùng-LAN (STUN đủ)
+- **Backend mesh đã gỡ**: `WebRtcSignalingController` (`/app/session/{id}/webrtc/*`) + `CameraStateWsController` (`/camera-state`) + DTO đã xóa (dead code sau khi chuyển LiveKit — xem Session authorization). Coturn/TURN (`turnserver.conf`) không còn cần cho LiveKit cùng-LAN (STUN đủ)
 
 ## Backend notes (`C:\code\datn\classpulse`)
 
@@ -279,13 +279,29 @@ Lưu `userName` + `userAvatarColor` vào WS session attributes → `PresenceEven
 `handleConnect` fires tại STOMP CONNECT, TRƯỚC khi server gửi CONNECTED frame → backend broadcast `student_presence` khi S2 chưa subscribe `/user/queue/private`. Frontend xử lý bằng `onConnected` callback.
 
 ### Classroom-level broadcast (`SessionBroadcastService` / `SessionController`)
-`broadcastToClassroom(classroomId, type, payload)` → `/topic/classroom/{classroomId}`. `SessionController.start()` phát `session_started`, `end()` phát `session_ended` (kèm `{classroomId, sessionId}`) — ngoài broadcast `session_ended` sẵn có tới `/topic/session/{id}` cho participant. `SessionEndResponse` có thêm field `classroomId` để controller phát được. `JwtChannelInterceptor` chỉ cần principal đã xác thực cho SUBSCRIBE, không giới hạn destination → không cần sửa security config. FE `ClassListPage` subscribe để cập nhật LIVE badge realtime thay polling.
+`broadcastToClassroom(classroomId, type, payload)` → `/topic/classroom/{classroomId}`. `SessionController.start()` phát `session_started`, `end()` phát `session_ended` (kèm `{classroomId, sessionId}`) — ngoài broadcast `session_ended` sẵn có tới `/topic/session/{id}` cho participant. `SessionEndResponse` có thêm field `classroomId` để controller phát được. FE `ClassListPage` subscribe `/topic/classroom/{id}` để cập nhật LIVE badge realtime thay polling — `JwtChannelInterceptor` gác SUBSCRIBE topic này bằng `classroomSecurity.isMember` (xem Session authorization).
 
 ### Breakout `teacherRoomId` (`BreakoutSession` / `BreakoutService`)
 Cột `teacher_room_id` (nullable, FK `breakout_rooms` ON DELETE SET NULL — migration `V13__breakout_teacher_room.sql`). `joinRoom` persist, `leaveRoom` clear (cả 2 đổi từ `readOnly=true` sang transactional ghi). `BreakoutSessionDto` trả `teacherRoomId` để FE khôi phục vị trí GV sau reload.
 
 ### Question — ẩn đáp án (`QuestionController` / `QuestionService` / `QuestionTimerService`)
 `OptionDto.isCorrect` đổi sang `Boolean` + `@JsonInclude(NON_NULL)`; `withoutCorrect()` trả bản null. `QuestionController.start` broadcast options đã strip; `list` sanitize khi `!sessionSecurity.isOwner`. `question_ended` (controller.end + timer auto-end + recover sau restart) gửi kèm `correctOptionIds` — `QuestionService.getCorrectOptionIds`; trong `QuestionTimerService.autoEndQuestion` đọc options bên trong `transactionTemplate` (lazy) rồi trả ra cho broadcast.
+
+### Session authorization (`SessionSecurityBean` / `ClassroomSecurityBean` / `JwtChannelInterceptor`)
+Bốn cấp độ (mỗi bean có 2 overload: nhận `Authentication` cho REST `@PreAuthorize`, nhận `UUID userId (+boolean isTeacher)` cho WS vì `StompPrincipal` không phải `Authentication`):
+- `isOwner` (teacher của phiên) · `isParticipant` (owner **hoặc** HS có presence row — read sau phiên: review, chat history, presence list, `getAnswers`) · `isClassroomMember` (owner/active-member của LỚP chứa phiên — resolve `classroomId` từ session rồi delegate `classroomSecurity.isMember`) · `isActiveParticipant` (owner **hoặc** HS có presence **và** `leftAt IS NULL` — gác live/write đang diễn ra).
+
+**REST gates (`@PreAuthorize`):**
+- `join` → `hasRole('STUDENT') and isClassroomMember` — chặn HS ngoài lớp tạo presence chỉ nhờ biết `sessionId`.
+- `livekit-token` → `isActiveParticipant` — cựu participant đã rời không mint token nhận media nữa.
+- `StudentAnswerController.submit` → `hasRole('STUDENT') and isActiveParticipant` — chặn HS ngoài phiên bơm đáp án làm nhiễu thống kê.
+- `StudentAnswerController.getAnswers` → `isParticipant` (trước là `isAuthenticated()` — bug: teacher lớp khác đọc hết đáp án). Owner thấy toàn bộ, HS thấy của mình (service tự lọc theo role).
+- Không siết thẳng `isParticipant` (giữ lỏng = presence tồn tại) vì review/chat cần HS đã-rời vẫn đọc được; và vì `join` đã đòi membership nên presence row chỉ sinh cho thành viên lớp thật → `isParticipant` tự hàm ý "thành viên hợp lệ".
+
+**WS gates:**
+- `JwtChannelInterceptor` gác **SUBSCRIBE** theo destination (regex): `/topic/session/{id}` + `.../room/{roomId}` → `isParticipant`; `/topic/classroom/{id}` → `classroomSecurity.isMember`. `/user/queue/private` do Spring route theo principal nên bỏ qua. Trước đây chỉ check "có principal" → ai biết UUID cũng nghe lén được. SEND vẫn để controller `@MessageMapping` tự check theo vai.
+- `FocusWsController` → thêm `isOwner` (chỉ GV sở hữu điều khiển spotlight). `RaiseHandWsController` → thêm `isActiveParticipant` (chỉ HS đang trong phiên). `ChatService.send` sẵn đã check owner/presence (mẫu đúng).
+- **Đã XÓA** `CameraStateWsController` + `WebRtcSignalingController` + DTO (`CameraStateRequest`/`WebRtcSdpRequest`/`WebRtcIceRequest`) — dead code mesh P2P sau khi chuyển LiveKit, relay không check quyền. Endpoint `/app/session/{id}/webrtc/*` + `/camera-state` không còn.
 
 ### CORS / allowed-origins (`SecurityConfig.java` + `WebSocketConfig.java`) — 403 REST & lỗi WS sau deploy
 Origin production phải nằm trong allowed-origins ở **CẢ HAI** chỗ, nếu không khớp đều vỡ:
